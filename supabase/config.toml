@@ -1,0 +1,4 @@
+project_id = "imobflux"
+
+[db.seed]
+enabled = false
