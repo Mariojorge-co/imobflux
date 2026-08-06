@@ -66,7 +66,7 @@ export async function getActiveAccessForAuthUser(
     authUserId,
     displayName: appUser.display_name,
     memberId: membership.id,
-    role: membership.role,
+    role: membership.role as "attendant" | "owner",
     workspaceId: workspace.id,
   };
 }

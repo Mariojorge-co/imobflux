@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(46);
+select plan(54);
 
 select ok(
     exists (
@@ -155,8 +155,8 @@ select is(
             'select'
         )
     ),
-    array['app_users', 'workspace_members', 'workspaces']::text[],
-    'service_role has SELECT on exactly the three authorized tables'
+    array['app_users', 'pipeline_stages', 'workspace_members', 'workspaces']::text[],
+    'service_role has SELECT on exactly the four authorized tables'
 );
 
 select is(
@@ -172,10 +172,11 @@ select is(
     array[
         'app_users',
         'audit_events',
+        'pipeline_stages',
         'workspace_members',
         'workspaces'
     ]::text[],
-    'service_role has INSERT on exactly the four authorized tables'
+    'service_role has INSERT on exactly the five authorized tables'
 );
 
 select is(
@@ -255,6 +256,7 @@ select is(
         where table_name not in (
             'app_users',
             'audit_events',
+            'pipeline_stages',
             'workspace_members',
             'workspaces'
         )
@@ -323,8 +325,8 @@ select is(
         where namespace_record.nspname = 'public'
           and procedure_record.prosecdef
     ),
-    5::bigint,
-    'only the five approved contact RPCs use SECURITY DEFINER in the public schema'
+    14::bigint,
+    'only the approved contact and WhatsApp RPCs use SECURITY DEFINER in the public schema'
 );
 
 select is(
@@ -621,6 +623,88 @@ select is(
     ),
     1::bigint,
     'successful bootstrap records one system audit event'
+);
+
+select is(
+    (
+        select count(*)
+        from public.pipeline_stages
+        where workspace_id = (select id from public.workspaces where name = 'Initial Workspace')
+    ),
+    5::bigint,
+    'initial bootstrap creates exactly 5 default pipeline stages'
+);
+
+select is(
+    (
+        select name
+        from public.pipeline_stages
+        where workspace_id = (select id from public.workspaces where name = 'Initial Workspace')
+          and position = 1
+    ),
+    'Novo lead',
+    'default stage 1 is Novo lead'
+);
+
+select is(
+    (
+        select name
+        from public.pipeline_stages
+        where workspace_id = (select id from public.workspaces where name = 'Initial Workspace')
+          and position = 2
+    ),
+    'Em atendimento',
+    'default stage 2 is Em atendimento'
+);
+
+select is(
+    (
+        select name
+        from public.pipeline_stages
+        where workspace_id = (select id from public.workspaces where name = 'Initial Workspace')
+          and position = 3
+    ),
+    'Em negociação',
+    'default stage 3 is Em negociação'
+);
+
+select is(
+    (
+        select name
+        from public.pipeline_stages
+        where workspace_id = (select id from public.workspaces where name = 'Initial Workspace')
+          and position = 4
+    ),
+    'Documentação',
+    'default stage 4 is Documentação'
+);
+
+select is(
+    (
+        select name
+        from public.pipeline_stages
+        where workspace_id = (select id from public.workspaces where name = 'Initial Workspace')
+          and position = 5
+    ),
+    'Fechamento',
+    'default stage 5 is Fechamento'
+);
+
+select is(
+    (
+        select count(*)
+        from public.pipeline_stages
+        where workspace_id = (select id from public.workspaces where name = 'Initial Workspace')
+          and is_active = true
+    ),
+    5::bigint,
+    'all 5 default stages are active'
+);
+
+select is(
+    public.provision_default_pipeline_stages((select id from public.workspaces where name = 'Initial Workspace')),
+    0,
+    're-running provision_default_pipeline_stages is idempotent and returns 0 without duplicating stages'
 );
 
 insert into auth.users (id, email)

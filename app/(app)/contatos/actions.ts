@@ -84,8 +84,8 @@ export async function createContactAction(
   const { data, error } = await supabase.rpc("create_contact", {
     p_classification: input.classification,
     p_display_name: input.displayName,
-    p_phone_display_value: input.phone?.displayValue ?? null,
-    p_phone_normalized: input.phone?.normalizedValue ?? null,
+    p_phone_display_value: input.phone?.displayValue ?? undefined,
+    p_phone_normalized: input.phone?.normalizedValue ?? undefined,
   });
 
   if (error || !data) {
@@ -123,8 +123,8 @@ export async function updateContactAction(
     p_classification: input.classification,
     p_contact_id: contactId,
     p_display_name: input.displayName,
-    p_phone_display_value: input.phone?.displayValue ?? null,
-    p_phone_normalized: input.phone?.normalizedValue ?? null,
+    p_phone_display_value: input.phone?.displayValue ?? undefined,
+    p_phone_normalized: input.phone?.normalizedValue ?? undefined,
   });
 
   if (error || !data) {

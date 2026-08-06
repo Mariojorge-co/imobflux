@@ -80,3 +80,22 @@ inativar/reativar, arquivar e restaurar. Elas usam RPCs transacionais auditadas;
 não há escrita direta nas tabelas, hard delete nem alteração de privacidade.
 Outros módulos continuam somente leitura. Integração com WhatsApp e as demais
 funcionalidades de negócio permanecem adiadas.
+
+## Arquitetura da documentação
+
+A documentação do repositório é organizada como uma **Single Source of Truth (SOT)** para garantir clareza e evitar duplicações de contexto:
+
+- **[docs/STATUS_PROJETO.md](file:///C:/Users/User/Desktop/PROJETOS/CRM%20Corretor/docs/STATUS_PROJETO.md)**: Estado atual único da aplicação (funcionalidades, banco, testes, dívidas).
+- **[docs/ROADMAP.md](file:///C:/Users/User/Desktop/PROJETOS/CRM%20Corretor/docs/ROADMAP.md)**: Planejamento futuro das próximas sprints e fases do sistema.
+- **[docs/ARQUITETURA.md](file:///C:/Users/User/Desktop/PROJETOS/CRM%20Corretor/docs/ARQUITETURA.md)**: Diretrizes técnicas, convenções de código, padrões de componentes e banco.
+- **[docs/DOCUMENTATION_POLICY.md](file:///C:/Users/User/Desktop/PROJETOS/CRM%20Corretor/docs/DOCUMENTATION_POLICY.md)**: Política permanente de manutenção da documentação.
+- **[HANDOFF.md](file:///C:/Users/User/Desktop/PROJETOS/CRM%20Corretor/HANDOFF.md)**: Guia de transição e onboarding operacional rápido para desenvolvedores.
+- **[docs/DECISOES.md](file:///C:/Users/User/Desktop/PROJETOS/CRM%20Corretor/docs/DECISOES.md)**: Registro histórico de decisões arquiteturais técnicas (ADRs).
+- **[docs/sprints/](file:///C:/Users/User/Desktop/PROJETOS/CRM%20Corretor/docs/sprints/)**: Histórico imutável de cada sprint concluída (ex: `SPRINT_15.md`, `SPRINT_16.md`).
+- **[docs/AUDITORIA_TECNICA.md](file:///C:/Users/User/Desktop/PROJETOS/CRM%20Corretor/docs/AUDITORIA_TECNICA.md)**: Relatórios formais de auditoria técnica pré e pós-sprint.
+- **[docs/SCHEMA_POSTGRESQL.md](file:///C:/Users/User/Desktop/PROJETOS/CRM%20Corretor/docs/SCHEMA_POSTGRESQL.md)**: Documentação física do schema do banco PostgreSQL.
+- **[docs/MODELO_LOGICO_BANCO.md](file:///C:/Users/User/Desktop/PROJETOS/CRM%20Corretor/docs/MODELO_LOGICO_BANCO.md)**: Especificação lógica e relacionamentos das tabelas.
+- **[docs/MODELO_DOMINIO.md](file:///C:/Users/User/Desktop/PROJETOS/CRM%20Corretor/docs/MODELO_DOMINIO.md)**: Conceitos, regras de negócio e limites do CRM imobiliário.
+- **[docs/FLUXOS_NEGOCIO.md](file:///C:/Users/User/Desktop/PROJETOS/CRM%20Corretor/docs/FLUXOS_NEGOCIO.md)**: Mapeamento dos processos e jornada comercial do corretor.
+- **[docs/MATRIZ_PERMISSOES.md](file:///C:/Users/User/Desktop/PROJETOS/CRM%20Corretor/docs/MATRIZ_PERMISSOES.md)**: Matriz de permissões, perfis (roles) e RLS.
+

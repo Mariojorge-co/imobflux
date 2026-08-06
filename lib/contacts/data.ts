@@ -156,11 +156,11 @@ export async function getContacts(
         ? { phoneDisplayValue: phonesByContact.get(contact.id)?.[0] ?? null }
         : { phoneDisplayValue: null }),
       archivedAt: contact.archived_at,
-      classification: contact.classification,
+      classification: contact.classification as ContactClassification,
       displayName: contact.display_name,
       hasMultipleActivePhones: (phonesByContact.get(contact.id)?.length ?? 0) > 1,
       id: contact.id,
-      operationalStatus: contact.operational_status,
+      operationalStatus: contact.operational_status as ContactOperationalStatus,
     })),
     page: filters.page,
     total: count ?? 0,

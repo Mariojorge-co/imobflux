@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(72);
+select plan(74);
 
 select has_table('public', 'app_users', 'app_users exists');
 select has_table('public', 'workspaces', 'workspaces exists');
@@ -195,6 +195,51 @@ select ok(
     ),
     'auth_user_id has an explicit partial unique index for non-null values'
 );
+
+select ok(
+    exists (
+        select 1
+        from pg_catalog.pg_index as index_record
+        join pg_catalog.pg_class as index_class
+          on index_class.oid = index_record.indexrelid
+        join pg_catalog.pg_class as table_class
+          on table_class.oid = index_record.indrelid
+        join pg_catalog.pg_namespace as namespace_record
+          on namespace_record.oid = table_class.relnamespace
+        where namespace_record.nspname = 'public'
+          and table_class.relname = 'messages'
+          and index_class.relname = 'idx_messages_sender_contact_point'
+          and index_record.indpred is not null
+          and pg_catalog.pg_get_expr(
+                index_record.indpred,
+                index_record.indrelid
+              ) ilike '%sender_contact_point_id IS NOT NULL%'
+    ),
+    'messages has an explicit partial index for sender_contact_point_id'
+);
+
+select ok(
+    exists (
+        select 1
+        from pg_catalog.pg_index as index_record
+        join pg_catalog.pg_class as index_class
+          on index_class.oid = index_record.indexrelid
+        join pg_catalog.pg_class as table_class
+          on table_class.oid = index_record.indrelid
+        join pg_catalog.pg_namespace as namespace_record
+          on namespace_record.oid = table_class.relnamespace
+        where namespace_record.nspname = 'public'
+          and table_class.relname = 'messages'
+          and index_class.relname = 'idx_messages_internal_author'
+          and index_record.indpred is not null
+          and pg_catalog.pg_get_expr(
+                index_record.indpred,
+                index_record.indrelid
+              ) ilike '%internal_author_member_id IS NOT NULL%'
+    ),
+    'messages has an explicit partial index for internal_author_member_id'
+);
+
 
 select is(
     (

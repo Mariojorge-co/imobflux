@@ -456,3 +456,28 @@ Data: 30 de julho de 2026.
   telefone normalizado e filtros por classificação, estado operacional e
   arquivamento. Não foi acrescentado índice trigram, coluna de telefone
   principal nem alteração especulativa no modelo.
+
+## Padrões Arquiteturais e Decisões de Sistema (ADRs)
+
+### 1. RPCs de Leitura com `SECURITY INVOKER` e RLS
+- **Decisão**: Toda RPC de leitura agregada (como `get_prioridades_dashboard` e `get_conversations_list`) deve ser criada com `SECURITY INVOKER` e sem parâmetro `workspace_id`.
+- **Racional**: A execução ocorre no contexto de privilégios do usuário autenticado chamador, deixando o isolamento de tenant 100% a cargo das políticas de RLS ativas nas tabelas de domínio subjacentes.
+
+### 2. Paginação por Cursor Estável para Listas de Atividade
+- **Decisão**: Telas com atividade contínua e ordenação por data (como a lista de conversas) devem utilizar paginação por cursor estável `(timestamp_coluna DESC, id_coluna DESC)` em vez de `OFFSET`.
+- **Racional**: O uso de `OFFSET` causa duplicação ou omissão de registros quando novas mensagens chegam durante a navegação do usuário. O cursor estável garante previsibilidade e integridade do lote.
+
+### 3. Separação Estrita entre Funções Server-Only e Server Actions
+- **Decisão**: Funções de consulta de dados para Server Components devem ser mantidas em arquivos `server-only` (`lib/<domain>/data.ts`). As Server Actions (`"use server"` em `lib/<domain>/actions.ts`) destinam-se exclusivamente a submissões de formulário e chamadas assíncronas disparadas por Client Components.
+- **Racional**: Evita expor endpoints de leitura desnecessários como Server Actions acessíveis publicamente e mantém a separação clara de responsabilidades entre RSC e cliente.
+
+### 4. Governança da Documentação como Single Source of Truth (SOT)
+- **Decisão**: Foi instituída a política permanente de governança documental ([docs/DOCUMENTATION_POLICY.md](file:///C:/Users/User/Desktop/PROJETOS/CRM%20Corretor/docs/DOCUMENTATION_POLICY.md)).
+- **Racional**: O arquivo `STATUS_PROJETO.md` centraliza o estado vivo atual do repositório, `ROADMAP.md` isola o planejamento futuro, `ARQUITETURA.md` define os padrões do sistema, e a pasta `docs/sprints/` preserva o histórico imutável por sprint, eliminando a duplicação de informações e divergências de contexto.
+
+### 5. Índices Parciais para Atributos de Remetente de Mensagem (`messages`)
+- **Decisão**: Índices para chaves estrangeiras de remetente na tabela `messages` (`sender_contact_point_id` e `internal_author_member_id`) devem ser criados com predicados parciais `WHERE coluna IS NOT NULL`.
+- **Racional**: Como mensagens recebidas e enviadas populam colunas de remetente distintas, o índice parcial evita a indexação de valores nulos, reduzindo o consumo de armazenamento no disco e mantendo a escrita otimizada.
+
+
+

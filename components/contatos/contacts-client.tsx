@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Archive, Pencil, Plus, RotateCcw, UserRound } from "lucide-react";
 import {
   useActionState,
@@ -8,6 +9,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useTransition,
 } from "react";
 import { useFormStatus } from "react-dom";
 import {
@@ -27,6 +29,7 @@ import {
   Select,
   StatusChip,
 } from "@/components/ui";
+import { classNames } from "@/lib/class-names";
 import type {
   ContactActionState,
   ContactClassification,
@@ -223,7 +226,7 @@ function ContactActions({
   );
 
   return (
-    <div className="flex flex-wrap items-center justify-end gap-inline">
+    <div className="flex flex-wrap items-center justify-start gap-1.5 sm:justify-end w-full">
       {contact.archivedAt ? (
         <form action={lifecycleAction} onSubmit={onLifecycleStart}>
           <input name="_lifecycleOperation" type="hidden" value="restore" />
@@ -360,6 +363,20 @@ export function ContactsClient({
   page,
   total,
 }: ContactsClientProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [isPending, startTransition] = useTransition();
+
+  const [prevQuery, setPrevQuery] = useState(filters.query);
+  const [searchQuery, setSearchQuery] = useState(filters.query);
+  const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  if (prevQuery !== filters.query) {
+    setPrevQuery(filters.query);
+    setSearchQuery(filters.query);
+  }
+
   const [selectedContact, setSelectedContact] = useState<ContactListItem | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [feedback, setFeedback] = useState("");
@@ -373,6 +390,94 @@ export function ContactsClient({
   const hasFilters = Boolean(
     filters.query || filters.classification || filters.status || filters.archived,
   );
+
+  const updateFilterParams = useCallback(
+    (updated: Partial<{ archived: string; classification: string; query: string; status: string }>) => {
+      const params = new URLSearchParams(searchParams.toString());
+
+      if ("query" in updated) {
+        if (updated.query && updated.query.trim()) {
+          params.set("q", updated.query.trim());
+        } else {
+          params.delete("q");
+        }
+      }
+
+      if ("classification" in updated) {
+        if (updated.classification) {
+          params.set("classification", updated.classification);
+        } else {
+          params.delete("classification");
+        }
+      }
+
+      if ("status" in updated) {
+        if (updated.status) {
+          params.set("status", updated.status);
+        } else {
+          params.delete("status");
+        }
+      }
+
+      if ("archived" in updated) {
+        if (updated.archived === "true") {
+          params.set("archived", "true");
+        } else {
+          params.delete("archived");
+        }
+      }
+
+      params.delete("page");
+
+      const queryStr = params.toString();
+      const targetUrl = queryStr ? `${pathname}?${queryStr}` : pathname;
+
+      startTransition(() => {
+        router.replace(targetUrl, { scroll: false });
+      });
+    },
+    [pathname, router, searchParams],
+  );
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setSearchQuery(val);
+
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
+
+    searchDebounceRef.current = setTimeout(() => {
+      updateFilterParams({ query: val });
+    }, 350);
+  };
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+      }
+      updateFilterParams({ query: searchQuery });
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+      }
+      setSearchQuery("");
+      updateFilterParams({ query: "" });
+    }
+  };
+
+  const handleClearFilters = () => {
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
+    setSearchQuery("");
+    startTransition(() => {
+      router.replace(pathname, { scroll: false });
+    });
+  };
 
   function openForm(contact: ContactListItem | null, trigger: HTMLElement) {
     triggerRef.current = trigger;
@@ -410,138 +515,183 @@ export function ContactsClient({
       ? feedback
       : "";
 
+  useEffect(() => {
+    if (displayFeedback) {
+      const timer = setTimeout(() => {
+        setFeedback("");
+        setFeedbackSource(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [displayFeedback]);
+
   return (
     <div className="space-y-section">
       <div aria-live="polite" className="sr-only">
         {displayFeedback}
       </div>
       {displayFeedback ? (
-        <p className="rounded-control bg-success-soft px-control-x py-control-y text-body text-success" role="status">
-          {displayFeedback}
-        </p>
+        <div
+          className="flex items-center justify-between rounded-control border border-success-border bg-success-soft px-control-x py-control-y text-body font-medium text-success shadow-xs"
+          role="status"
+        >
+          <span>{displayFeedback}</span>
+          <button
+            aria-label="Fechar mensagem"
+            className="ml-inline text-caption font-bold text-success hover:text-success/80"
+            onClick={() => {
+              setFeedback("");
+              setFeedbackSource(null);
+            }}
+            type="button"
+          >
+            ✕
+          </button>
+        </div>
       ) : null}
 
       <div className="flex flex-wrap items-end justify-between gap-stack">
-        <form className="grid flex-1 gap-inline sm:grid-cols-2 lg:grid-cols-4" method="get">
+        <div className="grid flex-1 gap-inline sm:grid-cols-2 lg:grid-cols-4">
           <SearchInput
-            defaultValue={filters.query}
             label="Buscar por nome ou telefone"
-            name="q"
+            onChange={handleSearchChange}
+            onKeyDown={handleSearchKeyDown}
             placeholder="Nome ou telefone"
+            value={searchQuery}
           />
-          <Select aria-label="Filtrar por classificação" defaultValue={filters.classification ?? ""} name="classification">
+          <Select
+            aria-label="Filtrar por classificação"
+            onChange={(e) => updateFilterParams({ classification: e.target.value })}
+            value={filters.classification ?? ""}
+          >
             <option value="">Todas as classificações</option>
             <option value="lead">Lead</option>
             <option value="person">Pessoa</option>
             <option value="client">Cliente</option>
           </Select>
-          <Select aria-label="Filtrar por status" defaultValue={filters.status ?? ""} name="status">
+          <Select
+            aria-label="Filtrar por status"
+            onChange={(e) => updateFilterParams({ status: e.target.value })}
+            value={filters.status ?? ""}
+          >
             <option value="">Todos os status</option>
             <option value="active">Ativos</option>
             <option value="inactive">Inativos</option>
           </Select>
-          <Select aria-label="Filtrar por arquivamento" defaultValue={filters.archived ? "true" : "false"} name="archived">
+          <Select
+            aria-label="Filtrar por arquivamento"
+            onChange={(e) => updateFilterParams({ archived: e.target.value })}
+            value={filters.archived ? "true" : "false"}
+          >
             <option value="false">Não arquivados</option>
             <option value="true">Arquivados</option>
           </Select>
-          <div className="flex gap-inline sm:col-span-2 lg:col-span-4">
-            <Button type="submit" variant="secondary">Aplicar filtros</Button>
-            {hasFilters ? (
-              <Link
-                className="inline-flex items-center justify-center rounded-control border border-transparent px-control-x py-control-y text-body font-medium text-text-muted hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-                href="/contatos"
+          {hasFilters ? (
+            <div className="flex items-center sm:col-span-2 lg:col-span-4">
+              <Button
+                onClick={handleClearFilters}
+                type="button"
+                variant="ghost"
               >
                 Limpar filtros
-              </Link>
-            ) : null}
-          </div>
-        </form>
+              </Button>
+            </div>
+          ) : null}
+        </div>
         <Button onClick={(event) => openForm(null, event.currentTarget)}>
           <Plus aria-hidden="true" size={18} />
           Novo contato
         </Button>
       </div>
 
-      {contacts.length === 0 ? (
-        <EmptyState
-          action={
-            hasFilters ? (
-              <Link className="text-body font-medium text-primary hover:text-primary-hover" href="/contatos">
-                Limpar filtros
-              </Link>
-            ) : (
-              <Button onClick={(event) => openForm(null, event.currentTarget)}>
-                Novo contato
-              </Button>
-            )
-          }
-          description={
-            hasFilters
-              ? "Nenhum contato corresponde à busca ou aos filtros aplicados."
-              : "Cadastre o primeiro contato para começar a organizar sua carteira."
-          }
-          icon={UserRound}
-          title={hasFilters ? "Nenhum resultado encontrado" : "Nenhum contato cadastrado"}
-        />
-      ) : (
-        <>
-          <Card className="hidden overflow-x-auto p-0 md:block">
-            <table className="w-full border-collapse text-left text-body">
-              <thead className="border-b border-border bg-neutral-soft text-caption font-medium text-text-muted">
-                <tr>
-                  <th className="px-card py-stack">Contato</th>
-                  <th className="px-card py-stack">Classificação</th>
-                  <th className="px-card py-stack">Status</th>
-                  <th className="px-card py-stack text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {contacts.map((contact) => (
-                  <tr key={contact.id}>
-                    <td className="px-card py-stack"><ContactDetails contact={contact} /></td>
-                    <td className="px-card py-stack"><Badge tone="info">{classificationLabels[contact.classification]}</Badge></td>
-                    <td className="px-card py-stack"><ContactStatus contact={contact} /></td>
-                    <td className="px-card py-stack">
-                      <ContactActions
-                        contact={contact}
-                        lifecycleAction={lifecycleAction}
-                        lifecycleState={lifecycleState}
-                        onEdit={openForm}
-                        onFeedback={handleFeedback}
-                        onGeneralStart={handleGeneralStart}
-                        onLifecycleStart={handleLifecycleStart}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
-
-          <div className="space-y-inline md:hidden">
-            {contacts.map((contact) => (
-              <Card className="space-y-stack" key={contact.id}>
-                <div className="flex flex-wrap items-start justify-between gap-inline">
-                  <ContactDetails contact={contact} />
-                  <div className="flex flex-wrap items-center gap-inline">
-                    <Badge tone="info">{classificationLabels[contact.classification]}</Badge>
-                    <ContactStatus contact={contact} />
-                  </div>
-                </div>
-                <ContactActions
-                  contact={contact}
-                  lifecycleAction={lifecycleAction}
-                  lifecycleState={lifecycleState}
-                  onEdit={openForm}
-                  onFeedback={handleFeedback}
-                  onGeneralStart={handleGeneralStart}
-                  onLifecycleStart={handleLifecycleStart}
-                />
-              </Card>
-            ))}
+      <div className={classNames("relative space-y-stack transition-opacity duration-150", isPending && "opacity-60 pointer-events-none")}>
+        {isPending ? (
+          <div className="absolute -top-3 left-0 right-0 z-10 h-1 w-full overflow-hidden rounded-full bg-neutral-soft">
+            <div className="h-full w-1/3 animate-pulse bg-primary" />
           </div>
-        </>
-      )}
+        ) : null}
+
+        {contacts.length === 0 ? (
+          <EmptyState
+            action={
+              hasFilters ? (
+                <Button onClick={handleClearFilters} variant="ghost">
+                  Limpar filtros
+                </Button>
+              ) : (
+                <Button onClick={(event) => openForm(null, event.currentTarget)}>
+                  Novo contato
+                </Button>
+              )
+            }
+            description={
+              hasFilters
+                ? "Nenhum contato corresponde à busca ou aos filtros aplicados."
+                : "Cadastre o primeiro contato para começar a organizar sua carteira."
+            }
+            icon={UserRound}
+            title={hasFilters ? "Nenhum resultado encontrado" : "Nenhum contato cadastrado"}
+          />
+        ) : (
+          <>
+            <Card className="hidden overflow-x-auto p-0 md:block">
+              <table className="w-full border-collapse text-left text-body">
+                <thead className="border-b border-border bg-neutral-soft text-caption font-medium text-text-muted">
+                  <tr>
+                    <th className="px-card py-stack">Contato</th>
+                    <th className="px-card py-stack">Classificação</th>
+                    <th className="px-card py-stack">Status</th>
+                    <th className="px-card py-stack text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {contacts.map((contact) => (
+                    <tr key={contact.id}>
+                      <td className="px-card py-stack"><ContactDetails contact={contact} /></td>
+                      <td className="px-card py-stack"><Badge tone="info">{classificationLabels[contact.classification]}</Badge></td>
+                      <td className="px-card py-stack"><ContactStatus contact={contact} /></td>
+                      <td className="px-card py-stack">
+                        <ContactActions
+                          contact={contact}
+                          lifecycleAction={lifecycleAction}
+                          lifecycleState={lifecycleState}
+                          onEdit={openForm}
+                          onFeedback={handleFeedback}
+                          onGeneralStart={handleGeneralStart}
+                          onLifecycleStart={handleLifecycleStart}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
+
+            <div className="space-y-inline md:hidden">
+              {contacts.map((contact) => (
+                <Card className="space-y-stack" key={contact.id}>
+                  <div className="flex flex-wrap items-start justify-between gap-inline">
+                    <ContactDetails contact={contact} />
+                    <div className="flex flex-wrap items-center gap-inline">
+                      <Badge tone="info">{classificationLabels[contact.classification]}</Badge>
+                      <ContactStatus contact={contact} />
+                    </div>
+                  </div>
+                  <ContactActions
+                    contact={contact}
+                    lifecycleAction={lifecycleAction}
+                    lifecycleState={lifecycleState}
+                    onEdit={openForm}
+                    onFeedback={handleFeedback}
+                    onGeneralStart={handleGeneralStart}
+                    onLifecycleStart={handleLifecycleStart}
+                  />
+                </Card>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
 
       {total > 0 ? (
         <nav aria-label="Paginação de contatos" className="flex items-center justify-between gap-stack">

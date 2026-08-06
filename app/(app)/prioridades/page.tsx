@@ -1,9 +1,9 @@
 import type { LucideIcon } from "lucide-react";
 import {
-  CalendarClock,
   Clock3,
-  MessageCircle,
   TriangleAlert,
+  UserRoundX,
+  UserPlus,
 } from "lucide-react";
 import {
   Card,
@@ -16,97 +16,147 @@ import {
   PriorityClientItem,
   SummaryCard,
 } from "@/components/prioridades";
-import {
-  priorityClients,
-  prioritySummary,
-  staleClients,
-  todayFollowUps,
-} from "@/lib/prioridades-data";
+import { requireActiveAccess } from "@/lib/auth/dal";
+import { getPrioridadesDashboard } from "@/lib/prioridades/data";
 import type { PrioritySummaryId } from "@/types/prioridades";
 
 const summaryIcons = {
-  "waiting-response": MessageCircle,
-  "today-follow-ups": CalendarClock,
-  "stale-clients": Clock3,
-  "at-risk": TriangleAlert,
+  "pending-qualification": TriangleAlert,
+  "without-phone": UserRoundX,
+  "stale-leads": Clock3,
+  "new-contacts": UserPlus,
 } satisfies Record<PrioritySummaryId, LucideIcon>;
 
-const [featuredSummary, ...remainingSummary] = prioritySummary;
+export default async function PrioridadesPage() {
+  await requireActiveAccess(); // O workspace_id é definido no nível do PostgreSQL pela sessão
+  const data = await getPrioridadesDashboard();
 
-export default function PrioridadesPage() {
   return (
     <PageContainer>
       <PageHeader
-        description="Veja quem precisa da sua atenção e qual deve ser a próxima ação."
+        description="Veja quem precisa da sua atenção (Nota: um mesmo contato pode aparecer em múltiplas categorias)."
         title="Prioridades"
       />
 
       <section aria-labelledby="resumo-do-dia" className="space-y-stack">
-        <SectionTitle id="resumo-do-dia">Resumo do dia</SectionTitle>
-        <div className="grid gap-stack xl:grid-cols-[minmax(17rem,1.35fr)_minmax(0,3fr)]">
+        <SectionTitle id="resumo-do-dia">Pendências objetivas</SectionTitle>
+        <div className="grid gap-stack sm:grid-cols-2 xl:grid-cols-4">
           <SummaryCard
-            context={featuredSummary.context}
-            featured
-            icon={summaryIcons[featuredSummary.id]}
-            title={featuredSummary.title}
-            value={featuredSummary.value}
+            context="Aguardando qualificação inicial"
+            icon={summaryIcons["pending-qualification"]}
+            title="Pendentes de qualificação"
+            value={data.pending_qualification.count}
           />
-          <div className="grid grid-cols-2 gap-stack lg:grid-cols-3">
-            {remainingSummary.map((item) => (
-              <SummaryCard
-                className="last:col-span-2 lg:last:col-span-1"
-                context={item.context}
-                icon={summaryIcons[item.id]}
-                key={item.id}
-                title={item.title}
-                value={item.value}
-              />
-            ))}
-          </div>
+          <SummaryCard
+            context="Sem meio de contato rápido"
+            icon={summaryIcons["without-phone"]}
+            title="Sem telefone"
+            value={data.without_phone.count}
+          />
+          <SummaryCard
+            context="Cadastro sem revisão há > 15 dias"
+            icon={summaryIcons["stale-leads"]}
+            title="Leads sem revisão recente"
+            value={data.stale_leads.count}
+          />
+          <SummaryCard
+            context="Criados nos últimos 7 dias"
+            icon={summaryIcons["new-contacts"]}
+            title="Novos nos últimos 7 dias"
+            value={data.new_contacts.count}
+          />
         </div>
       </section>
 
       <section
-        aria-labelledby="precisam-de-atencao"
+        aria-labelledby="sem-telefone"
         className="space-y-stack"
       >
-        <SectionTitle id="precisam-de-atencao">
-          Precisam de atenção agora
+        <SectionTitle id="sem-telefone">
+          Sem telefone cadastrado
         </SectionTitle>
-        <Card className="divide-y divide-border overflow-hidden" padding="none">
-          {priorityClients.map((client) => (
-            <PriorityClientItem client={client} key={client.id} />
-          ))}
-        </Card>
+        {data.without_phone.items.length === 0 ? (
+          <p className="text-body text-text-muted">Nenhuma pendência encontrada.</p>
+        ) : (
+          <Card className="divide-y divide-border overflow-hidden" padding="none">
+            {data.without_phone.items.map((client) => (
+              <PriorityClientItem 
+                client={client} 
+                key={client.id} 
+                labelOverride="Cadastro sem revisão desde" 
+              />
+            ))}
+          </Card>
+        )}
+      </section>
+
+      <section
+        aria-labelledby="pendentes-qualificacao"
+        className="space-y-stack"
+      >
+        <SectionTitle id="pendentes-qualificacao">
+          Pendentes de qualificação
+        </SectionTitle>
+        {data.pending_qualification.items.length === 0 ? (
+          <p className="text-body text-text-muted">Nenhuma pendência encontrada.</p>
+        ) : (
+          <Card className="divide-y divide-border overflow-hidden" padding="none">
+            {data.pending_qualification.items.map((client) => (
+              <PriorityClientItem 
+                client={client} 
+                key={client.id} 
+                labelOverride="Aguardando desde"
+                useCreatedAt 
+              />
+            ))}
+          </Card>
+        )}
       </section>
 
       <div className="grid gap-section lg:grid-cols-2">
-        <section aria-labelledby="follow-ups-de-hoje" className="space-y-stack">
-          <SectionTitle id="follow-ups-de-hoje">
-            Follow-ups de hoje
+        <section aria-labelledby="leads-sem-revisao" className="space-y-stack">
+          <SectionTitle id="leads-sem-revisao">
+            Leads sem revisão recente
           </SectionTitle>
-          <Card
-            className="divide-y divide-border overflow-hidden"
-            padding="none"
-          >
-            {todayFollowUps.map((client) => (
-              <CompactClientItem client={client} key={client.id} />
-            ))}
-          </Card>
+          {data.stale_leads.items.length === 0 ? (
+            <p className="text-body text-text-muted">Nenhuma pendência encontrada.</p>
+          ) : (
+            <Card
+              className="divide-y divide-border overflow-hidden"
+              padding="none"
+            >
+              {data.stale_leads.items.map((client) => (
+                <CompactClientItem 
+                  client={client} 
+                  key={client.id} 
+                  labelOverride="Cadastro estagnado desde"
+                />
+              ))}
+            </Card>
+          )}
         </section>
 
-        <section aria-labelledby="sem-contato-recente" className="space-y-stack">
-          <SectionTitle id="sem-contato-recente">
-            Sem contato recente
+        <section aria-labelledby="novos-contatos" className="space-y-stack">
+          <SectionTitle id="novos-contatos">
+            Novos nos últimos 7 dias
           </SectionTitle>
-          <Card
-            className="divide-y divide-border overflow-hidden"
-            padding="none"
-          >
-            {staleClients.map((client) => (
-              <CompactClientItem client={client} key={client.id} />
-            ))}
-          </Card>
+          {data.new_contacts.items.length === 0 ? (
+            <p className="text-body text-text-muted">Nenhuma pendência encontrada.</p>
+          ) : (
+            <Card
+              className="divide-y divide-border overflow-hidden"
+              padding="none"
+            >
+              {data.new_contacts.items.map((client) => (
+                <CompactClientItem 
+                  client={client} 
+                  key={client.id}
+                  labelOverride="Criado"
+                  useCreatedAt
+                />
+              ))}
+            </Card>
+          )}
         </section>
       </div>
     </PageContainer>

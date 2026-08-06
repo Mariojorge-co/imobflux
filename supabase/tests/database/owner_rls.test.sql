@@ -249,8 +249,8 @@ select is(
             'select'
         )
     ),
-    array['app_users', 'workspace_members', 'workspaces']::text[],
-    'service_role retains exactly the three approved SELECT privileges'
+    array['app_users', 'pipeline_stages', 'workspace_members', 'workspaces']::text[],
+    'service_role retains exactly the four approved SELECT privileges'
 );
 
 select is(
@@ -266,10 +266,11 @@ select is(
     array[
         'app_users',
         'audit_events',
+        'pipeline_stages',
         'workspace_members',
         'workspaces'
     ]::text[],
-    'service_role retains exactly the four approved INSERT privileges'
+    'service_role retains exactly the five approved INSERT privileges'
 );
 
 select is(
@@ -491,8 +492,8 @@ select is(
         where schema_record.nspname in ('public', 'private')
           and function_record.prosecdef
     ),
-    6::bigint,
-    'only the owner context and five approved contact operations use SECURITY DEFINER'
+    15::bigint,
+    'only the owner context and approved domain operations use SECURITY DEFINER'
 );
 
 select ok(

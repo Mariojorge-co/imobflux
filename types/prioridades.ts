@@ -1,56 +1,29 @@
-export type UrgencyLevel = "medium" | "high" | "critical";
+import type { ContactClassification } from "./contacts";
 
-export type LeadChannel =
-  | "WhatsApp"
-  | "Portal imobiliário"
-  | "Indicação"
-  | "Instagram"
-  | "Site";
-
-export type NextAction =
-  | "Responder mensagem"
-  | "Solicitar documentação"
-  | "Retomar contato"
-  | "Confirmar interesse"
-  | "Enviar simulação"
-  | "Agendar atendimento";
-
-export type PriorityClientStatus =
-  | "new"
-  | "waiting"
-  | "documentation"
-  | "follow-up"
-  | "at-risk";
-
-export type ClientSummary = {
-  channel: LeadChannel;
-  context: string;
+export type PriorityClient = {
+  classification: ContactClassification;
+  created_at: string;
+  display_name: string;
   id: string;
-  name: string;
-};
-
-export type PriorityClient = ClientSummary & {
-  nextAction: NextAction;
-  status: PriorityClientStatus;
-  urgency: UrgencyLevel;
-  waitingTime: string;
-};
-
-export type CompactPriorityClient = ClientSummary & {
-  nextAction: NextAction;
-  timingLabel: string;
-  urgency: UrgencyLevel;
+  updated_at: string;
 };
 
 export type PrioritySummaryId =
-  | "waiting-response"
-  | "today-follow-ups"
-  | "stale-clients"
-  | "at-risk";
+  | "pending-qualification"
+  | "without-phone"
+  | "stale-leads"
+  | "new-contacts";
 
 export type PrioritySummaryItem = {
   context: string;
   id: PrioritySummaryId;
   title: string;
   value: number;
+};
+
+export type PrioridadesDashboardResult = {
+  new_contacts: { count: number; items: PriorityClient[] };
+  pending_qualification: { count: number; items: PriorityClient[] };
+  stale_leads: { count: number; items: PriorityClient[] };
+  without_phone: { count: number; items: PriorityClient[] };
 };

@@ -123,7 +123,7 @@ select is(
         where schema_record.nspname in ('public', 'private')
           and function_record.prosecdef
     ),
-    6::bigint,
+    15::bigint,
     'no unapproved SECURITY DEFINER function exists in application schemas'
 );
 

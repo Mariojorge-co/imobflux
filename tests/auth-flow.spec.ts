@@ -309,11 +309,9 @@ test.describe.serial("local authentication flow", () => {
     const table = page.getByRole("table");
 
     await page.getByLabel("Buscar por nome ou telefone").fill("Playwright");
-    await page.getByRole("button", { name: "Aplicar filtros" }).click();
     await expect(table.getByText("Contato Playwright")).toBeVisible();
 
     await page.getByLabel("Buscar por nome ou telefone").fill("+55 (82) 99999-1234");
-    await page.getByRole("button", { name: "Aplicar filtros" }).click();
     await expect(table.getByText("Contato Playwright")).toBeVisible();
   });
 
@@ -370,7 +368,6 @@ test.describe.serial("local authentication flow", () => {
     await expect(table.getByText("Contato Playwright Atualizado")).not.toBeVisible();
 
     await page.getByLabel("Filtrar por arquivamento").selectOption("true");
-    await page.getByRole("button", { name: "Aplicar filtros" }).click();
     await expect(table.getByText("Contato Playwright Atualizado")).toBeVisible();
     await table.getByRole("button", { name: "Restaurar" }).click();
     await expect(
@@ -389,5 +386,28 @@ test.describe.serial("local authentication flow", () => {
 
     await expect(page.getByRole("heading", { name: "Contatos" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Novo contato" })).toBeVisible();
+  });
+
+  test("shows the Dashboard priorities correctly and filters out archived/inactive", async ({
+    page,
+  }) => {
+    // 1. O teste 16 deixou um contato "Contato Playwright Atualizado" ativo, como cliente e com telefone.
+    // Ele NÃO deve aparecer como pendente nem sem telefone. Ele também não é lead antigo.
+    // Mas ele pode aparecer em "Novos", dependendo da regra (apenas person e lead são novos? A regra de "novos" pega todos criados há menos de 7 dias, mas a RPC diz "Novos contatos" -> "classification in ('person', 'lead')").
+    
+    await page.goto("/login");
+    await page.getByLabel("E-mail").fill(owner.email);
+    await page.getByLabel("Senha").fill(owner.password);
+    await page.getByRole("button", { name: "Entrar" }).click();
+    await expect(page).toHaveURL(/\/prioridades$/);
+
+    // O Dashboard deve carregar. Verificamos se os cards existem.
+    await expect(page.getByText("Pendentes de qualificação").first()).toBeVisible();
+    await expect(page.getByText("Sem telefone").first()).toBeVisible();
+    await expect(page.getByText("Leads sem revisão recente").first()).toBeVisible();
+    await expect(page.getByText("Novos nos últimos 7 dias").first()).toBeVisible();
+
+    // Como o único contato existente é um Cliente, ele não deve gerar pendências.
+    await expect(page.getByText("Nenhuma pendência encontrada.").first()).toBeVisible();
   });
 });
