@@ -35,6 +35,8 @@ yarn-error.log*
 # env files
 .env*
 !.env.example
+!.env.evolution.example
+docker/evolution/.env.evolution
 
 # vercel
 .vercel
@@ -46,3 +48,4 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
