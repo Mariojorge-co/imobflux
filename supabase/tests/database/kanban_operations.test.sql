@@ -107,7 +107,7 @@ select throws_ok(
         'Opp Invalida'
     ),
     '22023',
-    'contact_invalid',
+    'contact_not_found_or_inactive',
     'Deve lançar exceção contact_invalid ao usar contato inexistente'
 );
 
@@ -122,7 +122,7 @@ select throws_ok(
         'Opp Invalida'
     ),
     '22023',
-    'stage_invalid',
+    'stage_not_found_or_inactive',
     'Deve lançar exceção stage_invalid ao usar etapa inexistente'
 );
 

@@ -748,45 +748,99 @@ export type Database = {
       }
       opportunities: {
         Row: {
+          approved_amount: number | null
           archived_at: string | null
+          city_region_preference: string | null
           closed_at: string | null
           contact_id: string
           created_at: string
           current_stage_id: string
           description: string | null
+          documentation_status: string | null
+          down_payment_available: number | null
+          family_income: number | null
+          financial_analysis_status: string | null
+          financial_notes: string | null
           id: string
+          loss_notes: string | null
+          loss_reason: string | null
+          operation_type: string | null
+          origin: string | null
+          preferences_notes: string | null
+          property_summary: string | null
+          property_type_preference: string | null
           responsible_member_id: string | null
+          rework_reason: string | null
+          rework_reevaluation_date: string | null
           status: string
+          timeframe_intent: string | null
           title: string
           updated_at: string
+          value_range_preference: string | null
           workspace_id: string
         }
         Insert: {
+          approved_amount?: number | null
           archived_at?: string | null
+          city_region_preference?: string | null
           closed_at?: string | null
           contact_id: string
           created_at?: string
           current_stage_id: string
           description?: string | null
+          documentation_status?: string | null
+          down_payment_available?: number | null
+          family_income?: number | null
+          financial_analysis_status?: string | null
+          financial_notes?: string | null
           id?: string
+          loss_notes?: string | null
+          loss_reason?: string | null
+          operation_type?: string | null
+          origin?: string | null
+          preferences_notes?: string | null
+          property_summary?: string | null
+          property_type_preference?: string | null
           responsible_member_id?: string | null
+          rework_reason?: string | null
+          rework_reevaluation_date?: string | null
           status: string
+          timeframe_intent?: string | null
           title: string
           updated_at?: string
+          value_range_preference?: string | null
           workspace_id: string
         }
         Update: {
+          approved_amount?: number | null
           archived_at?: string | null
+          city_region_preference?: string | null
           closed_at?: string | null
           contact_id?: string
           created_at?: string
           current_stage_id?: string
           description?: string | null
+          documentation_status?: string | null
+          down_payment_available?: number | null
+          family_income?: number | null
+          financial_analysis_status?: string | null
+          financial_notes?: string | null
           id?: string
+          loss_notes?: string | null
+          loss_reason?: string | null
+          operation_type?: string | null
+          origin?: string | null
+          preferences_notes?: string | null
+          property_summary?: string | null
+          property_type_preference?: string | null
           responsible_member_id?: string | null
+          rework_reason?: string | null
+          rework_reevaluation_date?: string | null
           status?: string
+          timeframe_intent?: string | null
           title?: string
           updated_at?: string
+          value_range_preference?: string | null
           workspace_id?: string
         }
         Relationships: [
@@ -1265,11 +1319,20 @@ export type Database = {
       }
       create_opportunity: {
         Args: {
+          p_city_region_preference?: string
           p_contact_id: string
           p_description?: string
+          p_down_payment_available?: number
+          p_operation_type?: string
+          p_origin?: string
+          p_preferences_notes?: string
+          p_property_summary?: string
+          p_property_type_preference?: string
           p_responsible_member_id?: string
           p_stage_id: string
+          p_timeframe_intent?: string
           p_title: string
+          p_value_range_preference?: string
         }
         Returns: string
       }
@@ -1346,10 +1409,43 @@ export type Database = {
         }
         Returns: Json
       }
+      close_opportunity_cancelled: {
+        Args: { p_opportunity_id: string }
+        Returns: Json
+      }
+      close_opportunity_lost: {
+        Args: {
+          p_loss_notes?: string
+          p_loss_reason: string
+          p_opportunity_id: string
+        }
+        Returns: Json
+      }
+      close_opportunity_won: {
+        Args: {
+          p_business_value?: number
+          p_commission_expected?: number
+          p_commission_received?: number
+          p_opportunity_id: string
+        }
+        Returns: Json
+      }
+      reactivate_opportunity: {
+        Args: { p_opportunity_id: string; p_target_stage_id?: string }
+        Returns: Json
+      }
       restore_contact: { Args: { p_contact_id: string }; Returns: string }
       set_contact_operational_status: {
         Args: { p_contact_id: string; p_operational_status: string }
         Returns: string
+      }
+      set_opportunity_rework: {
+        Args: {
+          p_opportunity_id: string
+          p_rework_reason: string
+          p_rework_reevaluation_date?: string
+        }
+        Returns: Json
       }
       update_contact: {
         Args: {

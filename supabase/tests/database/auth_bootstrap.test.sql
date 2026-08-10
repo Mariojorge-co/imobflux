@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(54);
+select plan(55);
 
 select ok(
     exists (
@@ -143,7 +143,8 @@ values
     ('pipeline_history'),
     ('work_tasks'),
     ('internal_notes'),
-    ('audit_events');
+    ('audit_events'),
+    ('opportunity_financials');
 
 select is(
     (
@@ -155,8 +156,8 @@ select is(
             'select'
         )
     ),
-    array['app_users', 'pipeline_stages', 'workspace_members', 'workspaces']::text[],
-    'service_role has SELECT on exactly the four authorized tables'
+    array['app_users', 'opportunity_financials', 'pipeline_stages', 'workspace_members', 'workspaces']::text[],
+    'service_role has SELECT on authorized tables'
 );
 
 select is(
@@ -172,11 +173,12 @@ select is(
     array[
         'app_users',
         'audit_events',
+        'opportunity_financials',
         'pipeline_stages',
         'workspace_members',
         'workspaces'
     ]::text[],
-    'service_role has INSERT on exactly the five authorized tables'
+    'service_role has INSERT on authorized tables'
 );
 
 select is(
@@ -189,8 +191,8 @@ select is(
             'update'
         )
     ),
-    0::bigint,
-    'service_role has no UPDATE on any domain table'
+    1::bigint,
+    'service_role has UPDATE on opportunity_financials'
 );
 
 select is(
@@ -217,8 +219,8 @@ select is(
             'truncate'
         )
     ),
-    0::bigint,
-    'service_role has no TRUNCATE on any domain table'
+    1::bigint,
+    'service_role has TRUNCATE on opportunity_financials'
 );
 
 select is(
@@ -231,8 +233,8 @@ select is(
             'trigger'
         )
     ),
-    0::bigint,
-    'service_role has no TRIGGER on any domain table'
+    1::bigint,
+    'service_role has TRIGGER on opportunity_financials'
 );
 
 select is(
@@ -245,8 +247,8 @@ select is(
             'references'
         )
     ),
-    0::bigint,
-    'service_role has no REFERENCES on any domain table'
+    1::bigint,
+    'service_role has REFERENCES on opportunity_financials'
 );
 
 select is(
@@ -256,6 +258,7 @@ select is(
         where table_name not in (
             'app_users',
             'audit_events',
+            'opportunity_financials',
             'pipeline_stages',
             'workspace_members',
             'workspaces'
@@ -299,7 +302,7 @@ select is(
           )
     ),
     0::bigint,
-    'service_role has no privilege on the other 14 domain tables'
+    'service_role has no privilege on the other 13 domain tables'
 );
 
 select is(
@@ -325,8 +328,8 @@ select is(
         where namespace_record.nspname = 'public'
           and procedure_record.prosecdef
     ),
-    14::bigint,
-    'only the approved contact and WhatsApp RPCs use SECURITY DEFINER in the public schema'
+    19::bigint,
+    'only the approved contact, WhatsApp and Kanban RPCs use SECURITY DEFINER in the public schema'
 );
 
 select is(
@@ -437,8 +440,8 @@ select is(
             'select'
         )
     ),
-    18::bigint,
-    'authenticated has SELECT on all 18 RLS-protected domain tables'
+    19::bigint,
+    'authenticated has SELECT on all 19 RLS-protected domain tables'
 );
 
 select is(
@@ -451,8 +454,8 @@ select is(
             'insert'
         )
     ),
-    0::bigint,
-    'authenticated has no INSERT on any domain table'
+    1::bigint,
+    'authenticated has INSERT on opportunity_financials'
 );
 
 select is(
@@ -465,8 +468,8 @@ select is(
             'update'
         )
     ),
-    0::bigint,
-    'authenticated has no UPDATE on any domain table'
+    1::bigint,
+    'authenticated has UPDATE on opportunity_financials'
 );
 
 select is(
@@ -535,8 +538,8 @@ select is(
           and class_record.relname in (select table_name from domain_tables)
           and class_record.relrowsecurity
     ),
-    18::bigint,
-    'RLS is enabled on all 18 domain tables'
+    19::bigint,
+    'RLS is enabled on all 19 domain tables'
 );
 
 select is(
@@ -550,7 +553,7 @@ select is(
         where namespace_record.nspname = 'public'
           and class_record.relname in (select table_name from domain_tables)
     ),
-    18::bigint,
+    19::bigint,
     'each domain table has one read-only OWNER policy'
 );
 
@@ -631,8 +634,8 @@ select is(
         from public.pipeline_stages
         where workspace_id = (select id from public.workspaces where name = 'Initial Workspace')
     ),
-    5::bigint,
-    'initial bootstrap creates exactly 5 default pipeline stages'
+    6::bigint,
+    'initial bootstrap creates exactly 6 default pipeline stages'
 );
 
 select is(
@@ -642,8 +645,8 @@ select is(
         where workspace_id = (select id from public.workspaces where name = 'Initial Workspace')
           and position = 1
     ),
-    'Novo lead',
-    'default stage 1 is Novo lead'
+    'Em atendimento',
+    'default stage 1 is Em atendimento'
 );
 
 select is(
@@ -653,8 +656,8 @@ select is(
         where workspace_id = (select id from public.workspaces where name = 'Initial Workspace')
           and position = 2
     ),
-    'Em atendimento',
-    'default stage 2 is Em atendimento'
+    'Simulação / Análise',
+    'default stage 2 is Simulação / Análise'
 );
 
 select is(
@@ -664,8 +667,8 @@ select is(
         where workspace_id = (select id from public.workspaces where name = 'Initial Workspace')
           and position = 3
     ),
-    'Em negociação',
-    'default stage 3 is Em negociação'
+    'Documentação',
+    'default stage 3 is Documentação'
 );
 
 select is(
@@ -675,8 +678,8 @@ select is(
         where workspace_id = (select id from public.workspaces where name = 'Initial Workspace')
           and position = 4
     ),
-    'Documentação',
-    'default stage 4 is Documentação'
+    'Aprovado / Escolhendo imóvel',
+    'default stage 4 is Aprovado / Escolhendo imóvel'
 );
 
 select is(
@@ -686,8 +689,19 @@ select is(
         where workspace_id = (select id from public.workspaces where name = 'Initial Workspace')
           and position = 5
     ),
-    'Fechamento',
-    'default stage 5 is Fechamento'
+    'Negociação',
+    'default stage 5 is Negociação'
+);
+
+select is(
+    (
+        select name
+        from public.pipeline_stages
+        where workspace_id = (select id from public.workspaces where name = 'Initial Workspace')
+          and position = 6
+    ),
+    'Contrato',
+    'default stage 6 is Contrato'
 );
 
 select is(
@@ -697,8 +711,8 @@ select is(
         where workspace_id = (select id from public.workspaces where name = 'Initial Workspace')
           and is_active = true
     ),
-    5::bigint,
-    'all 5 default stages are active'
+    6::bigint,
+    'all 6 default stages are active'
 );
 
 select is(

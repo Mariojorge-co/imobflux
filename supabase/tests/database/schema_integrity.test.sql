@@ -68,12 +68,13 @@ select is(
                     'pipeline_history',
                     'work_tasks',
                     'internal_notes',
-                    'audit_events'
+                    'audit_events',
+                    'opportunity_financials'
                 )
           )
     ),
-    18::bigint,
-    'all 18 domain tables have primary keys'
+    19::bigint,
+    'all 19 domain tables have primary keys'
 );
 
 select is(
@@ -103,11 +104,12 @@ select is(
               'pipeline_history',
               'work_tasks',
               'internal_notes',
-              'audit_events'
+              'audit_events',
+              'opportunity_financials'
           )
     ),
-    18::bigint,
-    'RLS is enabled on all 18 domain tables'
+    19::bigint,
+    'RLS is enabled on all 19 domain tables'
 );
 
 select is(
@@ -136,8 +138,8 @@ select is(
           and namespace_record.nspname = 'public'
           and procedure_record.proname = 'set_updated_at'
     ),
-    12::bigint,
-    'updated_at trigger is attached to the 12 mutable tables'
+    13::bigint,
+    'updated_at trigger is attached to the 13 mutable tables'
 );
 
 select ok(

@@ -26,6 +26,8 @@ export function CreateOpportunityDialog({
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [origin, setOrigin] = useState("");
+  const [propertySummary, setPropertySummary] = useState("");
   const [stageId, setStageId] = useState(stages[0]?.id || "");
   const [contactId, setContactId] = useState(contacts[0]?.id || "");
   const [responsibleMemberId, setResponsibleMemberId] = useState("");
@@ -39,7 +41,7 @@ export function CreateOpportunityDialog({
   const contactSelectId = useId();
   const memberSelectId = useId();
 
-  const isDirty = Boolean(title.trim() || description.trim());
+  const isDirty = Boolean(title.trim() || description.trim() || origin.trim() || propertySummary.trim());
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -57,6 +59,8 @@ export function CreateOpportunityDialog({
   const resetForm = () => {
     setTitle("");
     setDescription("");
+    setOrigin("");
+    setPropertySummary("");
     setErrorMsg(null);
   };
 
@@ -101,6 +105,8 @@ export function CreateOpportunityDialog({
         stageId,
         contactId,
         responsibleMemberId: responsibleMemberId || undefined,
+        origin: origin.trim() || undefined,
+        propertySummary: propertySummary.trim() || undefined,
       });
 
       if (res.success) {
@@ -234,6 +240,39 @@ export function CreateOpportunityDialog({
                   </option>
                 ))}
               </select>
+            </div>
+          </div>
+
+          {/* Origem e Imóvel de Interesse */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="origin-input" className="block text-xs font-semibold text-slate-700 mb-1">
+                Origem do Lead (Opcional)
+              </label>
+              <input
+                id="origin-input"
+                type="text"
+                disabled={isPending}
+                placeholder="Ex: WhatsApp, Indicação, Instagram"
+                value={origin}
+                onChange={(e) => setOrigin(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="property-summary-input" className="block text-xs font-semibold text-slate-700 mb-1">
+                Imóvel / Produto (Opcional)
+              </label>
+              <input
+                id="property-summary-input"
+                type="text"
+                disabled={isPending}
+                placeholder="Ex: Lote 250m2 / Ap 3Q"
+                value={propertySummary}
+                onChange={(e) => setPropertySummary(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
             </div>
           </div>
 

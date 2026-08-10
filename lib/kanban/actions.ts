@@ -156,6 +156,15 @@ export async function createOpportunityAction(
         p_title: title,
         p_description: input.description?.trim() || undefined,
         p_responsible_member_id: input.responsibleMemberId || undefined,
+        p_origin: input.origin?.trim() || undefined,
+        p_property_summary: input.propertySummary?.trim() || undefined,
+        p_operation_type: input.operationType?.trim() || undefined,
+        p_property_type_preference: input.propertyTypePreference?.trim() || undefined,
+        p_city_region_preference: input.cityRegionPreference?.trim() || undefined,
+        p_value_range_preference: input.valueRangePreference?.trim() || undefined,
+        p_down_payment_available: input.downPaymentAvailable ?? undefined,
+        p_timeframe_intent: input.timeframeIntent?.trim() || undefined,
+        p_preferences_notes: input.preferencesNotes?.trim() || undefined,
       },
     );
 
@@ -177,6 +186,12 @@ export async function createOpportunityAction(
             id,
             title,
             description,
+            origin,
+            property_summary,
+            operation_type,
+            property_type_preference,
+            city_region_preference,
+            value_range_preference,
             created_at,
             updated_at,
             contact_id,
@@ -209,6 +224,12 @@ export async function createOpportunityAction(
             id: createdOpp.id,
             title: createdOpp.title,
             description: createdOpp.description,
+            origin: createdOpp.origin,
+            property_summary: createdOpp.property_summary,
+            operation_type: createdOpp.operation_type,
+            property_type_preference: createdOpp.property_type_preference,
+            city_region_preference: createdOpp.city_region_preference,
+            value_range_preference: createdOpp.value_range_preference,
             created_at: createdOpp.created_at,
             updated_at: createdOpp.updated_at,
             contact_id: createdOpp.contact_id,
@@ -321,6 +342,190 @@ export async function updateOpportunityAction(
       code: "INTERNAL_ERROR",
       error: "Erro interno ao atualizar oportunidade.",
     };
+  }
+}
+
+/**
+ * Server Action: Define oportunidade em Retrabalho.
+ */
+export async function setOpportunityReworkAction(
+  opportunityId: string,
+  reworkReason: string,
+  reworkReevaluationDate?: string,
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createServerSupabaseClient();
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+
+  if (authError || !authData.user) {
+    return { success: false, error: "Sessão não autenticada." };
+  }
+
+  const reason = reworkReason?.trim();
+  if (!reason) {
+    return { success: false, error: "O motivo do retrabalho é obrigatório." };
+  }
+
+  try {
+    const { error: rpcError } = await supabase.rpc("set_opportunity_rework", {
+      p_opportunity_id: opportunityId,
+      p_rework_reason: reason,
+      p_rework_reevaluation_date: reworkReevaluationDate || undefined,
+    });
+
+    if (rpcError) {
+      console.error("Erro RPC set_opportunity_rework:", rpcError);
+      return { success: false, error: "Falha ao mover para retrabalho." };
+    }
+
+    revalidatePath("/kanban");
+    return { success: true };
+  } catch (err) {
+    console.error("Erro em setOpportunityReworkAction:", err);
+    return { success: false, error: "Erro interno ao alterar retrabalho." };
+  }
+}
+
+/**
+ * Server Action: Reativa oportunidade de Retrabalho.
+ */
+export async function reactivateOpportunityAction(
+  opportunityId: string,
+  targetStageId?: string,
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createServerSupabaseClient();
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+
+  if (authError || !authData.user) {
+    return { success: false, error: "Sessão não autenticada." };
+  }
+
+  try {
+    const { error: rpcError } = await supabase.rpc("reactivate_opportunity", {
+      p_opportunity_id: opportunityId,
+      p_target_stage_id: targetStageId || undefined,
+    });
+
+    if (rpcError) {
+      console.error("Erro RPC reactivate_opportunity:", rpcError);
+      return { success: false, error: "Falha ao reativar oportunidade." };
+    }
+
+    revalidatePath("/kanban");
+    return { success: true };
+  } catch (err) {
+    console.error("Erro em reactivateOpportunityAction:", err);
+    return { success: false, error: "Erro interno ao reativar oportunidade." };
+  }
+}
+
+/**
+ * Server Action: Encerra oportunidade como Ganha (opcionalmente com dados financeiros se OWNER).
+ */
+export async function closeOpportunityWonAction(
+  opportunityId: string,
+  businessValue?: number,
+  commissionExpected?: number,
+  commissionReceived?: number,
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createServerSupabaseClient();
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+
+  if (authError || !authData.user) {
+    return { success: false, error: "Sessão não autenticada." };
+  }
+
+  try {
+    const { error: rpcError } = await supabase.rpc("close_opportunity_won", {
+      p_opportunity_id: opportunityId,
+      p_business_value: businessValue ?? undefined,
+      p_commission_expected: commissionExpected ?? undefined,
+      p_commission_received: commissionReceived ?? undefined,
+    });
+
+    if (rpcError) {
+      console.error("Erro RPC close_opportunity_won:", rpcError);
+      if (rpcError.message?.includes("only_owner_can_manage_commissions")) {
+        return { success: false, error: "Apenas o proprietário (OWNER) pode informar dados financeiros de comissão." };
+      }
+      return { success: false, error: "Falha ao fechar oportunidade como Ganha." };
+    }
+
+    revalidatePath("/kanban");
+    return { success: true };
+  } catch (err) {
+    console.error("Erro em closeOpportunityWonAction:", err);
+    return { success: false, error: "Erro interno ao fechar como Ganha." };
+  }
+}
+
+/**
+ * Server Action: Encerra oportunidade como Perdida (exigindo motivo).
+ */
+export async function closeOpportunityLostAction(
+  opportunityId: string,
+  lossReason: string,
+  lossNotes?: string,
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createServerSupabaseClient();
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+
+  if (authError || !authData.user) {
+    return { success: false, error: "Sessão não autenticada." };
+  }
+
+  const reason = lossReason?.trim();
+  if (!reason) {
+    return { success: false, error: "O motivo da perda é obrigatório." };
+  }
+
+  try {
+    const { error: rpcError } = await supabase.rpc("close_opportunity_lost", {
+      p_opportunity_id: opportunityId,
+      p_loss_reason: reason,
+      p_loss_notes: lossNotes?.trim() || undefined,
+    });
+
+    if (rpcError) {
+      console.error("Erro RPC close_opportunity_lost:", rpcError);
+      return { success: false, error: "Falha ao fechar oportunidade como Perdida." };
+    }
+
+    revalidatePath("/kanban");
+    return { success: true };
+  } catch (err) {
+    console.error("Erro em closeOpportunityLostAction:", err);
+    return { success: false, error: "Erro interno ao fechar como Perdida." };
+  }
+}
+
+/**
+ * Server Action: Encerra oportunidade como Cancelada.
+ */
+export async function closeOpportunityCancelledAction(
+  opportunityId: string,
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createServerSupabaseClient();
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+
+  if (authError || !authData.user) {
+    return { success: false, error: "Sessão não autenticada." };
+  }
+
+  try {
+    const { error: rpcError } = await supabase.rpc("close_opportunity_cancelled", {
+      p_opportunity_id: opportunityId,
+    });
+
+    if (rpcError) {
+      console.error("Erro RPC close_opportunity_cancelled:", rpcError);
+      return { success: false, error: "Falha ao cancelar oportunidade." };
+    }
+
+    revalidatePath("/kanban");
+    return { success: true };
+  } catch (err) {
+    console.error("Erro em closeOpportunityCancelledAction:", err);
+    return { success: false, error: "Erro interno ao cancelar oportunidade." };
   }
 }
 

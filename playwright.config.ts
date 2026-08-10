@@ -1,6 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
+import { loadEnvConfig } from "@next/env";
+
+loadEnvConfig(process.cwd());
 
 export default defineConfig({
+  globalSetup: "./tests/global-setup.ts",
   expect: {
     timeout: 5_000,
   },

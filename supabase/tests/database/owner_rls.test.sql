@@ -492,7 +492,7 @@ select is(
         where schema_record.nspname in ('public', 'private')
           and function_record.prosecdef
     ),
-    15::bigint,
+    20::bigint,
     'only the owner context and approved domain operations use SECURITY DEFINER'
 );
 
