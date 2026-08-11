@@ -1,4 +1,5 @@
 begin;
+set search_path = public, extensions, pg_catalog;
 
 create extension if not exists pgtap with schema extensions;
 

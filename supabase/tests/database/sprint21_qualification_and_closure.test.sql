@@ -1,6 +1,7 @@
 -- ImobFlux Sprint 21 pgTAP Test Suite: Qualification, Rework, Closure & OWNER-only Financials RLS
 
 begin;
+set search_path = public, extensions, pg_catalog;
 select plan(22);
 
 -- ─── SETUP INICIAL ─────────────────────────────────────────────────────────────

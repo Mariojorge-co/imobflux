@@ -10,4 +10,11 @@ export default async function globalSetup() {
     env,
     stdio: "pipe",
   });
+
+  const sql = 'ALTER ROLE postgres SET search_path TO "$user", public, extensions; ALTER DATABASE postgres SET search_path TO "$user", public, extensions;';
+  execSync('docker exec -i supabase_db_imobflux psql -h 127.0.0.1 -U postgres -d postgres', {
+    env,
+    input: sql,
+    stdio: "pipe",
+  });
 }

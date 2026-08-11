@@ -27,7 +27,7 @@ export default defineConfig({
   },
   webServer: {
     command: "npm run start -- --hostname 127.0.0.1 --port 3012",
-    reuseExistingServer: false,
+    reuseExistingServer: true,
     timeout: 120_000,
     url: "http://127.0.0.1:3012/login",
   },

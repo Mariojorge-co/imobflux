@@ -1,6 +1,7 @@
 -- pgTAP Test Suite — Sprint 19: Kanban ↔ Conversations Integration
 
 begin;
+set search_path = public, extensions, pg_catalog;
 
 select plan(15);
 

@@ -1,4 +1,5 @@
 begin;
+set search_path = public, extensions, pg_catalog;
 
 select plan(18);
 
