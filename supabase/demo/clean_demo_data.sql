@@ -25,6 +25,27 @@ begin
   end if;
 
   -- 2. Deletar dados de Oportunidade e Financeiro OWNER-only
+  if to_regclass('public.conversation_read_states') is not null then
+    delete from public.conversation_read_states
+    where id = 'd3400009-0000-4000-8000-000000000001'
+       or conversation_id between 'd3300003-0000-4000-8000-000000000001' and 'd3300003-0000-4000-8000-000000000022';
+  end if;
+
+  if to_regclass('public.work_tasks') is not null then
+    delete from public.work_tasks
+    where id between 'd340000a-0000-4000-8000-000000000001' and 'd340000a-0000-4000-8000-000000000002'
+       or contact_id between 'd3300001-0000-4000-8000-000000000001' and 'd3300001-0000-4000-8000-000000000020'
+       or opportunity_id between 'd3300002-0000-4000-8000-000000000001' and 'd3300002-0000-4000-8000-000000000020'
+       or conversation_id between 'd3300003-0000-4000-8000-000000000001' and 'd3300003-0000-4000-8000-000000000022';
+  end if;
+
+  if to_regclass('public.internal_notes') is not null then
+    delete from public.internal_notes
+    where contact_id between 'd3300001-0000-4000-8000-000000000001' and 'd3300001-0000-4000-8000-000000000020'
+       or opportunity_id between 'd3300002-0000-4000-8000-000000000001' and 'd3300002-0000-4000-8000-000000000020'
+       or conversation_id between 'd3300003-0000-4000-8000-000000000001' and 'd3300003-0000-4000-8000-000000000022';
+  end if;
+
   if to_regclass('public.opportunity_financials') is not null then
     delete from public.opportunity_financials
     where opportunity_id in (
@@ -59,27 +80,27 @@ begin
   if to_regclass('public.messages') is not null then
     delete from public.messages
     where conversation_id in (
-      select id from public.conversations where id between 'd3300003-0000-4000-8000-000000000001' and 'd3300003-0000-4000-8000-000000000020'
+      select id from public.conversations where id between 'd3300003-0000-4000-8000-000000000001' and 'd3300003-0000-4000-8000-000000000022'
     );
   end if;
 
   if to_regclass('public.conversation_participants') is not null then
     delete from public.conversation_participants
     where conversation_id in (
-      select id from public.conversations where id between 'd3300003-0000-4000-8000-000000000001' and 'd3300003-0000-4000-8000-000000000020'
+      select id from public.conversations where id between 'd3300003-0000-4000-8000-000000000001' and 'd3300003-0000-4000-8000-000000000022'
     );
   end if;
 
   if to_regclass('public.conversation_assignments') is not null then
     delete from public.conversation_assignments
     where conversation_id in (
-      select id from public.conversations where id between 'd3300003-0000-4000-8000-000000000001' and 'd3300003-0000-4000-8000-000000000020'
+      select id from public.conversations where id between 'd3300003-0000-4000-8000-000000000001' and 'd3300003-0000-4000-8000-000000000022'
     );
   end if;
 
   if to_regclass('public.conversations') is not null then
     delete from public.conversations
-    where id between 'd3300003-0000-4000-8000-000000000001' and 'd3300003-0000-4000-8000-000000000020';
+    where id between 'd3300003-0000-4000-8000-000000000001' and 'd3300003-0000-4000-8000-000000000022';
   end if;
 
   -- 4. Deletar Pontos de Contato e Contatos

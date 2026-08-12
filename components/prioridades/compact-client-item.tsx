@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Avatar, Badge } from "@/components/ui";
 import { formatRelativeTime } from "@/lib/date";
 import type { PriorityClient } from "@/types/prioridades";
@@ -30,21 +31,37 @@ export function CompactClientItem({
     dateToUse,
     labelOverride || "Atualizado",
   );
+  const targetUrl = client.conversation_id
+    ? `/conversas/${client.conversation_id}`
+    : `/contatos?q=${encodeURIComponent(client.display_name)}`;
 
   return (
-    <article className="flex items-start gap-stack p-stack sm:p-card">
-      <Avatar name={client.display_name} size="sm" />
-      <div className="min-w-0 flex-1">
-        <h3 className="text-body font-semibold text-text">
-          {client.display_name}
-        </h3>
-        <p className="mt-1 text-caption text-text-muted">{formattedDate}</p>
-        <div className="mt-inline flex flex-wrap items-center gap-inline">
-          <Badge tone={classificationTones[client.classification]}>
-            {classificationLabels[client.classification]}
-          </Badge>
+    <Link
+      aria-label={client.conversation_id ? `Abrir conversa com ${client.display_name}` : `Abrir cadastro de ${client.display_name}`}
+      className="block transition-colors hover:bg-neutral-soft/60 cursor-pointer"
+      href={targetUrl}
+    >
+      <article className="flex items-start gap-stack p-stack sm:p-card">
+        <Avatar name={client.display_name} size="sm" />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between">
+            <h3 className="text-body font-semibold text-text">
+              {client.display_name}
+            </h3>
+            {client.sla_text && (
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                {client.sla_text}
+              </span>
+            )}
+          </div>
+          <p className="mt-1 text-caption text-text-muted">{formattedDate}</p>
+          <div className="mt-inline flex flex-wrap items-center gap-inline">
+            <Badge tone={classificationTones[client.classification] || "neutral"}>
+              {classificationLabels[client.classification] || "Contato"}
+            </Badge>
+          </div>
         </div>
-      </div>
-    </article>
+      </article>
+    </Link>
   );
 }

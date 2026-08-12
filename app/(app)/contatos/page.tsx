@@ -26,6 +26,7 @@ export default async function ContactsPage({ searchParams }: ContactsPageProps) 
         filters={filters}
         page={result.page}
         total={result.total}
+        canManagePrivacy={access.role === "owner"}
       />
     </PageContainer>
   );

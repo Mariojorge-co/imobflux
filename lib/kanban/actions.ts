@@ -83,6 +83,9 @@ export async function moveOpportunityAction(
     }
 
     revalidatePath("/kanban");
+    revalidatePath("/conversas");
+    revalidatePath("/prioridades");
+    revalidatePath(`/conversas/${opportunityId}`);
 
     return {
       success: true,
@@ -366,10 +369,11 @@ export async function setOpportunityReworkAction(
   }
 
   try {
-    const { error: rpcError } = await supabase.rpc("set_opportunity_rework", {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: rpcError } = await (supabase.rpc as any)("set_opportunity_rework", {
       p_opportunity_id: opportunityId,
       p_rework_reason: reason,
-      p_rework_reevaluation_date: reworkReevaluationDate || undefined,
+      p_rework_reevaluation_date: reworkReevaluationDate || null,
     });
 
     if (rpcError) {

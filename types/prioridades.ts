@@ -6,6 +6,9 @@ export type PriorityClient = {
   display_name: string;
   id: string;
   updated_at: string;
+  conversation_id?: string;
+  sla_text?: string;
+  sla_level?: string;
 };
 
 export type PrioritySummaryId =
@@ -26,4 +29,13 @@ export type PrioridadesDashboardResult = {
   pending_qualification: { count: number; items: PriorityClient[] };
   stale_leads: { count: number; items: PriorityClient[] };
   without_phone: { count: number; items: PriorityClient[] };
+  due_followups: Array<{
+    id: string;
+    title: string;
+    due_at: string;
+    contact_id: string;
+    conversation_id: string | null;
+    opportunity_id: string | null;
+    display_name: string;
+  }>;
 };

@@ -35,17 +35,21 @@ const navigationItems = [
 
 type NavigationLinksProps = {
   onNavigate?: () => void;
+  role: "owner" | "attendant";
 };
 
-export function NavigationLinks({ onNavigate }: NavigationLinksProps) {
+export function NavigationLinks({ onNavigate, role }: NavigationLinksProps) {
   const pathname = usePathname();
+  const visibleItems = role === "owner"
+    ? navigationItems
+    : navigationItems.filter((item) => item.href !== "/configuracoes");
 
   return (
     <nav aria-label="Navegação principal" className="p-stack">
       <ul className="space-y-1">
-        {navigationItems.map((item) => {
+        {visibleItems.map((item) => {
           const Icon = item.icon;
-          const isActive = pathname === item.href;
+          const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
 
           return (
             <li key={item.href}>
@@ -71,7 +75,7 @@ export function NavigationLinks({ onNavigate }: NavigationLinksProps) {
   );
 }
 
-export function Sidebar() {
+export function Sidebar({ role }: { role: "owner" | "attendant" }) {
   return (
     <aside className="hidden min-h-screen w-sidebar shrink-0 flex-col border-r border-border bg-surface md:flex">
       <div className="flex h-topbar items-center border-b border-border px-page">
@@ -80,7 +84,7 @@ export function Sidebar() {
         </span>
       </div>
 
-      <NavigationLinks />
+      <NavigationLinks role={role} />
     </aside>
   );
 }

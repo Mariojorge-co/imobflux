@@ -1,7 +1,6 @@
 begin;
-set search_path = public, extensions, pg_catalog;
-
 create extension if not exists pgtap with schema extensions;
+set search_path = public, extensions, auth, pg_catalog;
 
 select plan(74);
 
@@ -1621,7 +1620,7 @@ select throws_ok(
 
 create temporary table updated_at_snapshot (
     value timestamptz not null
-) on commit drop;
+);
 
 insert into updated_at_snapshot (value)
 select updated_at

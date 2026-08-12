@@ -76,7 +76,7 @@ export async function getContacts(
   let contactsQuery = supabase
     .from("contacts")
     .select(
-      "id, display_name, classification, operational_status, archived_at",
+      "id, display_name, classification, operational_status, archived_at, is_protected",
       { count: "exact" },
     )
     .eq("workspace_id", workspaceId)
@@ -120,12 +120,12 @@ export async function getContacts(
   }
 
   const contactIds = contacts.map((contact) => contact.id);
-  let points: { contact_id: string | null; display_value: string | null }[] = [];
+  let points: { id: string; contact_id: string | null; display_value: string | null; external_avatar_url: string | null }[] = [];
 
   if (contactIds.length > 0) {
     const { data, error } = await supabase
       .from("contact_points")
-      .select("contact_id, display_value")
+      .select("id, contact_id, display_value, external_avatar_url")
       .eq("workspace_id", workspaceId)
       .eq("point_type", "phone")
       .eq("operational_status", "active")
@@ -141,12 +141,16 @@ export async function getContacts(
   }
 
   const phonesByContact = new Map<string, string[]>();
+  const avatarsByContact = new Map<string, string>();
 
   for (const point of points) {
     if (point.contact_id && point.display_value) {
       const values = phonesByContact.get(point.contact_id) ?? [];
       values.push(point.display_value);
       phonesByContact.set(point.contact_id, values);
+    }
+    if (point.contact_id && point.external_avatar_url && !avatarsByContact.has(point.contact_id)) {
+      avatarsByContact.set(point.contact_id, `/api/contact-avatar/${point.id}`);
     }
   }
 
@@ -156,10 +160,12 @@ export async function getContacts(
         ? { phoneDisplayValue: phonesByContact.get(contact.id)?.[0] ?? null }
         : { phoneDisplayValue: null }),
       archivedAt: contact.archived_at,
+      avatarUrl: avatarsByContact.get(contact.id) ?? null,
       classification: contact.classification as ContactClassification,
       displayName: contact.display_name,
       hasMultipleActivePhones: (phonesByContact.get(contact.id)?.length ?? 0) > 1,
       id: contact.id,
+      isProtected: contact.is_protected,
       operationalStatus: contact.operational_status as ContactOperationalStatus,
     })),
     page: filters.page,

@@ -1,15 +1,20 @@
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import {
-  getConversationsList,
+  getConversationsInbox,
   getConversationById,
   getConversationMessages,
   getOpportunityForConversation,
+  getConversationContext,
+  getConversationOpportunityContexts,
+  getConversationPipelineStages,
 } from "@/lib/conversations/data";
 import { ConversationsList } from "@/components/conversations/conversations-list";
 import { MessagesPanel } from "@/components/conversations/messages-panel";
+import { requireActiveAccess } from "@/lib/auth/dal";
 
 type ConversationDetailPageProps = {
   params: Promise<{ conversationId: string }>;
+  searchParams: Promise<{ opportunityId?: string }>;
 };
 
 /**
@@ -17,26 +22,37 @@ type ConversationDetailPageProps = {
  */
 export default async function ConversationDetailPage({
   params,
+  searchParams,
 }: ConversationDetailPageProps) {
   const { conversationId } = await params;
+  const { opportunityId } = await searchParams;
+  const access = await requireActiveAccess();
 
-  // Carrega lista, conversa específica, mensagens e oportunidade vinculada em paralelo
-  const [allConversations, conversation, messages, linkedOpportunity] = await Promise.all([
-    getConversationsList({ limit: 20 }),
-    getConversationById(conversationId),
-    getConversationMessages(conversationId),
-    getOpportunityForConversation(conversationId),
-  ]);
+  // Carrega lista, conversa específica, mensagens, oportunidade vinculada e contexto em paralelo
+  const [inbox, conversation, messagePage, linkedOpportunity, context] =
+    await Promise.all([
+      getConversationsInbox({ limit: 20 }),
+      getConversationById(conversationId),
+      getConversationMessages(conversationId),
+      getOpportunityForConversation(conversationId),
+      getConversationContext(conversationId),
+    ]);
 
   if (!conversation) {
-    notFound();
+    redirect("/conversas?reason=access_changed");
   }
 
-  const items = allConversations.some(
+  const [opportunityContexts, pipelineStages] = await Promise.all([
+    getConversationOpportunityContexts(context, conversationId),
+    getConversationPipelineStages(conversationId),
+  ]);
+
+  // Se a conversa for aberta estando marcada como não lida, marcar automaticamente como lida (auto-read)
+  const items = inbox.items.some(
     (c) => c.conversation_id === conversationId,
   )
-    ? allConversations
-    : [conversation, ...allConversations];
+    ? inbox.items
+    : [conversation, ...inbox.items];
 
   return (
     <div className="flex h-full w-full">
@@ -44,17 +60,25 @@ export default async function ConversationDetailPage({
       <div className="hidden w-80 shrink-0 md:block">
         <ConversationsList
           initialItems={items}
+          initialCounts={inbox.counts}
           selectedId={conversationId}
         />
       </div>
 
-      {/* Coluna direita / tela cheia no mobile: painel de mensagens */}
-      <div className="flex-1">
+      {/* Coluna central / direita em mobile: painel de mensagens + painel lateral */}
+      <div className="flex-1 overflow-hidden">
         <MessagesPanel
+          context={context}
           conversation={conversation}
-          initialMessages={messages}
+          initialHasOlder={messagePage.hasMore}
+          initialMessages={messagePage.messages}
+          key={conversationId}
           linkedOpportunity={linkedOpportunity}
+          initialSelectedOpportunityId={opportunityId}
+          opportunityContexts={opportunityContexts}
+          stages={pipelineStages}
           showBackButton={true}
+          canManagePrivacy={access.role === "owner"}
         />
       </div>
     </div>

@@ -18,9 +18,11 @@ import {
   createContactAction,
   restoreContactAction,
   updateContactAction,
+  setContactTeamVisibilityAction,
 } from "@/app/(app)/contatos/actions";
 import {
   Badge,
+  Avatar,
   Button,
   Card,
   EmptyState,
@@ -55,6 +57,7 @@ type ContactsClientProps = {
   filters: ContactListFilters;
   page: number;
   total: number;
+  canManagePrivacy: boolean;
 };
 
 const classificationLabels: Record<ContactClassification, string> = {
@@ -331,7 +334,8 @@ function ContactStatus({ contact }: { contact: ContactListItem }) {
 
 function ContactDetails({ contact }: { contact: ContactListItem }) {
   return (
-    <>
+    <div className="flex items-center gap-3">
+      <Avatar name={contact.displayName} size="sm" src={contact.avatarUrl ?? undefined} />
       <div>
         <p className="font-medium text-text">{contact.displayName}</p>
         <p className="mt-0.5 text-caption text-text-muted">
@@ -340,7 +344,7 @@ function ContactDetails({ contact }: { contact: ContactListItem }) {
             : (contact.phoneDisplayValue ?? "Sem telefone")}
         </p>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -362,6 +366,7 @@ export function ContactsClient({
   filters,
   page,
   total,
+  canManagePrivacy,
 }: ContactsClientProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -649,7 +654,7 @@ export function ContactsClient({
                     <tr key={contact.id}>
                       <td className="px-card py-stack"><ContactDetails contact={contact} /></td>
                       <td className="px-card py-stack"><Badge tone="info">{classificationLabels[contact.classification]}</Badge></td>
-                      <td className="px-card py-stack"><ContactStatus contact={contact} /></td>
+                      <td className="px-card py-stack"><div className="flex flex-wrap gap-2"><ContactStatus contact={contact} />{contact.isProtected ? <StatusChip status="warning">OWNER-only</StatusChip> : null}</div></td>
                       <td className="px-card py-stack">
                         <ContactActions
                           contact={contact}
@@ -660,6 +665,7 @@ export function ContactsClient({
                           onGeneralStart={handleGeneralStart}
                           onLifecycleStart={handleLifecycleStart}
                         />
+                        {canManagePrivacy ? <button className="mt-2 text-xs text-text-muted underline" onClick={() => startTransition(async () => { await setContactTeamVisibilityAction(contact.id, contact.isProtected); router.refresh(); })} type="button">{contact.isProtected ? "Visível para equipe" : "Tornar OWNER-only"}</button> : null}
                       </td>
                     </tr>
                   ))}
@@ -675,6 +681,7 @@ export function ContactsClient({
                     <div className="flex flex-wrap items-center gap-inline">
                       <Badge tone="info">{classificationLabels[contact.classification]}</Badge>
                       <ContactStatus contact={contact} />
+                      {contact.isProtected ? <StatusChip status="warning">OWNER-only</StatusChip> : null}
                     </div>
                   </div>
                   <ContactActions
@@ -686,6 +693,7 @@ export function ContactsClient({
                     onGeneralStart={handleGeneralStart}
                     onLifecycleStart={handleLifecycleStart}
                   />
+                  {canManagePrivacy ? <button className="text-xs text-text-muted underline" onClick={() => startTransition(async () => { await setContactTeamVisibilityAction(contact.id, contact.isProtected); router.refresh(); })} type="button">{contact.isProtected ? "Visível para equipe" : "Tornar OWNER-only"}</button> : null}
                 </Card>
               ))}
             </div>

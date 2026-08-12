@@ -43,7 +43,7 @@ export async function getActiveAccessForAuthUser(
     .select("id, role, status, workspace_id")
     .eq("user_id", appUser.id)
     .eq("status", "active")
-    .eq("role", "owner")
+    .in("role", ["owner", "attendant"])
     .limit(1)
     .maybeSingle();
 
@@ -87,6 +87,16 @@ export async function requireActiveAccess() {
 
   if (!access) {
     redirect("/login?reason=access_denied");
+  }
+
+  return access;
+}
+
+export async function requireOwnerAccess() {
+  const access = await requireActiveAccess();
+
+  if (access.role !== "owner") {
+    redirect("/prioridades?reason=owner_required");
   }
 
   return access;

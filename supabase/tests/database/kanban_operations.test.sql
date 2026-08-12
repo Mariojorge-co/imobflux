@@ -1,9 +1,8 @@
 begin;
-set search_path = public, extensions, pg_catalog;
+create extension if not exists pgtap with schema extensions;
+set search_path = public, extensions, auth, pg_catalog;
 
 select plan(18);
-
-create extension if not exists pgtap with schema extensions;
 
 -- ─── 1. Setup de Fixtures de Teste ───────────────────────────────────────────
 

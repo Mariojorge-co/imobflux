@@ -9,7 +9,7 @@ type ApplicationLayoutProps = {
 export default async function ApplicationLayout({
   children,
 }: ApplicationLayoutProps) {
-  await requireActiveAccess();
+  const access = await requireActiveAccess();
 
-  return <AppLayout>{children}</AppLayout>;
+  return <AppLayout role={access.role}>{children}</AppLayout>;
 }

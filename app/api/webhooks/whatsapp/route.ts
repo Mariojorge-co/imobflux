@@ -54,18 +54,28 @@ export async function POST(request: Request) {
 
     // 4. Se o payload for um texto válido, chamar a RPC ingest_whatsapp_text_message
     const supabase = createAdminSupabaseClient();
-    const { data: rpcResult, error: rpcError } = await supabase.rpc(
-      "ingest_whatsapp_text_message",
-      {
-        p_external_account_id: result.instance,
-        p_external_message_id: result.externalMessageId || "",
-        p_remote_jid: result.remoteJid,
-        p_from_me: result.fromMe,
-        p_push_name: result.pushName || "",
-        p_text_content: result.textContent,
-        p_occurred_at: result.occurredAt,
-      },
-    );
+    const rpcCall = result.conversationType === "group"
+      ? supabase.rpc("ingest_whatsapp_group_text_message", {
+          p_external_account_id: result.instance,
+          p_external_message_id: result.externalMessageId || "",
+          p_group_jid: result.remoteJid,
+          p_sender_jid: result.senderJid || "",
+          p_from_me: result.fromMe,
+          p_group_subject: result.groupSubject || "",
+          p_push_name: result.pushName || "",
+          p_text_content: result.textContent,
+          p_occurred_at: result.occurredAt,
+        })
+      : supabase.rpc("ingest_whatsapp_text_message", {
+          p_external_account_id: result.instance,
+          p_external_message_id: result.externalMessageId || "",
+          p_remote_jid: result.remoteJid,
+          p_from_me: result.fromMe,
+          p_push_name: result.pushName || "",
+          p_text_content: result.textContent,
+          p_occurred_at: result.occurredAt,
+        });
+    const { data: rpcResult, error: rpcError } = await rpcCall;
 
     if (rpcError) {
       console.error("Erro ao ingerir mensagem do WhatsApp via RPC:", rpcError);

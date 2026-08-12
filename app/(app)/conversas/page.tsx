@@ -1,5 +1,5 @@
 import { MessageCircle } from "lucide-react";
-import { getConversationsList } from "@/lib/conversations/data";
+import { getConversationsInbox } from "@/lib/conversations/data";
 import { ConversationsList } from "@/components/conversations/conversations-list";
 
 /**
@@ -12,13 +12,13 @@ import { ConversationsList } from "@/components/conversations/conversations-list
  *   é ocultada via CSS. A navegação para /conversas/[id] exibe o detalhe.
  */
 export default async function ConversasPage() {
-  const initialItems = await getConversationsList({ limit: 20 });
+  const inbox = await getConversationsInbox({ limit: 20 });
 
   return (
     <div className="flex h-full w-full">
       {/* Coluna esquerda: lista de conversas (320px no desktop, tela cheia no mobile) */}
       <div className="w-full shrink-0 md:w-80">
-        <ConversationsList initialItems={initialItems} />
+        <ConversationsList initialCounts={inbox.counts} initialItems={inbox.items} />
       </div>
 
       {/* Coluna direita: estado "selecione uma conversa" — oculta no mobile */}

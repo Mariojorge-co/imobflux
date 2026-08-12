@@ -1,11 +1,14 @@
 export type WebhookParseResult =
   | { status: "invalid_secret"; error: string }
   | { status: "malformed"; error: string }
-  | { status: "ignored"; reason: "unhandled_event" | "group_event_ignored" | "non_text_message_ignored" }
+  | { status: "ignored"; reason: "unhandled_event" | "group_sender_missing" | "non_text_message_ignored" }
   | {
       status: "valid";
       instance: string;
       remoteJid: string;
+      conversationType: "individual" | "group";
+      senderJid: string | null;
+      groupSubject: string | null;
       fromMe: boolean;
       externalMessageId: string | null;
       pushName: string | null;
@@ -15,6 +18,7 @@ export type WebhookParseResult =
 
 interface EvolutionPayloadKey {
   remoteJid?: string;
+  participant?: string;
   fromMe?: boolean;
   id?: string;
 }
@@ -22,6 +26,7 @@ interface EvolutionPayloadKey {
 interface EvolutionPayloadData {
   key?: EvolutionPayloadKey;
   pushName?: string;
+  subject?: string;
   message?: {
     conversation?: string;
     extendedTextMessage?: {
@@ -84,11 +89,15 @@ export function parseEvolutionWebhookPayload(body: unknown): WebhookParseResult 
   if (
     !remoteJid ||
     typeof remoteJid !== "string" ||
-    remoteJid.endsWith("@g.us") ||
-    remoteJid.includes("@g.us") ||
     !remoteJid.includes("@")
   ) {
-    return { status: "ignored", reason: "group_event_ignored" };
+    return { status: "malformed", error: "Identificador remoto inválido" };
+  }
+
+  const conversationType = remoteJid.endsWith("@g.us") ? "group" : "individual";
+  const senderJid = typeof key.participant === "string" ? key.participant : null;
+  if (conversationType === "group" && !Boolean(key.fromMe) && !senderJid) {
+    return { status: "ignored", reason: "group_sender_missing" };
   }
 
   const rawText =
@@ -124,6 +133,12 @@ export function parseEvolutionWebhookPayload(body: unknown): WebhookParseResult 
     status: "valid",
     instance: payload.instance,
     remoteJid,
+    conversationType,
+    senderJid,
+    groupSubject:
+      typeof data.subject === "string" && data.subject.trim() !== ""
+        ? data.subject.trim()
+        : null,
     fromMe,
     externalMessageId,
     pushName,

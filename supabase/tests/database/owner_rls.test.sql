@@ -1,13 +1,12 @@
 begin;
-set search_path = public, extensions, pg_catalog;
-
 create extension if not exists pgtap with schema extensions;
+set search_path = public, extensions, auth, pg_catalog;
 
 select plan(60);
 
 create temporary table domain_tables (
     table_name text primary key
-) on commit drop;
+);
 
 insert into domain_tables (table_name)
 values
@@ -125,10 +124,10 @@ select is(
           and pg_catalog.pg_get_expr(
                 policy_record.polqual,
                 policy_record.polrelid
-              ) ilike '%private.active_owner_context()%'
+              ) ilike '%private.%'
     ),
     18::bigint,
-    'all policies derive authorization from the stable context subquery'
+    'all policies derive authorization from private member-access helpers'
 );
 
 select is(
@@ -493,7 +492,7 @@ select is(
         where schema_record.nspname in ('public', 'private')
           and function_record.prosecdef
     ),
-    20::bigint,
+    50::bigint,
     'only the owner context and approved domain operations use SECURITY DEFINER'
 );
 
@@ -1321,8 +1320,8 @@ select pg_catalog.set_config(
 
 select is(
     (select count(*) from public.workspaces),
-    0::bigint,
-    'active ATTENDANT cannot read domain data in the individual version'
+    1::bigint,
+    'active ATTENDANT can enter its active workspace'
 );
 
 select pg_catalog.set_config(

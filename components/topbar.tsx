@@ -6,7 +6,7 @@ import { LogoutButton } from "@/components/auth/logout-button";
 import { NavigationLinks } from "@/components/sidebar";
 import { Button } from "@/components/ui";
 
-export function Topbar() {
+export function Topbar({ role }: { role: "owner" | "attendant" }) {
   const [isNavigationOpen, setIsNavigationOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -54,6 +54,7 @@ export function Topbar() {
         >
           <NavigationLinks
             onNavigate={() => setIsNavigationOpen(false)}
+            role={role}
           />
         </div>
       ) : null}

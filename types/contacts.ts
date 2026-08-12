@@ -9,6 +9,8 @@ export type ContactListItem = {
   id: string;
   operationalStatus: ContactOperationalStatus;
   phoneDisplayValue: string | null;
+  avatarUrl: string | null;
+  isProtected: boolean;
 };
 
 export type ContactListFilters = {

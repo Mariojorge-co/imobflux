@@ -1,5 +1,10 @@
 import { execSync } from "child_process";
 import { expect, test } from "@playwright/test";
+import {
+  cleanDemoMode,
+  loadDemoMode,
+  resetLocalDatabase,
+} from "./helpers/local-test-state";
 
 interface ContactRecord {
   id: string;
@@ -31,6 +36,12 @@ interface ConversationRecord {
   operational_status: string;
 }
 
+interface DemoMemberRecord {
+  email: string;
+  role: string;
+  status: string;
+}
+
 function queryPostgresJson<T>(sqlQuery: string): T[] {
   const env = {
     ...process.env,
@@ -47,19 +58,12 @@ function queryPostgresJson<T>(sqlQuery: string): T[] {
 
 test.describe("Sprint 22 — Demo Mode Integration & Data Integrity Suite", () => {
   test.beforeAll(() => {
-    const env = {
-      ...process.env,
-      PATH: `C:\\Users\\User\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;${process.env.PATH || ""}`,
-    };
-    execSync("npx.cmd tsx scripts/demo-control.ts --load", { env, stdio: "ignore" });
+    resetLocalDatabase();
+    loadDemoMode();
   });
 
   test.afterAll(() => {
-    const env = {
-      ...process.env,
-      PATH: `C:\\Users\\User\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;${process.env.PATH || ""}`,
-    };
-    execSync("npx.cmd tsx scripts/demo-control.ts --clean", { env, stdio: "ignore" });
+    cleanDemoMode();
   });
 
   test("validates presence and integrity of all 20 fictive demo clients and opportunities", async () => {
@@ -108,5 +112,22 @@ test.describe("Sprint 22 — Demo Mode Integration & Data Integrity Suite", () =
       `select id, operational_status from public.conversations where id between 'd3300003-0000-4000-8000-000000000001' and 'd3300003-0000-4000-8000-000000000020'`
     );
     expect(conversations.length).toBe(20);
+
+    const members = queryPostgresJson<DemoMemberRecord>(
+      "select auth_user.email, member.role, member.status from public.workspace_members as member join public.app_users as app_user on app_user.id = member.user_id join auth.users as auth_user on auth_user.id = app_user.auth_user_id where auth_user.email in ('corretor@imobflux.local', 'atendente@imobflux.local') order by auth_user.email",
+    );
+    expect(members).toEqual([
+      { email: "atendente@imobflux.local", role: "attendant", status: "active" },
+      { email: "corretor@imobflux.local", role: "owner", status: "active" },
+    ]);
+
+    const privacyFixtures = queryPostgresJson<{ display_name: string; is_protected: boolean }>(
+      "select display_name, is_protected from public.contacts where display_name like 'DEMO — Cliente%' order by display_name",
+    );
+    expect(privacyFixtures).toEqual([
+      { display_name: "DEMO — Cliente Liberado Agora", is_protected: false },
+      { display_name: "DEMO — Cliente Privado", is_protected: true },
+      { display_name: "DEMO — Cliente Público", is_protected: false },
+    ]);
   });
 });

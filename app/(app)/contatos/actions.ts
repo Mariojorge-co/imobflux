@@ -14,6 +14,28 @@ import type { ContactActionState } from "@/types/contacts";
 
 const invalidOperationMessage = "Não foi possível validar esta operação.";
 
+export async function setContactTeamVisibilityAction(
+  contactId: string,
+  teamVisible: boolean,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await assertTrustedServerActionOrigin();
+    const access = await requireActiveAccess();
+    if (access.role !== "owner") return { success: false, error: invalidOperationMessage };
+    const supabase = await createServerSupabaseClient();
+    const { error } = await supabase.rpc("set_contact_team_visibility", {
+      p_contact_id: contactId,
+      p_team_visible: teamVisible,
+    });
+    if (error) return { success: false, error: invalidOperationMessage };
+    revalidatePath("/contatos");
+    revalidatePath("/conversas");
+    return { success: true };
+  } catch {
+    return { success: false, error: invalidOperationMessage };
+  }
+}
+
 function success(message: string, contactId: string): ContactActionState {
   revalidatePath("/contatos");
   return { contactId, message, status: "success" };

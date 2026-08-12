@@ -137,8 +137,8 @@ test.describe("Evolution API Webhook Route Handler & Parser Complete Unit Tests"
     expect(rpcCalls.length).toBe(0);
   });
 
-  // 5. Grupo (@g.us) retorna 200 sem chamar RPC
-  test("5. mensagem de grupo (@g.us) retorna HTTP 200 sem chamar RPC", async () => {
+  // 5. Grupo (@g.us) usa a RPC dedicada sem materializar lead.
+  test("5. mensagem de grupo (@g.us) chama a RPC dedicada", async () => {
     const req = createMockRequest({
       headers: { "x-evolution-secret": "secret_token_123" },
       body: {
@@ -149,6 +149,7 @@ test.describe("Evolution API Webhook Route Handler & Parser Complete Unit Tests"
             remoteJid: "120363041999999999@g.us",
             fromMe: false,
             id: "msg-1",
+            participant: "5582988880000@s.whatsapp.net",
           },
           pushName: "Grupo Imobiliária",
           messageTimestamp: 1700000000,
@@ -160,9 +161,9 @@ test.describe("Evolution API Webhook Route Handler & Parser Complete Unit Tests"
     const res = await POST(req);
     expect(res.status).toBe(200);
     const json = await res.json();
-    expect(json.status).toBe("ignored");
-    expect(json.reason).toBe("group_event_ignored");
-    expect(rpcCalls.length).toBe(0);
+    expect(json.status).toBe("success");
+    expect(rpcCalls).toHaveLength(1);
+    expect(rpcCalls[0].fnName).toBe("ingest_whatsapp_group_text_message");
   });
 
   // 6. Mensagem não textual (imagem/mídia) retorna 200 sem chamar RPC

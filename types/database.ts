@@ -250,6 +250,7 @@ export type Database = {
           created_at: string
           display_value: string | null
           external_display_name: string | null
+          external_avatar_url: string | null
           id: string
           inactive_at: string | null
           is_protected: boolean
@@ -266,6 +267,7 @@ export type Database = {
           created_at?: string
           display_value?: string | null
           external_display_name?: string | null
+          external_avatar_url?: string | null
           id?: string
           inactive_at?: string | null
           is_protected?: boolean
@@ -282,6 +284,7 @@ export type Database = {
           created_at?: string
           display_value?: string | null
           external_display_name?: string | null
+          external_avatar_url?: string | null
           id?: string
           inactive_at?: string | null
           is_protected?: boolean
@@ -321,6 +324,7 @@ export type Database = {
           is_protected: boolean
           operational_status: string
           protected_at: string | null
+          registration_status: string
           updated_at: string
           workspace_id: string
         }
@@ -335,6 +339,7 @@ export type Database = {
           is_protected?: boolean
           operational_status: string
           protected_at?: string | null
+          registration_status?: string
           updated_at?: string
           workspace_id: string
         }
@@ -349,6 +354,7 @@ export type Database = {
           is_protected?: boolean
           operational_status?: string
           protected_at?: string | null
+          registration_status?: string
           updated_at?: string
           workspace_id?: string
         }
@@ -498,6 +504,64 @@ export type Database = {
           },
           {
             foreignKeyName: "fk_conversation_participants_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversation_read_states: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          id: string
+          is_unread: boolean
+          last_read_at: string
+          marked_unread_at: string | null
+          member_id: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          id?: string
+          is_unread?: boolean
+          last_read_at?: string
+          marked_unread_at?: string | null
+          member_id: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          is_unread?: boolean
+          last_read_at?: string
+          marked_unread_at?: string | null
+          member_id?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_conversation_read_states_conversation"
+            columns: ["workspace_id", "conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["workspace_id", "id"]
+          },
+          {
+            foreignKeyName: "fk_conversation_read_states_member"
+            columns: ["workspace_id", "member_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_members"
+            referencedColumns: ["workspace_id", "id"]
+          },
+          {
+            foreignKeyName: "fk_conversation_read_states_workspace"
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
@@ -943,6 +1007,54 @@ export type Database = {
           },
         ]
       }
+      opportunity_financials: {
+        Row: {
+          business_value: number | null
+          commission_expected: number | null
+          commission_received: number | null
+          created_at: string
+          id: string
+          opportunity_id: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          business_value?: number | null
+          commission_expected?: number | null
+          commission_received?: number | null
+          created_at?: string
+          id?: string
+          opportunity_id: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          business_value?: number | null
+          commission_expected?: number | null
+          commission_received?: number | null
+          created_at?: string
+          id?: string
+          opportunity_id?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_opportunity_financials_opportunity"
+            columns: ["workspace_id", "opportunity_id"]
+            isOneToOne: true
+            referencedRelation: "opportunities"
+            referencedColumns: ["workspace_id", "id"]
+          },
+          {
+            foreignKeyName: "fk_opportunity_financials_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pipeline_history: {
         Row: {
           changed_at: string
@@ -1293,7 +1405,12 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_team_invitation: { Args: never; Returns: Json }
       archive_contact: { Args: { p_contact_id: string }; Returns: string }
+      bind_team_invitation_auth_identity: {
+        Args: { p_auth_user_id: string; p_member_id: string }
+        Returns: undefined
+      }
       archive_opportunity: { Args: { p_opportunity_id: string }; Returns: Json }
       bootstrap_initial_workspace: {
         Args: {
@@ -1308,6 +1425,29 @@ export type Database = {
           workspace_member_id: string
         }[]
       }
+      close_opportunity_cancelled: {
+        Args: { p_opportunity_id: string }
+        Returns: Json
+      }
+      close_opportunity_lost: {
+        Args: {
+          p_loss_notes?: string
+          p_loss_reason: string
+          p_opportunity_id: string
+        }
+        Returns: Json
+      }
+      close_opportunity_won: {
+        Args: {
+          p_business_value?: number
+          p_commission_expected?: number
+          p_commission_received?: number
+          p_opportunity_id: string
+        }
+        Returns: Json
+      }
+      complete_work_task: { Args: { p_task_id: string }; Returns: Json }
+      deactivate_team_member: { Args: { p_member_id: string }; Returns: Json }
       create_contact: {
         Args: {
           p_classification: string
@@ -1336,6 +1476,29 @@ export type Database = {
         }
         Returns: string
       }
+      get_conversation_context: {
+        Args: { p_conversation_id: string }
+        Returns: Json
+      }
+      get_conversation_messages: {
+        Args: {
+          p_conversation_id: string
+          p_cursor_id?: string
+          p_cursor_occurred_at?: string
+          p_limit?: number
+        }
+        Returns: Json
+      }
+      get_conversations_inbox: {
+        Args: {
+          p_cursor_id?: string
+          p_cursor_ts?: string
+          p_limit?: number
+          p_search?: string
+          p_view?: string
+        }
+        Returns: Json
+      }
       get_conversations_list: {
         Args: {
           p_cursor_id?: string
@@ -1344,9 +1507,12 @@ export type Database = {
           p_search?: string
         }
         Returns: {
+          contact_id: string
           conversation_id: string
           conversation_type: string
+          is_unread: boolean
           last_activity_at: string
+          last_msg_author_name: string
           last_msg_direction: string
           last_msg_occurred_at: string
           last_msg_text: string
@@ -1354,6 +1520,7 @@ export type Database = {
           next_cursor_ts: string
           operational_status: string
           participant_name: string
+          participant_phone: string
           started_at: string
           visibility: string
         }[]
@@ -1368,6 +1535,52 @@ export type Database = {
         Returns: Json
       }
       get_prioridades_dashboard: { Args: never; Returns: Json }
+      get_visible_internal_notes: {
+        Args: { p_conversation_id: string; p_opportunity_id?: string }
+        Returns: {
+          author_name: string
+          content: string
+          created_at: string
+          id: string
+          opportunity_id: string | null
+        }[]
+      }
+      get_pending_team_invitation: {
+        Args: { p_member_id: string }
+        Returns: {
+          auth_user_id: string | null
+          display_name: string
+          email: string
+          member_id: string
+        }[]
+      }
+      get_team_members: {
+        Args: never
+        Returns: {
+          activated_at: string | null
+          created_at: string
+          display_name: string
+          email: string
+          invited_at: string | null
+          member_id: string
+          member_role: string
+          member_status: string
+        }[]
+      }
+      ingest_whatsapp_group_text_message: {
+        Args: {
+          p_external_account_id: string
+          p_external_message_id: string
+          p_from_me: boolean
+          p_group_jid: string
+          p_group_subject: string
+          p_occurred_at: string
+          p_push_name: string
+          p_sender_jid: string
+          p_text_content: string
+        }
+        Returns: Json
+      }
       ingest_whatsapp_text_message: {
         Args: {
           p_external_account_id: string
@@ -1384,6 +1597,12 @@ export type Database = {
         Args: { p_conversation_id: string; p_opportunity_id: string }
         Returns: Json
       }
+      mark_conversation_unread: {
+        Args: { p_conversation_id: string; p_unread?: boolean }
+        Returns: Json
+      }
+      mark_team_invitation_resent: { Args: { p_member_id: string }; Returns: Json }
+      normalize_brazilian_phone: { Args: { p_value: string }; Returns: string }
       move_opportunity_stage: {
         Args: {
           p_expected_current_stage_id: string
@@ -1391,6 +1610,14 @@ export type Database = {
           p_opportunity_id: string
           p_reason?: string
         }
+        Returns: Json
+      }
+      provision_default_pipeline_stages: {
+        Args: { p_workspace_id: string }
+        Returns: number
+      }
+      prepare_team_invitation: {
+        Args: { p_display_name: string; p_email: string }
         Returns: Json
       }
       queue_outgoing_text_message: {
@@ -1401,6 +1628,11 @@ export type Database = {
         }
         Returns: Json
       }
+      reactivate_opportunity: {
+        Args: { p_opportunity_id: string; p_target_stage_id?: string }
+        Returns: Json
+      }
+      reactivate_team_member: { Args: { p_member_id: string }; Returns: Json }
       reconcile_outgoing_text_message: {
         Args: {
           p_external_message_id?: string
@@ -1409,41 +1641,40 @@ export type Database = {
         }
         Returns: Json
       }
-      close_opportunity_cancelled: {
-        Args: { p_opportunity_id: string }
-        Returns: Json
-      }
-      close_opportunity_lost: {
-        Args: {
-          p_loss_notes?: string
-          p_loss_reason: string
-          p_opportunity_id: string
-        }
-        Returns: Json
-      }
-      close_opportunity_won: {
-        Args: {
-          p_business_value?: number
-          p_commission_expected?: number
-          p_commission_received?: number
-          p_opportunity_id: string
-        }
-        Returns: Json
-      }
-      reactivate_opportunity: {
-        Args: { p_opportunity_id: string; p_target_stage_id?: string }
-        Returns: Json
-      }
       restore_contact: { Args: { p_contact_id: string }; Returns: string }
+      save_internal_note: {
+        Args: {
+          p_content: string
+          p_conversation_id: string
+          p_opportunity_id?: string
+        }
+        Returns: Json
+      }
+      resolve_or_start_individual_conversation: {
+        Args: { p_contact_id?: string; p_phone: string }
+        Returns: Json
+      }
       set_contact_operational_status: {
         Args: { p_contact_id: string; p_operational_status: string }
         Returns: string
+      }
+      set_contact_team_visibility: {
+        Args: { p_contact_id: string; p_team_visible: boolean }
+        Returns: Json
+      }
+      set_conversation_archived: {
+        Args: { p_archived: boolean; p_conversation_id: string }
+        Returns: Json
+      }
+      set_group_team_visibility: {
+        Args: { p_conversation_id: string; p_team_visible: boolean }
+        Returns: Json
       }
       set_opportunity_rework: {
         Args: {
           p_opportunity_id: string
           p_rework_reason: string
-          p_rework_reevaluation_date?: string
+          p_rework_reevaluation_date: string
         }
         Returns: Json
       }
@@ -1457,6 +1688,28 @@ export type Database = {
         }
         Returns: string
       }
+      update_conversation_contact_name: {
+        Args: { p_conversation_id: string; p_display_name: string }
+        Returns: Json
+      }
+      update_contact_opportunity_qualification: {
+        Args: {
+          p_approved_credit_amount?: number
+          p_available_down_payment?: number
+          p_city_region_preference?: string
+          p_contact_id: string
+          p_docs_status?: string
+          p_family_income?: number
+          p_financial_analysis_status?: string
+          p_max_price_budget?: number
+          p_notes?: string
+          p_operation_type?: string
+          p_opportunity_id?: string
+          p_property_type_preference?: string
+          p_timeframe_intent?: string
+        }
+        Returns: Json
+      }
       update_opportunity: {
         Args: {
           p_contact_id?: string
@@ -1464,6 +1717,18 @@ export type Database = {
           p_opportunity_id: string
           p_responsible_member_id?: string
           p_stage_id?: string
+          p_title: string
+        }
+        Returns: Json
+      }
+      upsert_work_task: {
+        Args: {
+          p_contact_id?: string
+          p_conversation_id?: string
+          p_due_at: string
+          p_opportunity_id?: string
+          p_task_id?: string
+          p_task_type: string
           p_title: string
         }
         Returns: Json

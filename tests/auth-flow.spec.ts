@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { expect, test } from "@playwright/test";
 import type { Database } from "@/types/database";
+import { resetLocalDatabase } from "./helpers/local-test-state";
 
 const owner = {
   displayName: "Owner de Validação",
@@ -34,6 +35,10 @@ function createTestAdminClient(): SupabaseClient<Database> {
 }
 
 test.describe.serial("local authentication flow", () => {
+  test.beforeAll(() => {
+    resetLocalDatabase();
+  });
+
   test("redirects an unauthenticated private route", async ({ page }) => {
     await page.goto("/prioridades");
     await expect(page).toHaveURL(/\/login$/);
@@ -196,9 +201,8 @@ test.describe.serial("local authentication flow", () => {
     await admin.auth.admin.deleteUser(data.user!.id);
   });
 
-  test("rejects and clears an active ATTENDANT in the individual version", async ({
+  test("allows an active ATTENDANT with the RLS-scoped application context", async ({
     page,
-    context,
   }) => {
     const admin = createTestAdminClient();
     const email = "attendant.sprint13@example.test";
@@ -261,14 +265,8 @@ test.describe.serial("local authentication flow", () => {
     await page.getByLabel("Senha").fill(password);
     await page.getByRole("button", { name: "Entrar" }).click();
 
-    await expect(
-      page.getByText("Esta conta não possui acesso ativo ao ImobFlux."),
-    ).toBeVisible();
-    expect(
-      (await context.cookies()).filter((cookie) =>
-        cookie.name.includes("auth-token"),
-      ),
-    ).toHaveLength(0);
+    await expect(page).toHaveURL(/\/prioridades$/);
+    await expect(page.getByRole("heading", { name: "Prioridades Operacionais" })).toBeVisible();
 
     await admin.auth.admin.deleteUser(authData.user!.id);
   });

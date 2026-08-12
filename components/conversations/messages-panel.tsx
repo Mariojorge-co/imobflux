@@ -1,47 +1,135 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, Kanban, Paperclip, Plus } from "lucide-react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
+import { Archive, ArchiveRestore, ArrowLeft, Info, Mail, Paperclip, Plus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   createOpportunityFromConversationAction,
   loadMoreMessagesAction,
+  markConversationReadOnOpenAction,
+  markConversationUnreadAction,
+  refreshConversationMessagesAction,
+  refreshVisibleInternalNotesAction,
+  setConversationArchivedAction,
+  setGroupTeamVisibilityAction,
 } from "@/lib/conversations/actions";
 import { MessageForm } from "@/components/conversations/message-form";
-import { Badge, Button, Input } from "@/components/ui";
+import { Button, Input } from "@/components/ui";
+import { calculateSLA } from "@/lib/conversations/sla";
 import type {
+  ConversationContextData,
   ConversationListItem,
   ConversationMessage,
+  ConversationPipelineStage,
   LinkedOpportunityInfo,
   MessagesCursor,
 } from "@/lib/conversations/data";
+import { moveOpportunityAction } from "@/lib/kanban/actions";
+import { ClientContextPanel } from "@/components/conversations/client-context-panel";
+import { emitConversationClientUpdate } from "@/lib/conversations/client-events";
+import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 type MessagesPanelProps = {
   conversation: ConversationListItem;
+  initialHasOlder: boolean;
   initialMessages: ConversationMessage[];
   linkedOpportunity?: LinkedOpportunityInfo | null;
+  initialSelectedOpportunityId?: string;
+  context?: ConversationContextData | null;
+  opportunityContexts?: ConversationContextData[];
+  stages?: ConversationPipelineStage[];
   /** Se verdadeiro, renderiza o botão "Voltar" (mobile). */
   showBackButton?: boolean;
+  canManagePrivacy?: boolean;
 };
 
 export function MessagesPanel({
   conversation,
+  initialHasOlder,
   initialMessages,
   linkedOpportunity,
+  initialSelectedOpportunityId,
+  context,
+  opportunityContexts = [],
+  stages = [],
   showBackButton = false,
+  canManagePrivacy = false,
 }: MessagesPanelProps) {
+  const [, startTransition] = useTransition();
   const [messages, setMessages] = useState<ConversationMessage[]>(initialMessages);
+  const [liveConversation, setLiveConversation] = useState(conversation);
+  const [optimisticNotes, setOptimisticNotes] = useState<
+    Record<string, ConversationContextData["notes"]>
+  >({});
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
-  const [hasOlder, setHasOlder] = useState(initialMessages.length === 50);
+  const [hasOlder, setHasOlder] = useState(initialHasOlder);
   const [isCreateOppOpen, setIsCreateOppOpen] = useState(false);
   const [oppTitle, setOppTitle] = useState("");
   const [oppError, setOppError] = useState<string | null>(null);
   const [isCreatingOpp, setIsCreatingOpp] = useState(false);
+  const [isMobileInfoOpen, setIsMobileInfoOpen] = useState(false);
+  const [selectedOpportunityId, setSelectedOpportunityId] = useState(
+    opportunityContexts.some((item) => item.active_opportunity?.opportunity_id === initialSelectedOpportunityId)
+      ? initialSelectedOpportunityId!
+      : context?.active_opportunity?.opportunity_id
+      ?? opportunityContexts[0]?.active_opportunity?.opportunity_id
+      ?? null,
+  );
+  const [optimisticStages, setOptimisticStages] = useState<Record<string, string>>({});
 
   const router = useRouter();
   const listRef = useRef<HTMLDivElement>(null);
   const hasAutoScrolledRef = useRef(false);
+  const pendingScrollAdjustmentRef = useRef<{
+    scrollHeight: number;
+    scrollTop: number;
+  } | null>(null);
+  const shouldAutoReadRef = useRef(Boolean(conversation.is_unread));
+  const pendingScrollToBottomRef = useRef(false);
+
+  const selectedContextBase = opportunityContexts.find(
+    (item) => item.active_opportunity?.opportunity_id === selectedOpportunityId,
+  ) ?? opportunityContexts[0] ?? context;
+  const activeOpp = selectedContextBase?.active_opportunity || (linkedOpportunity ? {
+    opportunity_id: linkedOpportunity.opportunity_id,
+    title: linkedOpportunity.title,
+    current_stage_id: linkedOpportunity.current_stage_id,
+  } : null);
+  const displayedStageId = activeOpp
+    ? optimisticStages[activeOpp.opportunity_id] ?? activeOpp.current_stage_id
+    : null;
+
+  const effectiveOpportunityId =
+    selectedContextBase?.active_opportunity?.opportunity_id ?? selectedOpportunityId;
+  const noteContextKey = effectiveOpportunityId ?? "general";
+  const optimisticNotesForContext = optimisticNotes[noteContextKey] ?? [];
+  const selectedContext = selectedContextBase && optimisticNotesForContext.length > 0
+    ? appendNotesToContext(selectedContextBase, optimisticNotesForContext)
+    : selectedContextBase;
+
+  const sla = calculateSLA(
+    liveConversation.last_msg_direction,
+    liveConversation.last_activity_at,
+  );
+
+  useEffect(() => {
+    if (!shouldAutoReadRef.current) return;
+    shouldAutoReadRef.current = false;
+
+    startTransition(async () => {
+      const result = await markConversationReadOnOpenAction(
+        conversation.conversation_id,
+      );
+      if (!result.success) return;
+
+      setLiveConversation((previous) => ({ ...previous, is_unread: false }));
+      emitConversationClientUpdate({
+        conversationId: conversation.conversation_id,
+        isUnread: false,
+      });
+    });
+  }, [conversation.conversation_id, router]);
 
   // Auto-scroll para a mensagem mais recente no primeiro carregamento
   useEffect(() => {
@@ -50,6 +138,80 @@ export function MessagesPanel({
       hasAutoScrolledRef.current = true;
     }
   }, [initialMessages]);
+
+  useLayoutEffect(() => {
+    const pending = pendingScrollAdjustmentRef.current;
+    const list = listRef.current;
+    if (!pending || !list) return;
+
+    list.scrollTop = pending.scrollTop + (list.scrollHeight - pending.scrollHeight);
+    pendingScrollAdjustmentRef.current = null;
+  }, [messages]);
+
+  useLayoutEffect(() => {
+    if (!pendingScrollToBottomRef.current || !listRef.current) return;
+    listRef.current.scrollTop = listRef.current.scrollHeight;
+    pendingScrollToBottomRef.current = false;
+  }, [messages]);
+
+  const handleMessagePersisted = useCallback((message: ConversationMessage) => {
+    pendingScrollToBottomRef.current = true;
+    setMessages((previous) => {
+      const byId = new Map(previous.map((item) => [item.id, item]));
+      byId.set(message.id, message);
+      return [...byId.values()].sort(
+        (left, right) =>
+          left.occurred_at.localeCompare(right.occurred_at)
+          || left.id.localeCompare(right.id),
+      );
+    });
+
+    setLiveConversation((previous) => ({
+      ...previous,
+      last_activity_at: message.occurred_at,
+      last_msg_direction: message.direction,
+      last_msg_occurred_at: message.occurred_at,
+      last_msg_text: message.text_content,
+      is_unread: false,
+    }));
+    emitConversationClientUpdate({
+      conversationId: conversation.conversation_id,
+      isUnread: false,
+      message,
+    });
+  }, [conversation.conversation_id]);
+
+  const handleInternalNoteSaved = useCallback((
+    note: ConversationContextData["notes"][number],
+    savedOpportunityId: string | null,
+  ) => {
+    const savedContextKey = savedOpportunityId ?? "general";
+    setOptimisticNotes((previous) => ({
+      ...previous,
+      [savedContextKey]: [
+        note,
+        ...(previous[savedContextKey] ?? []).filter(
+          (existing) => existing.id !== note.id,
+        ),
+      ],
+    }));
+  }, []);
+
+  const handleContactUpdated = useCallback((displayName: string) => {
+    setLiveConversation((previous) => ({ ...previous, participant_name: displayName }));
+    emitConversationClientUpdate({
+      conversationId: conversation.conversation_id,
+      participantName: displayName,
+    });
+  }, [conversation.conversation_id]);
+
+  const reconcileVisibleNotes = useCallback(async () => {
+    const notes = await refreshVisibleInternalNotesAction(
+      conversation.conversation_id,
+      effectiveOpportunityId,
+    );
+    setOptimisticNotes((previous) => ({ ...previous, [noteContextKey]: notes }));
+  }, [conversation.conversation_id, effectiveOpportunityId, noteContextKey]);
 
   const handleLoadOlder = useCallback(async () => {
     if (isLoadingOlder || messages.length === 0) return;
@@ -60,27 +222,163 @@ export function MessagesPanel({
       id: oldest.id,
     };
 
-    const scrollHeightBefore = listRef.current?.scrollHeight ?? 0;
-
     setIsLoadingOlder(true);
     try {
-      const older = await loadMoreMessagesAction(
+      const page = await loadMoreMessagesAction(
         conversation.conversation_id,
         cursor,
       );
-      setMessages((prev) => [...older, ...prev]);
-      setHasOlder(older.length === 50);
+      const existingIds = new Set(messages.map((message) => message.id));
+      const uniqueOlder = page.messages.filter((message) => !existingIds.has(message.id));
 
-      requestAnimationFrame(() => {
-        if (listRef.current) {
-          const added = listRef.current.scrollHeight - scrollHeightBefore;
-          listRef.current.scrollTop += added;
-        }
+      if (uniqueOlder.length > 0 && listRef.current) {
+        pendingScrollAdjustmentRef.current = {
+          scrollHeight: listRef.current.scrollHeight,
+          scrollTop: listRef.current.scrollTop,
+        };
+      }
+
+      setMessages((previous) => {
+        const currentIds = new Set(previous.map((message) => message.id));
+        return [
+          ...uniqueOlder.filter((message) => !currentIds.has(message.id)),
+          ...previous,
+        ];
       });
+      setHasOlder(page.hasMore && uniqueOlder.length > 0);
     } finally {
       setIsLoadingOlder(false);
     }
   }, [isLoadingOlder, messages, conversation.conversation_id]);
+
+  const handleStageSelect = (newStageId: string) => {
+    if (!activeOpp) return;
+    startTransition(async () => {
+      const result = await moveOpportunityAction(
+        activeOpp.opportunity_id,
+        activeOpp.current_stage_id,
+        newStageId,
+        "Alterado via seletor de etapa da conversa",
+      );
+      if (result.success) {
+        setOptimisticStages((previous) => ({ ...previous, [activeOpp.opportunity_id]: newStageId }));
+        router.refresh();
+      }
+    });
+  };
+
+  const handleToggleUnread = () => {
+    startTransition(async () => {
+      const nextUnread = !liveConversation.is_unread;
+      const result = await markConversationUnreadAction(
+        conversation.conversation_id,
+        nextUnread,
+      );
+      if (!result.success) return;
+      setLiveConversation((previous) => ({ ...previous, is_unread: nextUnread }));
+      emitConversationClientUpdate({
+        conversationId: conversation.conversation_id,
+        isUnread: nextUnread,
+      });
+    });
+  };
+
+  const handleArchive = async () => {
+    const archived = !liveConversation.archived_at;
+    const result = await setConversationArchivedAction(
+      conversation.conversation_id,
+      archived,
+    );
+    if (!result.success) return;
+    if (archived) router.push("/conversas");
+    else {
+      setLiveConversation((previous) => ({ ...previous, archived_at: null }));
+      router.refresh();
+    }
+  };
+
+  useEffect(() => {
+    const supabase = createBrowserSupabaseClient();
+    let disposed = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let noteTimer: ReturnType<typeof setTimeout> | undefined;
+    const reconcileMessages = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        void (async () => {
+          const page = await refreshConversationMessagesAction(conversation.conversation_id);
+          if (disposed) return;
+          setMessages((previous) => {
+            const byId = new Map(previous.map((message) => [message.id, message]));
+            for (const message of page.messages) byId.set(message.id, message);
+            return [...byId.values()].sort((left, right) =>
+              left.occurred_at.localeCompare(right.occurred_at)
+              || left.id.localeCompare(right.id));
+          });
+          const newest = page.messages.at(-1);
+          if (newest) {
+            setLiveConversation((previous) => ({
+              ...previous,
+              last_activity_at: newest.occurred_at,
+              last_msg_direction: newest.direction,
+              last_msg_occurred_at: newest.occurred_at,
+              last_msg_text: newest.text_content,
+            }));
+            emitConversationClientUpdate({
+              conversationId: conversation.conversation_id,
+              message: newest,
+            });
+            if (newest.direction === "incoming") {
+              await markConversationReadOnOpenAction(conversation.conversation_id);
+              emitConversationClientUpdate({
+                conversationId: conversation.conversation_id,
+                isUnread: false,
+              });
+            }
+          }
+        })();
+      }, 60);
+    };
+    const channel = supabase
+      .channel(`authorized-messages-${conversation.conversation_id}-${crypto.randomUUID()}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${conversation.conversation_id}`,
+        },
+        reconcileMessages,
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "internal_notes",
+          filter: `conversation_id=eq.${conversation.conversation_id}`,
+        },
+        () => {
+          if (noteTimer) clearTimeout(noteTimer);
+          noteTimer = setTimeout(() => void reconcileVisibleNotes(), 80);
+        },
+      )
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") reconcileMessages();
+      });
+    const pollingTimer = setInterval(() => {
+      reconcileMessages();
+      void reconcileVisibleNotes();
+    }, 2_000);
+    return () => {
+      disposed = true;
+      if (timer) clearTimeout(timer);
+      if (noteTimer) clearTimeout(noteTimer);
+      clearInterval(pollingTimer);
+      void supabase.removeChannel(channel);
+    };
+  }, [conversation.conversation_id, reconcileVisibleNotes]);
 
   const handleCreateOpportunitySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,14 +387,12 @@ export function MessagesPanel({
     setIsCreatingOpp(true);
     setOppError(null);
 
-    // Usa uma etapa padrão do pipeline para a nova oportunidade
     const defaultStageId = "41000000-0000-4000-8000-000000000001";
-    // Tenta resolver o contact_id a partir do participante ou conversa
-    const dummyContactId = "51000000-0000-4000-8000-000000000001";
+    const contactId = context?.contact?.id || "51000000-0000-4000-8000-000000000001";
 
     const res = await createOpportunityFromConversationAction({
       conversationId: conversation.conversation_id,
-      contactId: dummyContactId,
+      contactId,
       stageId: defaultStageId,
       title: oppTitle.trim(),
     });
@@ -114,113 +410,238 @@ export function MessagesPanel({
 
   const displayName =
     conversation.participant_name ?? "Participante desconhecido";
+  const displayPhone = conversation.participant_phone || context?.contact?.phone;
   const isGroup = conversation.conversation_type === "group";
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Cabeçalho do painel de mensagens */}
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-surface px-4 py-3">
-        <div className="flex items-center gap-3 min-w-0">
-          {showBackButton && (
-            <Link
-              aria-label="Voltar para a lista de conversas"
-              className="rounded-control p-1.5 text-text-muted transition-colors hover:bg-neutral-soft"
-              href="/conversas"
-              id="btn-back-to-conversations"
-            >
-              <ArrowLeft aria-hidden="true" size={18} />
-            </Link>
-          )}
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-text">
-              {isGroup ? `👥 ${displayName}` : displayName}
-            </p>
-            <p className="text-xs text-text-muted capitalize">
-              {conversation.operational_status}
-              {isGroup ? " · Grupo" : ""}
-            </p>
-          </div>
-        </div>
-
-        {/* Integração Conversas → Kanban */}
-        <div className="flex items-center gap-2">
-          {linkedOpportunity ? (
-            <div className="flex items-center gap-2">
-              <Badge tone="success">Oportunidade: {linkedOpportunity.title}</Badge>
-              <Link href={`/kanban?opportunityId=${linkedOpportunity.opportunity_id}`}>
-                <Button variant="secondary">
-                  <Kanban className="h-4 w-4" />
-                  <span>Abrir oportunidade</span>
-                </Button>
+    <div className="flex h-full w-full overflow-hidden">
+      {/* Coluna Principal da Conversa */}
+      <div className="flex h-full flex-1 flex-col overflow-hidden bg-background">
+        {/* Cabeçalho do painel de mensagens */}
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-surface px-4 py-2.5">
+          <div className="flex items-center gap-3 min-w-0">
+            {showBackButton && (
+              <Link
+                aria-label="Voltar para a lista de conversas"
+                className="rounded-control p-1.5 text-text-muted transition-colors hover:bg-neutral-soft"
+                href="/conversas"
+                id="btn-back-to-conversations"
+              >
+                <ArrowLeft aria-hidden="true" size={18} />
               </Link>
+            )}
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="truncate text-sm font-semibold text-text">
+                  {isGroup ? `👥 ${displayName}` : displayName}
+                </p>
+                {sla && (
+                  <span
+                    className={[
+                      "hidden sm:inline-block rounded-full px-2 py-0.5 text-[10px] font-medium",
+                      sla.type === "team_waiting"
+                        ? "bg-rose-500/15 text-rose-700 dark:text-rose-400"
+                        : "bg-slate-500/15 text-slate-700 dark:text-slate-400",
+                    ].join(" ")}
+                  >
+                    {sla.badgeText}
+                  </span>
+                )}
+              </div>
+              {displayPhone && (
+                <p className="truncate text-xs text-text-muted">{displayPhone}</p>
+              )}
             </div>
-          ) : (
-            <Button
-              onClick={() => setIsCreateOppOpen(true)}
-              variant="secondary"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Criar oportunidade</span>
-            </Button>
-          )}
-        </div>
-      </div>
+          </div>
 
-      {/* Lista de mensagens */}
-      <div
-        aria-label="Histórico de mensagens"
-        className="flex-1 overflow-y-auto px-4 py-3"
-        ref={listRef}
-        role="log"
-      >
-        {/* Botão carregar anteriores */}
-        {hasOlder && (
-          <div className="mb-4 flex justify-center">
+          {/* Ações do Cabeçalho */}
+          <div className="flex items-center gap-2">
+            {/* Troca de Etapa do Kanban diretamente na conversa */}
+            {activeOpp ? (
+              <div className="flex items-center gap-1.5">
+                <span className="hidden lg:inline text-xs text-text-muted font-medium">
+                  Etapa:
+                </span>
+                <select
+                  aria-label="Alterar etapa da oportunidade ativa"
+                  className="rounded-control border border-border bg-background px-2.5 py-1 text-xs font-semibold text-text focus:border-primary focus:outline-none"
+                  onChange={(e) => {
+                    handleStageSelect(e.target.value);
+                  }}
+                  value={displayedStageId ?? activeOpp.current_stage_id}
+                >
+                  {stages.map((stg) => (
+                    <option key={stg.id} value={stg.id}>
+                      {stg.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <Button
+                onClick={() => setIsCreateOppOpen(true)}
+                variant="secondary"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Criar oportunidade</span>
+              </Button>
+            )}
+
+            {/* Marcar como Não Lida (Desktop direto, no Mobile via menu de 44px) */}
             <button
-              className="rounded-control border border-border px-4 py-1.5 text-xs text-text-muted transition-colors hover:bg-neutral-soft disabled:opacity-50"
-              disabled={isLoadingOlder}
-              id="btn-load-older-messages"
-              onClick={handleLoadOlder}
+              aria-label={liveConversation.is_unread ? "Marcar como lida" : "Marcar como não lida"}
+              className="hidden sm:flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-control text-text-muted transition-colors hover:bg-neutral-soft hover:text-text"
+              onClick={handleToggleUnread}
+              title={liveConversation.is_unread ? "Marcar como lida" : "Marcar como não lida"}
               type="button"
             >
-              {isLoadingOlder ? "Carregando…" : "Carregar anteriores"}
+              <Mail size={18} />
+            </button>
+
+            <button
+              aria-label={liveConversation.archived_at ? "Desarquivar conversa" : "Arquivar conversa"}
+              className="hidden sm:flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-control text-text-muted transition-colors hover:bg-neutral-soft hover:text-text"
+              onClick={handleArchive}
+              title={liveConversation.archived_at ? "Desarquivar conversa" : "Arquivar conversa"}
+              type="button"
+            >
+              {liveConversation.archived_at ? <ArchiveRestore size={18} /> : <Archive size={18} />}
+            </button>
+            {isGroup && canManagePrivacy ? (
+              <button
+                className="hidden rounded-control px-2 py-1 text-xs text-text-muted hover:bg-neutral-soft sm:block"
+                onClick={() => startTransition(async () => {
+                  const teamVisible = liveConversation.visibility !== "commercial";
+                  const result = await setGroupTeamVisibilityAction(conversation.conversation_id, teamVisible);
+                  if (result.success) setLiveConversation((previous) => ({ ...previous, visibility: teamVisible ? "commercial" : "owner_only" }));
+                })}
+                type="button"
+              >
+                {liveConversation.visibility === "commercial" ? "Tornar OWNER-only" : "Visível para equipe"}
+              </button>
+            ) : null}
+
+            {/* Botão para abrir o painel lateral em Mobile (Min 44x44px target) */}
+            <button
+              aria-label="Abrir dados do cliente"
+              className="flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-control text-text-muted transition-colors hover:bg-neutral-soft hover:text-text xl:hidden"
+              onClick={() => setIsMobileInfoOpen(!isMobileInfoOpen)}
+              title="Informações do cliente"
+              type="button"
+            >
+              <Info size={20} />
             </button>
           </div>
-        )}
-
-        {/* Estado: sem mensagens */}
-        {messages.length === 0 && !hasOlder && (
-          <div className="flex h-full flex-col items-center justify-center text-center">
-            <p className="text-sm text-text-muted">
-              Esta conversa ainda não possui mensagens.
-            </p>
-          </div>
-        )}
-
-        {/* Mensagens */}
-        <div className="flex flex-col gap-2">
-          {messages.map((msg, idx) => {
-            const isOutgoing = msg.direction === "outgoing";
-            const showDateSeparator =
-              idx === 0 ||
-              !isSameDay(messages[idx - 1].occurred_at, msg.occurred_at);
-
-            return (
-              <div key={msg.id}>
-                {showDateSeparator && (
-                  <DateSeparator dateString={msg.occurred_at} />
-                )}
-                <MessageBubble isOutgoing={isOutgoing} message={msg} />
-              </div>
-            );
-          })}
         </div>
+
+        {/* Histórico de Mensagens */}
+        <div
+          aria-label="Histórico de mensagens"
+          className="flex-1 overflow-y-auto px-4 py-3"
+          ref={listRef}
+          role="log"
+        >
+          {hasOlder && (
+            <div className="mb-4 flex justify-center">
+              <button
+                className="rounded-control border border-border px-4 py-1.5 text-xs text-text-muted transition-colors hover:bg-neutral-soft disabled:opacity-50"
+                disabled={isLoadingOlder}
+                id="btn-load-older-messages"
+                onClick={handleLoadOlder}
+                type="button"
+              >
+                {isLoadingOlder ? "Carregando…" : "Carregar anteriores"}
+              </button>
+            </div>
+          )}
+
+          {messages.length === 0 && !hasOlder && (
+            <div className="flex h-full flex-col items-center justify-center text-center">
+              <p className="text-sm text-text-muted">
+                Esta conversa ainda não possui mensagens.
+              </p>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-2">
+            {messages.map((msg, idx) => {
+              const isOutgoing = msg.direction === "outgoing";
+              const showDateSeparator =
+                idx === 0 ||
+                !isSameDay(messages[idx - 1].occurred_at, msg.occurred_at);
+
+              return (
+                <div
+                  data-message-id={msg.id}
+                  data-occurred-at={msg.occurred_at}
+                  key={msg.id}
+                >
+                  {showDateSeparator && (
+                    <DateSeparator dateString={msg.occurred_at} />
+                  )}
+                  <MessageBubble isOutgoing={isOutgoing} message={msg} />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Compositor Fixo */}
+        <MessageForm
+          conversationId={conversation.conversation_id}
+          onInternalNoteSaved={handleInternalNoteSaved}
+          onMessagePersisted={handleMessagePersisted}
+          opportunityId={effectiveOpportunityId}
+        />
       </div>
 
-      {/* Área de envio de mensagem */}
-      <MessageForm conversationId={conversation.conversation_id} />
+      {/* PAINEL DIREITO: CONTEXTO DO CLIENTE (Sempre visível no Desktop md+, em Drawer no Mobile) */}
+      {selectedContext && (
+        <div className="hidden w-80 shrink-0 xl:block">
+          <ClientContextPanel
+            context={selectedContext}
+            conversationId={conversation.conversation_id}
+            key={effectiveOpportunityId}
+            onOpportunityChange={setSelectedOpportunityId}
+            onContactUpdated={handleContactUpdated}
+            opportunities={opportunityContexts}
+            selectedOpportunityId={effectiveOpportunityId}
+            stages={stages}
+          />
+        </div>
+      )}
 
-      {/* Modal simples de criação de oportunidade a partir da conversa */}
+      {/* Modal / Sheet Mobile de Contexto */}
+      {isMobileInfoOpen && selectedContext && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/40 xl:hidden">
+          <div className="h-full w-full max-w-xs bg-surface shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border p-3">
+              <h3 className="font-semibold text-sm">Dados do Cliente</h3>
+              <button
+                className="text-text-muted hover:text-text"
+                onClick={() => setIsMobileInfoOpen(false)}
+                type="button"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="h-[calc(100%-48px)] overflow-y-auto">
+              <ClientContextPanel
+                context={selectedContext}
+                conversationId={conversation.conversation_id}
+                key={effectiveOpportunityId}
+                onOpportunityChange={setSelectedOpportunityId}
+                onContactUpdated={handleContactUpdated}
+                opportunities={opportunityContexts}
+                selectedOpportunityId={effectiveOpportunityId}
+                stages={stages}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Criar Oportunidade */}
       {isCreateOppOpen ? (
         <dialog
           aria-labelledby="modal-create-opp-title"
@@ -242,7 +663,7 @@ export function MessagesPanel({
               <Input
                 id="opp-title-input"
                 onChange={(e) => setOppTitle(e.target.value)}
-                placeholder="Ex: Apartamento 3 Quertos Ponta Verde"
+                placeholder="Ex: Apartamento 3 Quartos Ponta Verde"
                 required
                 value={oppTitle}
               />
@@ -270,6 +691,35 @@ export function MessagesPanel({
 }
 
 // ─── Sub-componentes ──────────────────────────────────────────────────────────
+
+function appendNotesToContext(
+  context: ConversationContextData,
+  notes: ConversationContextData["notes"],
+): ConversationContextData {
+  const noteIds = new Set(notes.map((note) => note.id));
+  const noteEvents = notes.map((note) => ({
+    event_type: "internal_note" as const,
+    occurred_at: note.created_at,
+    title: "Nota interna",
+    description: note.content,
+    actor: note.author_name,
+  }));
+
+  return {
+    ...context,
+    notes: [
+      ...notes,
+      ...context.notes.filter((note) => !noteIds.has(note.id)),
+    ].sort((left, right) => right.created_at.localeCompare(left.created_at)),
+    timeline: [...noteEvents, ...context.timeline]
+      .filter((event, index, events) => events.findIndex((candidate) =>
+        candidate.event_type === event.event_type
+        && candidate.occurred_at === event.occurred_at
+        && candidate.description === event.description,
+      ) === index)
+      .sort((left, right) => right.occurred_at.localeCompare(left.occurred_at)),
+  };
+}
 
 function DateSeparator({ dateString }: { dateString: string }) {
   const label = formatDateSeparator(dateString);
@@ -312,6 +762,13 @@ function MessageBubble({ message, isOutgoing }: MessageBubbleProps) {
             : "rounded-bl-sm bg-surface text-text shadow-sm ring-1 ring-border",
         ].join(" ")}
       >
+        {/* Identificação de autor interno no CRM (somente visível internamente) */}
+        {isOutgoing && message.internal_author_name && (
+          <p className="mb-0.5 text-[10px] font-semibold text-primary-foreground/80">
+            Enviado por {message.internal_author_name}
+          </p>
+        )}
+
         {message.has_attachments && (
           <div
             aria-label="Esta mensagem contém um anexo indisponível"
@@ -345,8 +802,6 @@ function MessageBubble({ message, isOutgoing }: MessageBubbleProps) {
     </div>
   );
 }
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function isSameDay(dateA: string, dateB: string): boolean {
   const a = new Date(dateA);

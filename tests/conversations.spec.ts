@@ -1,123 +1,42 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { expect, test } from "@playwright/test";
-import type { Database } from "@/types/database";
+import {
+  loginAsDemoOwner,
+  resetAndLoadDemoMode,
+  runLocalSql,
+} from "./helpers/local-test-state";
 
 // ─── Fixtures de ambiente ─────────────────────────────────────────────────────
-
-const owner = {
-  email: "owner.sprint12@example.test",
-  password: "Sprint12-local-password!",
-};
-
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`Variável obrigatória ausente: ${name}`);
-  return value;
-}
-
-/**
- * Cliente administrativo (service_role) — usado exclusivamente para preparar
- * fixtures de dados. O fluxo normal da aplicação usa apenas sessão autenticada.
- */
-function createAdminClient(): SupabaseClient<Database> {
-  return createClient<Database>(
-    requireEnv("NEXT_PUBLIC_SUPABASE_URL"),
-    requireEnv("SUPABASE_ADMIN_KEY"),
-    { auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false } },
-  );
-}
-
-// ─── Helpers de login ─────────────────────────────────────────────────────────
-
-async function loginAsOwner(page: Parameters<typeof test>[1] extends (args: infer A) => unknown ? A extends { page: infer P } ? P : never : never) {
-  await page.goto("/login");
-  await page.getByLabel("E-mail").fill(owner.email);
-  await page.getByLabel("Senha").fill(owner.password);
-  await page.getByRole("button", { name: "Entrar" }).click();
-  await expect(page).toHaveURL(/\/prioridades$/);
-}
 
 // ─── Suíte de testes do Módulo de Conversas ──────────────────────────────────
 
 test.describe.serial("conversations module", () => {
-  // Prepara fixtures administrativas uma única vez antes de todos os testes
-  test.beforeAll(async () => {
-    const admin = createAdminClient();
-
-    // Localiza o workspace do OWNER
-    const { data: ws } = await admin
-      .from("workspaces")
-      .select("id")
-      .eq("status", "active")
-      .single();
-
-    if (!ws) return; // Sem workspace = testes funcionarão com estado vazio
-
-    const workspaceId = ws.id;
-
-    // Busca o channel_connection existente (criado pelo bootstrap se houver)
-    const { data: channel } = await admin
-      .from("channel_connections")
-      .select("id")
-      .eq("workspace_id", workspaceId)
-      .single();
-
-    if (!channel) return; // Sem canal = sem conversas; testa estado vazio
-
-    const channelId = channel.id;
-
-    // Insere 2 conversas de teste com mensagens via SQL direto não é possível
-    // sem service_role nas tabelas; usamos a API admin do supabase.
-    // Conversas requerem external_thread_id único.
-
-    const { error: convErr } = await admin.from("conversations").upsert([
-      {
-        id: "c0000001-0000-4000-8000-000000000001",
-        workspace_id: workspaceId,
-        channel_connection_id: channelId,
-        external_thread_id: "playwright-thread-001",
-        conversation_type: "individual",
-        operational_status: "active",
-        visibility: "commercial",
-        started_at: new Date(Date.now() - 2 * 3_600_000).toISOString(),
-      },
-      {
-        id: "c0000002-0000-4000-8000-000000000002",
-        workspace_id: workspaceId,
-        channel_connection_id: channelId,
-        external_thread_id: "playwright-thread-002",
-        conversation_type: "individual",
-        operational_status: "active",
-        visibility: "commercial",
-        started_at: new Date(Date.now() - 1 * 3_600_000).toISOString(),
-      },
-    ], { onConflict: "channel_connection_id,external_thread_id" });
-
-    if (convErr) {
-      console.error("Erro ao inserir conversas de teste:", convErr);
-    }
-
-    // Insere uma mensagem na primeira conversa
-    const { error: msgErr } = await admin.from("messages").upsert([
-      {
-        id: "d0000001-0000-4000-8000-000000000001",
-        workspace_id: workspaceId,
-        conversation_id: "c0000001-0000-4000-8000-000000000001",
-        channel_connection_id: channelId,
-        direction: "incoming",
-        origin: "whatsapp",
-        status: "received",
-        occurred_at: new Date(Date.now() - 90 * 60_000).toISOString(),
-        received_at: new Date(Date.now() - 90 * 60_000).toISOString(),
-        external_message_id: "pw-msg-001",
-        external_created_at: new Date(Date.now() - 90 * 60_000).toISOString(),
-        text_content: "Olá, gostaria de informações.",
-      },
-    ], { onConflict: "workspace_id,id" });
-
-    if (msgErr) {
-      console.error("Erro ao inserir mensagem de teste:", msgErr);
-    }
+  test.beforeAll(() => {
+    resetAndLoadDemoMode();
+    runLocalSql(`
+      insert into public.messages (
+        id, workspace_id, channel_connection_id, conversation_id, direction,
+        origin, sender_contact_point_id, text_content, status, occurred_at,
+        external_message_id, external_created_at, received_at, created_at
+      )
+      select
+        ('e0000001-0000-4000-8000-' || lpad(series::text, 12, '0'))::uuid,
+        workspace_id,
+        channel_connection_id,
+        id,
+        'incoming',
+        'whatsapp',
+        'd3300004-0000-4000-8000-000000000001'::uuid,
+        'Mensagem paginada ' || series,
+        'received',
+        now() - (series || ' seconds')::interval,
+        'playwright-page-' || series,
+        now() - (series || ' seconds')::interval,
+        now() - (series || ' seconds')::interval,
+        now() - (series || ' seconds')::interval
+      from public.conversations
+      cross join generate_series(1, 105) as series
+      where id = 'd3300003-0000-4000-8000-000000000001';
+    `);
   });
 
   // ─── Testes ────────────────────────────────────────────────────────────────
@@ -128,22 +47,22 @@ test.describe.serial("conversations module", () => {
   });
 
   test("exibe a lista de conversas após login", async ({ page }) => {
-    await loginAsOwner(page);
+    await loginAsDemoOwner(page);
     await page.goto("/conversas");
     await expect(page.getByRole("list", { name: "Lista de conversas" })).toBeVisible();
   });
 
   test("exibe estado vazio quando não há conversas (busca sem resultado)", async ({ page }) => {
-    await loginAsOwner(page);
+    await loginAsDemoOwner(page);
     await page.goto("/conversas");
 
     const searchInput = page.getByLabel("Buscar conversas por nome ou telefone");
     await searchInput.fill("xyzconversainexistente12345");
-    await expect(page.getByText(/Nenhuma conversa encontrada/)).toBeVisible({ timeout: 2000 });
+    await expect(page.getByText(/Nenhuma conversa encontrada/)).toBeVisible();
   });
 
   test("campo de busca aplica debounce e dispara busca ao pressionar Enter", async ({ page }) => {
-    await loginAsOwner(page);
+    await loginAsDemoOwner(page);
     await page.goto("/conversas");
 
     const searchInput = page.getByLabel("Buscar conversas por nome ou telefone");
@@ -159,18 +78,12 @@ test.describe.serial("conversations module", () => {
   });
 
   test("navega para /conversas/[id] ao clicar numa conversa", async ({ page }) => {
-    await loginAsOwner(page);
+    await loginAsDemoOwner(page);
     await page.goto("/conversas");
 
     // Aguarda pelo menos um card de conversa
     const cards = page.locator('[id^="conv-card-"]');
-    const count = await cards.count();
-
-    if (count === 0) {
-      test.skip(); // Sem conversas inseridas, pula navegação
-      return;
-    }
-
+    await expect(cards.first()).toBeVisible();
     await cards.first().click();
     await expect(page).toHaveURL(/\/conversas\/[0-9a-f-]+$/);
     // Painel de mensagens deve estar visível
@@ -178,43 +91,35 @@ test.describe.serial("conversations module", () => {
   });
 
   test("deep link para /conversas/[id] funciona diretamente", async ({ page }) => {
-    await loginAsOwner(page);
-    const conversationId = "c0000001-0000-4000-8000-000000000001";
+    await loginAsDemoOwner(page);
+    const conversationId = "d3300003-0000-4000-8000-000000000001";
 
     await page.goto(`/conversas/${conversationId}`);
 
-    // Se a conversa existe no banco local → exibe o painel de mensagens
-    // Se não existe (banco limpo / 404) → exibe notFound
-    const hasPanel = await page.getByRole("log", { name: "Histórico de mensagens" }).isVisible().catch(() => false);
-    const is404Text = await page.getByText(/404|not found|não encontrada/i).isVisible().catch(() => false);
-
-    expect(hasPanel || is404Text).toBe(true);
+    await expect(page.getByRole("log", { name: "Histórico de mensagens" })).toBeVisible();
+    await expect(page.getByText("Apê 2/4 no Farol", { exact: true })).toBeVisible();
+    await expect(page.getByRole("combobox", { name: /Selecionar oportunidade/i })).toHaveCount(0);
   });
 
-  test("exibe aviso de somente leitura (sem campo de envio funcional)", async ({ page }) => {
-    await loginAsOwner(page);
+  test("exibe o compositor de mensagem ativo com suporte a notas internas", async ({ page }) => {
+    await loginAsDemoOwner(page);
     await page.goto("/conversas");
 
     const cards = page.locator('[id^="conv-card-"]');
-    const count = await cards.count();
-    if (count === 0) { test.skip(); return; }
-
+    await expect(cards.first()).toBeVisible();
     await cards.first().click();
-    await expect(page.getByText(/somente para leitura/i)).toBeVisible();
-    // Não deve existir campo de texto habilitado para envio
-    const enabledTextarea = page.getByRole("textbox").filter({ hasNot: page.locator('[disabled]') });
-    await expect(enabledTextarea).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Mensagem", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Nota interna" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Enviar mensagem" })).toBeVisible();
   });
 
   test("botão voltar retorna para /conversas no mobile (viewport 390x844)", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await loginAsOwner(page);
+    await loginAsDemoOwner(page);
     await page.goto("/conversas");
 
     const cards = page.locator('[id^="conv-card-"]');
-    const count = await cards.count();
-    if (count === 0) { test.skip(); return; }
-
+    await expect(cards.first()).toBeVisible();
     await cards.first().click();
     await expect(page).toHaveURL(/\/conversas\/[0-9a-f-]+$/);
 
@@ -222,34 +127,73 @@ test.describe.serial("conversations module", () => {
     await expect(page).toHaveURL(/\/conversas$/);
   });
 
-  test("botão 'Carregar anteriores' aparece quando há histórico paginável", async ({ page }) => {
-    await loginAsOwner(page);
+  test("pagina o histórico sem duplicar, preserva scroll e limpa ao trocar de conversa", async ({ page }) => {
+    await loginAsDemoOwner(page);
 
-    const cards = page.locator('[id^="conv-card-"]');
-    await page.goto("/conversas");
-    const count = await cards.count();
-    if (count === 0) { test.skip(); return; }
-
-    await cards.first().click();
-    await expect(page).toHaveURL(/\/conversas\/[0-9a-f-]+$/);
-
-    // Botão só aparece quando há mais de 50 mensagens — verificamos apenas a ausência de erros
+    await page.goto("/conversas/d3300003-0000-4000-8000-000000000001");
+    const history = page.getByRole("log", { name: "Histórico de mensagens" });
+    const paginatedMessages = history.locator('[data-message-id^="e0000001-0000-4000-8000-"]');
     const btn = page.getByRole("button", { name: "Carregar anteriores" });
-    // Se aparecer, não deve lançar exceção ao clicar
-    if (await btn.isVisible()) {
-      await btn.click();
-      await expect(btn).not.toHaveText("Erro");
-    }
+
+    await expect(paginatedMessages).toHaveCount(50);
+    await expect(paginatedMessages.first()).toContainText("Mensagem paginada 50");
+    await expect(paginatedMessages.last()).toContainText("Mensagem paginada 1");
+    await expect(btn).toBeVisible();
+
+    await history.evaluate((element) => {
+      element.scrollTop = 0;
+    });
+    const anchorBefore = await page
+      .getByText("Mensagem paginada 50", { exact: true })
+      .boundingBox();
+    await btn.click();
+    await expect(paginatedMessages).toHaveCount(100);
+    await expect(paginatedMessages.first()).toContainText("Mensagem paginada 100");
+    await expect(paginatedMessages.last()).toContainText("Mensagem paginada 1");
+    await expect(btn).toBeVisible();
+
+    const anchorAfter = await page
+      .getByText("Mensagem paginada 50", { exact: true })
+      .boundingBox();
+    expect(anchorBefore).not.toBeNull();
+    expect(anchorAfter).not.toBeNull();
+    expect(Math.abs(anchorAfter!.y - anchorBefore!.y)).toBeLessThanOrEqual(8);
+
+    await btn.click();
+    await expect(paginatedMessages).toHaveCount(105);
+    await expect(paginatedMessages.first()).toContainText("Mensagem paginada 105");
+    await expect(paginatedMessages.last()).toContainText("Mensagem paginada 1");
+    await expect(btn).toHaveCount(0);
+
+    const messageIds = await paginatedMessages.evaluateAll((elements) =>
+      elements.map((element) => element.getAttribute("data-message-id")),
+    );
+    expect(new Set(messageIds).size).toBe(105);
+
+    const messageNumbers = await paginatedMessages.evaluateAll((elements) =>
+      elements.map((element) => {
+        const match = element.querySelector("p")?.textContent?.match(/Mensagem paginada (\d+)/);
+        return Number(match?.[1]);
+      }),
+    );
+    expect(messageNumbers).toEqual(
+      Array.from({ length: 105 }, (_, index) => 105 - index),
+    );
+
+    await page.goto("/conversas/d3300003-0000-4000-8000-000000000002");
+    await expect(page.locator('[data-message-id^="e0000001-0000-4000-8000-"]')).toHaveCount(0);
+
+    await page.goto("/conversas/d3300003-0000-4000-8000-000000000001");
+    await expect(page.locator('[data-message-id^="e0000001-0000-4000-8000-"]')).toHaveCount(50);
+    await expect(page.getByRole("button", { name: "Carregar anteriores" })).toBeVisible();
   });
 
   test("interface não expõe storage_key nem link de download para anexos", async ({ page }) => {
-    await loginAsOwner(page);
+    await loginAsDemoOwner(page);
     await page.goto("/conversas");
 
     const cards = page.locator('[id^="conv-card-"]');
-    const count = await cards.count();
-    if (count === 0) { test.skip(); return; }
-
+    await expect(cards.first()).toBeVisible();
     await cards.first().click();
 
     // Verifica que não há links de download na página

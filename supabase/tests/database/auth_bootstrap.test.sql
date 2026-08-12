@@ -1,7 +1,6 @@
 begin;
-set search_path = public, extensions, pg_catalog;
-
 create extension if not exists pgtap with schema extensions;
+set search_path = public, extensions, auth, pg_catalog;
 
 select plan(55);
 
@@ -123,7 +122,7 @@ select ok(
 
 create temporary table domain_tables (
     table_name text primary key
-) on commit drop;
+);
 
 insert into domain_tables (table_name)
 values
@@ -329,8 +328,8 @@ select is(
         where namespace_record.nspname = 'public'
           and procedure_record.prosecdef
     ),
-    19::bigint,
-    'only the approved contact, WhatsApp and Kanban RPCs use SECURITY DEFINER in the public schema'
+    39::bigint,
+    'only the approved domain RPCs use SECURITY DEFINER in the public schema'
 );
 
 select is(
@@ -558,11 +557,17 @@ select is(
     'each domain table has one read-only OWNER policy'
 );
 
+-- O bootstrap inicial exige um domínio vazio. Isolamos esse cenário dentro da
+-- própria transação pgTAP para não depender do estado deixado por outra suíte.
+set local session_replication_role = replica;
+truncate table public.workspaces, public.app_users cascade;
+set local session_replication_role = origin;
+
 insert into auth.users (id, email)
 values (
     '12000000-0000-4000-8000-000000000001',
     'bootstrap-database-test@example.invalid'
-);
+) on conflict (id) do nothing;
 
 select lives_ok(
     $test$
@@ -726,7 +731,7 @@ insert into auth.users (id, email)
 values (
     '12000000-0000-4000-8000-000000000002',
     'second-bootstrap-test@example.invalid'
-);
+) on conflict (id) do nothing;
 
 select throws_ok(
     $test$

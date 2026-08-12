@@ -67,6 +67,7 @@ export function Avatar({
           fill
           sizes={selectedSize.imageSizes}
           src={src}
+          unoptimized={typeof src === "string" && src.startsWith("/api/")}
         />
       ) : (
         <span aria-label={alt ?? name} role="img">

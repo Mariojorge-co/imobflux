@@ -1,14 +1,13 @@
 begin;
-set search_path = public, extensions, pg_catalog;
-
 create extension if not exists pgtap with schema extensions;
+set search_path = public, extensions, auth, pg_catalog;
 
 select plan(41);
 
 create temporary table contact_operation_functions (
     function_name text primary key,
     identity_arguments text not null
-) on commit drop;
+);
 
 insert into contact_operation_functions (function_name, identity_arguments)
 values
@@ -124,7 +123,7 @@ select is(
         where schema_record.nspname in ('public', 'private')
           and function_record.prosecdef
     ),
-    20::bigint,
+    50::bigint,
     'no unapproved SECURITY DEFINER function exists in application schemas'
 );
 

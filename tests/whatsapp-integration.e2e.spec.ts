@@ -173,7 +173,7 @@ test.describe("Sprint 17 — WhatsApp Textual Integration E2E Test Suite", () =>
     expect(json.error).toBe("Payload JSON inválido");
   });
 
-  test("4. Mensagens direcionadas a grupos (@g.us) são ignoradas com HTTP 200", async () => {
+  test("4. Mensagens direcionadas a grupos (@g.us) usam ingestão dedicada", async () => {
     const req = new Request("http://localhost/api/webhooks/whatsapp", {
       method: "POST",
       headers: {
@@ -188,6 +188,7 @@ test.describe("Sprint 17 — WhatsApp Textual Integration E2E Test Suite", () =>
             remoteJid: "120363000000000000@g.us",
             fromMe: false,
             id: "msg_group_100",
+            participant: "5582988880000@s.whatsapp.net",
           },
           pushName: "Grupo Imobiliária",
           messageTimestamp: 1700000000,
@@ -200,8 +201,7 @@ test.describe("Sprint 17 — WhatsApp Textual Integration E2E Test Suite", () =>
     expect(res.status).toBe(200);
 
     const json = await res.json();
-    expect(json.status).toBe("ignored");
-    expect(json.reason).toBe("group_event_ignored");
+    expect(json.status).toBe("success");
   });
 
   test("5. Payload textual válido chama RPC ingest_whatsapp_text_message com argumentos atômicos esperados", async () => {

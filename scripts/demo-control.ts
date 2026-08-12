@@ -71,12 +71,6 @@ function runSqlFile(relativeFilePath: string) {
     input: sqlContent,
     stdio: ["pipe", "inherit", "inherit"],
   });
-
-  execSync("docker exec -i supabase_db_imobflux psql -h 127.0.0.1 -U postgres -d postgres", {
-    env,
-    input: 'ALTER ROLE postgres SET search_path TO "$user", public, extensions; ALTER DATABASE postgres SET search_path TO "$user", public, extensions;',
-    stdio: ["pipe", "ignore", "ignore"],
-  });
 }
 
 async function main() {
@@ -102,9 +96,22 @@ async function main() {
       runSqlFile("supabase/demo/bootstrap_local_workspace.sql");
       console.log("[Demo Mode] Carregando 20 clientes fictícios no workspace local...");
       runSqlFile("supabase/demo/demo_data.sql");
+      runSqlFile("supabase/demo/team_privacy_scenarios.sql");
     }
 
     console.log("[Demo Mode] Operação concluída com sucesso!");
+    if (isLoad || isReset) {
+      console.log(`
+--- ImobFlux Demo ---
+OWNER
+E-mail: corretor@imobflux.local
+Senha: Sprint22-demo-pass!
+
+ATTENDANT
+E-mail: atendente@imobflux.local
+Senha: Equipe-demo-pass!
+---------------------`);
+    }
   } catch (error) {
     console.error(`[Demo Mode Error] ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);

@@ -22,14 +22,14 @@ export default defineConfig({
   retries: 0,
   testDir: "./tests",
   use: {
-    baseURL: "http://127.0.0.1:3012",
+    baseURL: "http://localhost:3000",
     trace: "retain-on-failure",
   },
   webServer: {
-    command: "npm run start -- --hostname 127.0.0.1 --port 3012",
+    command: "npm run dev",
     reuseExistingServer: true,
     timeout: 120_000,
-    url: "http://127.0.0.1:3012/login",
+    url: "http://localhost:3000/login",
   },
   workers: 1,
 });

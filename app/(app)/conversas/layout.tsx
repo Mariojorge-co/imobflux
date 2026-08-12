@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { PageHeader } from "@/components/ui";
 
 type ConversasLayoutProps = {
   children: ReactNode;
@@ -22,19 +21,8 @@ type ConversasLayoutProps = {
  */
 export default function ConversasLayout({ children }: ConversasLayoutProps) {
   return (
-    <div className="flex min-h-[calc(100vh-var(--spacing-topbar))] flex-col">
-      {/* Cabeçalho visível apenas em mobile (no desktop cada sub-rota pode ter o seu) */}
-      <div className="border-b border-border px-page py-3 md:hidden">
-        <PageHeader title="Conversas" />
-      </div>
-
-      {/*
-       * Grid principal:
-       * - Mobile: 1 coluna — apenas children ocupa o espaço (a lista é
-       *   renderizada em /conversas/page.tsx e ocupa a tela inteira nessa rota)
-       * - Desktop: 2 colunas fixas: lista (320px) + detalhe (restante)
-       */}
-      <div className="flex min-h-0 flex-1">
+    <div className="flex h-[calc(100dvh-64px)] w-full flex-col overflow-hidden">
+      <div className="flex h-full min-h-0 w-full flex-1 overflow-hidden">
         {children}
       </div>
     </div>

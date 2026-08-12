@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test:auth": "playwright test",
+    "test:db": "npx --yes supabase@2.111.0 test db --local supabase/tests/database/",
     "demo:load": "npx tsx scripts/demo-control.ts --load",
     "demo:clean": "npx tsx scripts/demo-control.ts --clean",
     "demo:reset": "npx tsx scripts/demo-control.ts --reset"
