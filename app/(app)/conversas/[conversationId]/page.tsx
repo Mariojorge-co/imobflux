@@ -57,7 +57,7 @@ export default async function ConversationDetailPage({
   return (
     <div className="flex h-full w-full">
       {/* Coluna esquerda: lista de conversas — oculta no mobile */}
-      <div className="hidden w-80 shrink-0 md:block">
+      <div className="hidden w-[19rem] shrink-0 md:block xl:w-80">
         <ConversationsList
           initialItems={items}
           initialCounts={inbox.counts}
@@ -66,7 +66,7 @@ export default async function ConversationDetailPage({
       </div>
 
       {/* Coluna central / direita em mobile: painel de mensagens + painel lateral */}
-      <div className="flex-1 overflow-hidden">
+      <div className="min-w-0 flex-1 overflow-hidden">
         <MessagesPanel
           context={context}
           conversation={conversation}

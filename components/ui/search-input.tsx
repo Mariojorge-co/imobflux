@@ -26,7 +26,7 @@ export function SearchInput({
       <input
         aria-label={ariaLabel ?? label}
         className={classNames(
-          "w-full rounded-control border border-border bg-surface py-control-y pl-10 pr-control-x text-body text-text outline-none placeholder:text-text-muted focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:bg-neutral-soft disabled:opacity-60",
+          "min-h-11 w-full rounded-control border border-border bg-surface py-control-y pl-10 pr-control-x text-body text-text outline-none placeholder:text-text-muted focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:bg-neutral-soft disabled:opacity-60",
           className,
         )}
         type="search"

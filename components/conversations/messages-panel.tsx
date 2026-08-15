@@ -15,7 +15,7 @@ import {
   setGroupTeamVisibilityAction,
 } from "@/lib/conversations/actions";
 import { MessageForm } from "@/components/conversations/message-form";
-import { Button, Input } from "@/components/ui";
+import { Button, Drawer, Input, ModalDialog } from "@/components/ui";
 import { calculateSLA } from "@/lib/conversations/sla";
 import type {
   ConversationContextData,
@@ -68,7 +68,7 @@ export function MessagesPanel({
   const [oppTitle, setOppTitle] = useState("");
   const [oppError, setOppError] = useState<string | null>(null);
   const [isCreatingOpp, setIsCreatingOpp] = useState(false);
-  const [isMobileInfoOpen, setIsMobileInfoOpen] = useState(false);
+  const [isContextOpen, setIsContextOpen] = useState(false);
   const [selectedOpportunityId, setSelectedOpportunityId] = useState(
     opportunityContexts.some((item) => item.active_opportunity?.opportunity_id === initialSelectedOpportunityId)
       ? initialSelectedOpportunityId!
@@ -414,16 +414,16 @@ export function MessagesPanel({
   const isGroup = conversation.conversation_type === "group";
 
   return (
-    <div className="flex h-full w-full overflow-hidden">
+    <div className="flex h-full min-w-0 w-full overflow-hidden">
       {/* Coluna Principal da Conversa */}
-      <div className="flex h-full flex-1 flex-col overflow-hidden bg-background">
+      <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-background">
         {/* Cabeçalho do painel de mensagens */}
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-surface px-4 py-2.5">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className="flex shrink-0 flex-col gap-2 border-b border-border bg-surface px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+          <div className="flex min-w-0 w-full items-center gap-2 sm:w-auto sm:flex-1 sm:gap-3">
             {showBackButton && (
               <Link
                 aria-label="Voltar para a lista de conversas"
-                className="rounded-control p-1.5 text-text-muted transition-colors hover:bg-neutral-soft"
+                className="flex size-11 shrink-0 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-neutral-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:hidden"
                 href="/conversas"
                 id="btn-back-to-conversations"
               >
@@ -438,7 +438,7 @@ export function MessagesPanel({
                 {sla && (
                   <span
                     className={[
-                      "hidden sm:inline-block rounded-full px-2 py-0.5 text-[10px] font-medium",
+                      "hidden rounded-pill px-2 py-0.5 text-caption font-medium sm:inline-block",
                       sla.type === "team_waiting"
                         ? "bg-rose-500/15 text-rose-700 dark:text-rose-400"
                         : "bg-slate-500/15 text-slate-700 dark:text-slate-400",
@@ -448,23 +448,37 @@ export function MessagesPanel({
                   </span>
                 )}
               </div>
-              {displayPhone && (
-                <p className="truncate text-xs text-text-muted">{displayPhone}</p>
-              )}
+              <div className="flex min-w-0 items-center gap-2">
+                {displayPhone && (
+                  <p className="truncate text-caption text-text-muted">{displayPhone}</p>
+                )}
+                {sla && (
+                  <span
+                    className={[
+                      "inline-block max-w-full truncate rounded-pill px-2 py-0.5 text-caption font-medium sm:hidden",
+                      sla.type === "team_waiting"
+                        ? "bg-rose-500/15 text-rose-700 dark:text-rose-400"
+                        : "bg-slate-500/15 text-slate-700 dark:text-slate-400",
+                    ].join(" ")}
+                  >
+                    {sla.badgeText}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
           {/* Ações do Cabeçalho */}
-          <div className="flex items-center gap-2">
+          <div className="flex w-full min-w-0 items-center justify-between gap-1.5 sm:w-auto sm:justify-end sm:gap-2">
             {/* Troca de Etapa do Kanban diretamente na conversa */}
             {activeOpp ? (
-              <div className="flex items-center gap-1.5">
+              <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:flex-none">
                 <span className="hidden lg:inline text-xs text-text-muted font-medium">
                   Etapa:
                 </span>
                 <select
                   aria-label="Alterar etapa da oportunidade ativa"
-                  className="rounded-control border border-border bg-background px-2.5 py-1 text-xs font-semibold text-text focus:border-primary focus:outline-none"
+                  className="min-h-11 min-w-0 flex-1 rounded-control border border-border bg-background px-2.5 text-caption font-semibold text-text focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 sm:min-h-9 sm:max-w-[13rem] sm:flex-none"
                   onChange={(e) => {
                     handleStageSelect(e.target.value);
                   }}
@@ -521,11 +535,11 @@ export function MessagesPanel({
               </button>
             ) : null}
 
-            {/* Botão para abrir o painel lateral em Mobile (Min 44x44px target) */}
+            {/* Contexto sempre sob demanda, em drawer no desktop e no mobile. */}
             <button
               aria-label="Abrir dados do cliente"
-              className="flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-control text-text-muted transition-colors hover:bg-neutral-soft hover:text-text xl:hidden"
-              onClick={() => setIsMobileInfoOpen(!isMobileInfoOpen)}
+              className="flex size-11 shrink-0 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              onClick={() => setIsContextOpen(true)}
               title="Informações do cliente"
               type="button"
             >
@@ -537,14 +551,14 @@ export function MessagesPanel({
         {/* Histórico de Mensagens */}
         <div
           aria-label="Histórico de mensagens"
-          className="flex-1 overflow-y-auto px-4 py-3"
+          className="flex-1 overflow-y-auto px-3 py-3 sm:px-4"
           ref={listRef}
           role="log"
         >
           {hasOlder && (
             <div className="mb-4 flex justify-center">
               <button
-                className="rounded-control border border-border px-4 py-1.5 text-xs text-text-muted transition-colors hover:bg-neutral-soft disabled:opacity-50"
+                className="min-h-11 rounded-control border border-border px-4 text-caption text-text-muted transition-colors hover:bg-neutral-soft disabled:opacity-50"
                 disabled={isLoadingOlder}
                 id="btn-load-older-messages"
                 onClick={handleLoadOlder}
@@ -595,9 +609,13 @@ export function MessagesPanel({
         />
       </div>
 
-      {/* PAINEL DIREITO: CONTEXTO DO CLIENTE (Sempre visível no Desktop md+, em Drawer no Mobile) */}
-      {selectedContext && (
-        <div className="hidden w-80 shrink-0 xl:block">
+      {/* Contexto da conversa sob demanda em todos os viewports. */}
+      <Drawer
+        onClose={() => setIsContextOpen(false)}
+        open={isContextOpen && Boolean(selectedContext)}
+        title="Dados do cliente"
+      >
+        {selectedContext ? (
           <ClientContextPanel
             context={selectedContext}
             conversationId={conversation.conversation_id}
@@ -608,46 +626,15 @@ export function MessagesPanel({
             selectedOpportunityId={effectiveOpportunityId}
             stages={stages}
           />
-        </div>
-      )}
-
-      {/* Modal / Sheet Mobile de Contexto */}
-      {isMobileInfoOpen && selectedContext && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/40 xl:hidden">
-          <div className="h-full w-full max-w-xs bg-surface shadow-2xl">
-            <div className="flex items-center justify-between border-b border-border p-3">
-              <h3 className="font-semibold text-sm">Dados do Cliente</h3>
-              <button
-                className="text-text-muted hover:text-text"
-                onClick={() => setIsMobileInfoOpen(false)}
-                type="button"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="h-[calc(100%-48px)] overflow-y-auto">
-              <ClientContextPanel
-                context={selectedContext}
-                conversationId={conversation.conversation_id}
-                key={effectiveOpportunityId}
-                onOpportunityChange={setSelectedOpportunityId}
-                onContactUpdated={handleContactUpdated}
-                opportunities={opportunityContexts}
-                selectedOpportunityId={effectiveOpportunityId}
-                stages={stages}
-              />
-            </div>
-          </div>
-        </div>
-      )}
+        ) : null}
+      </Drawer>
 
       {/* Modal de Criar Oportunidade */}
-      {isCreateOppOpen ? (
-        <dialog
-          aria-labelledby="modal-create-opp-title"
-          className="fixed inset-0 z-50 m-auto w-[min(100%-2rem,28rem)] rounded-card border border-border bg-surface p-card text-text shadow-xl backdrop:bg-text/30"
-          open
-        >
+      <ModalDialog
+        labelledBy="modal-create-opp-title"
+        onOpenChange={setIsCreateOppOpen}
+        open={isCreateOppOpen}
+      >
           <form className="space-y-stack" onSubmit={handleCreateOpportunitySubmit}>
             <div>
               <h3 className="text-section-title font-semibold" id="modal-create-opp-title">
@@ -684,8 +671,7 @@ export function MessagesPanel({
               </Button>
             </div>
           </form>
-        </dialog>
-      ) : null}
+      </ModalDialog>
     </div>
   );
 }
@@ -756,7 +742,7 @@ function MessageBubble({ message, isOutgoing }: MessageBubbleProps) {
     >
       <div
         className={[
-          "max-w-[75%] rounded-2xl px-3 py-2",
+          "max-w-[88%] rounded-2xl px-3 py-2 sm:max-w-[75%]",
           isOutgoing
             ? "rounded-br-sm bg-primary text-primary-foreground"
             : "rounded-bl-sm bg-surface text-text shadow-sm ring-1 ring-border",
@@ -764,7 +750,7 @@ function MessageBubble({ message, isOutgoing }: MessageBubbleProps) {
       >
         {/* Identificação de autor interno no CRM (somente visível internamente) */}
         {isOutgoing && message.internal_author_name && (
-          <p className="mb-0.5 text-[10px] font-semibold text-primary-foreground/80">
+          <p className="mb-0.5 text-caption font-semibold text-primary-foreground/80">
             Enviado por {message.internal_author_name}
           </p>
         )}
@@ -792,7 +778,7 @@ function MessageBubble({ message, isOutgoing }: MessageBubbleProps) {
 
         <p
           className={[
-            "mt-1 text-right text-[10px]",
+            "mt-1 text-right text-caption",
             isOutgoing ? "text-primary-foreground/60" : "text-text-muted",
           ].join(" ")}
         >

@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import {
   Card,
+  EmptyState,
   PageContainer,
   PageHeader,
   SectionTitle,
@@ -75,14 +76,14 @@ export default async function PrioridadesPage() {
   const dueFollowups = data.due_followups;
 
   return (
-    <PageContainer>
+    <PageContainer className="space-y-6 overflow-x-clip">
       <PageHeader
         description="Acompanhe imediatamente quem está aguardando atendimento da equipe e os clientes em follow-up."
         title="Prioridades Operacionais"
       />
 
       {/* DUAS COLUNAS LADO A LADO NO DESKTOP: EQUIPE DEVENDO RESPOSTA (ESQUERDA) VS AGUARDANDO CLIENTE (DIREITA) */}
-      <div className="grid gap-6 md:grid-cols-2 items-start">
+      <div className="grid min-w-0 items-start gap-4 lg:grid-cols-2">
         {/* COLUNA ESQUERDA: EQUIPE DEVENDO RESPOSTA (URGENTE) */}
         <section aria-labelledby="equipe-devendo" className="space-y-3">
           <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-semibold text-base">
@@ -93,9 +94,7 @@ export default async function PrioridadesPage() {
           </div>
 
           {teamWaitingClients.length === 0 ? (
-            <p className="text-sm text-text-muted">
-              Nenhum cliente aguardando resposta no momento. Parabéns!
-            </p>
+            <EmptyState className="items-start p-4 text-left" description="A equipe está em dia com as respostas." icon={MessageSquareWarning} title="Nenhum cliente aguardando" />
           ) : (
             <Card className="divide-y divide-border overflow-hidden border-rose-500/30" padding="none">
               {teamWaitingClients.map((client) => (
@@ -119,7 +118,7 @@ export default async function PrioridadesPage() {
           </div>
 
           {clientWaitingClients.length === 0 ? (
-            <p className="text-sm text-text-muted">Nenhum cliente em aguardo registrado.</p>
+            <EmptyState className="items-start p-4 text-left" description="Não há conversas paradas há 24 horas." icon={Hourglass} title="Nenhum cliente em espera" />
           ) : (
             <Card className="divide-y divide-border overflow-hidden" padding="none">
               {clientWaitingClients.map((client) => (
@@ -140,7 +139,7 @@ export default async function PrioridadesPage() {
           <SectionTitle id="followups-devidos">Follow-ups devidos ({dueFollowups.length})</SectionTitle>
         </div>
         {dueFollowups.length === 0 ? (
-          <p className="text-sm text-text-muted">Nenhum follow-up devido no momento.</p>
+          <EmptyState className="items-start p-4 text-left" description="Não há ações vencidas ou previstas para agora." icon={Clock3} title="Nenhum follow-up devido" />
         ) : (
           <Card className="divide-y divide-border overflow-hidden" padding="none">
             {dueFollowups.map((followup) => (
@@ -151,9 +150,9 @@ export default async function PrioridadesPage() {
       </section>
 
       {/* SEÇÃO 3: RESUMO DE PENDÊNCIAS OBJETIVAS */}
-      <section aria-labelledby="resumo-do-dia" className="space-y-stack pt-4">
+      <section aria-labelledby="resumo-do-dia" className="space-y-3">
         <SectionTitle id="resumo-do-dia">Pendências de Cadastro e Qualificação</SectionTitle>
-        <div className="grid gap-stack sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           <SummaryCard
             context="Aguardando qualificação inicial"
             icon={summaryIcons["pending-qualification"]}
@@ -182,7 +181,7 @@ export default async function PrioridadesPage() {
       </section>
 
       {/* SEÇÃO 4: OUTRAS PENDÊNCIAS DE CADASTRO */}
-      <div className="grid gap-section lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2">
         <section aria-labelledby="sem-telefone" className="space-y-stack">
           <SectionTitle id="sem-telefone">
             Sem telefone cadastrado

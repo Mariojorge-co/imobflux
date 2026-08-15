@@ -172,7 +172,7 @@ export function ClientContextPanel({
   };
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto border-l border-border bg-surface p-4 text-text space-y-6">
+    <div className="flex min-h-full flex-col space-y-5 bg-surface p-3 text-text sm:p-4 2xl:h-full 2xl:overflow-y-auto 2xl:border-l 2xl:border-border">
       {/* 1. IDENTIFICAÇÃO DO CONTATO */}
       <section className="space-y-2 border-b border-border pb-4">
         <div className="flex items-center justify-between gap-2">
@@ -181,14 +181,14 @@ export function ClientContextPanel({
           </h2>
           <div className="flex items-center gap-1.5">
             {isProvisional && (
-              <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400">
+              <span className="rounded-pill bg-amber-500/15 px-2 py-0.5 text-caption font-semibold text-amber-700 dark:text-amber-400">
                 Contato não salvo
               </span>
             )}
             <Badge tone="info">{formatEnumLabel(contact?.classification || "person")}</Badge>
             {contact ? (
               <button
-                className="text-[11px] font-medium text-primary hover:underline"
+                className="min-h-11 text-caption font-medium text-primary hover:underline"
                 onClick={() => { setIsEditingName(true); setNameError(null); }}
                 type="button"
               >
@@ -213,7 +213,7 @@ export function ClientContextPanel({
 
         {isEditingName ? (
           <form className="space-y-2 rounded-control border border-border bg-background p-2.5" onSubmit={handleSaveContactName}>
-            <label className="block text-[11px] font-medium text-text-muted" htmlFor="conversation-contact-name">Nome no CRM</label>
+            <label className="block text-caption font-medium text-text-muted" htmlFor="conversation-contact-name">Nome no CRM</label>
             <Input
               autoFocus
               id="conversation-contact-name"
@@ -223,8 +223,8 @@ export function ClientContextPanel({
               required
               value={nameDraft}
             />
-            <p className="text-[10px] text-text-muted">O nome recebido do WhatsApp permanece separado.</p>
-            {nameError ? <p className="text-[11px] text-danger">{nameError}</p> : null}
+            <p className="text-caption text-text-muted">O nome recebido do WhatsApp permanece separado.</p>
+            {nameError ? <p className="text-caption text-danger">{nameError}</p> : null}
             <div className="flex justify-end gap-2">
               <Button onClick={() => { setIsEditingName(false); setNameDraft(contactDisplayName); setNameError(null); }} type="button" variant="ghost">Cancelar</Button>
               <Button type="submit" variant="primary">Salvar nome</Button>
@@ -252,7 +252,7 @@ export function ClientContextPanel({
             Oportunidade Ativa
           </h2>
           {context.all_opportunities.length > 1 && (
-            <span className="text-[10px] text-text-muted font-medium">
+            <span className="text-caption font-medium text-text-muted">
               {context.all_opportunities.length} oportunidades
             </span>
           )}
@@ -299,14 +299,14 @@ export function ClientContextPanel({
             </div>
 
             {activeOpp.responsible_name && (
-              <p className="text-[11px] text-text-muted flex items-center gap-1">
+              <p className="flex items-center gap-1 text-caption text-text-muted">
                 <UserCheck size={12} />
                 <span>Responsável: {activeOpp.responsible_name}</span>
               </p>
             )}
 
             {activeOpp.rework_reason && (
-              <div className="rounded-sm bg-danger-soft p-2 text-[11px] text-danger">
+              <div className="rounded-control bg-danger-soft p-2 text-caption text-danger">
                 <strong>Motivo do Retrabalho:</strong> {activeOpp.rework_reason}
               </div>
             )}
@@ -336,33 +336,33 @@ export function ClientContextPanel({
         {isEditing ? (
           <form className="space-y-2.5 text-xs" onSubmit={handleSaveQualifications}>
             <div>
-              <label className="text-[11px] font-medium text-text-muted block">Tipo de Operação</label>
+              <label className="block text-caption font-medium text-text-muted">Tipo de Operação</label>
               <Input onChange={(e) => setOperationType(e.target.value)} placeholder="Ex: Compra, Aluguel" value={operationType} />
             </div>
             <div>
-              <label className="text-[11px] font-medium text-text-muted block">Preferência de Imóvel</label>
+              <label className="block text-caption font-medium text-text-muted">Preferência de Imóvel</label>
               <Input onChange={(e) => setPropertyType(e.target.value)} placeholder="Ex: Apartamento 3Q" value={propertyType} />
             </div>
             <div>
-              <label className="text-[11px] font-medium text-text-muted block">Cidade / Região</label>
+              <label className="block text-caption font-medium text-text-muted">Cidade / Região</label>
               <Input onChange={(e) => setCityRegion(e.target.value)} placeholder="Ex: Ponta Verde, Maceió" value={cityRegion} />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-[11px] font-medium text-text-muted block">Orçamento Máx</label>
+                <label className="block text-caption font-medium text-text-muted">Orçamento Máx</label>
                 <Input onChange={(e) => setMaxBudget(e.target.value)} placeholder="R$" type="number" value={maxBudget} />
               </div>
               <div>
-                <label className="text-[11px] font-medium text-text-muted block">Entrada Disp.</label>
+                <label className="block text-caption font-medium text-text-muted">Entrada Disp.</label>
                 <Input onChange={(e) => setDownPayment(e.target.value)} placeholder="R$" type="number" value={downPayment} />
               </div>
             </div>
             <div>
-              <label className="text-[11px] font-medium text-text-muted block">Prazo / Intenção</label>
+              <label className="block text-caption font-medium text-text-muted">Prazo / Intenção</label>
               <Input onChange={(e) => setTimeframe(e.target.value)} placeholder="Ex: 30 dias" value={timeframe} />
             </div>
             <div>
-              <label className="text-[11px] font-medium text-text-muted block">Observações Gerais</label>
+              <label className="block text-caption font-medium text-text-muted">Observações Gerais</label>
               <textarea
                 className="w-full rounded-control border border-border bg-background p-2 text-xs text-text focus:border-primary focus:outline-none"
                 onChange={(e) => setContactNotes(e.target.value)}
@@ -374,25 +374,25 @@ export function ClientContextPanel({
             {/* SE FOR OWNER: CAMPOS DE ANÁLISE FINANCEIRA */}
             {isOwner && (
               <div className="space-y-2 border-t border-border pt-2">
-                <p className="text-[11px] font-bold text-primary flex items-center gap-1">
+                <p className="flex items-center gap-1 text-caption font-bold text-primary">
                   <Lock size={12} /> Dados Financeiros (Somente Owner)
                 </p>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-[11px] font-medium text-text-muted block">Renda Familiar</label>
+                    <label className="block text-caption font-medium text-text-muted">Renda Familiar</label>
                     <Input onChange={(e) => setFamilyIncome(e.target.value)} placeholder="R$" type="number" value={familyIncome} />
                   </div>
                   <div>
-                    <label className="text-[11px] font-medium text-text-muted block">Crédito Aprovado</label>
+                    <label className="block text-caption font-medium text-text-muted">Crédito Aprovado</label>
                     <Input onChange={(e) => setApprovedCredit(e.target.value)} placeholder="R$" type="number" value={approvedCredit} />
                   </div>
                 </div>
                 <div>
-                  <label className="text-[11px] font-medium text-text-muted block">Status Análise</label>
+                  <label className="block text-caption font-medium text-text-muted">Status Análise</label>
                   <Input onChange={(e) => setAnalysisStatus(e.target.value)} placeholder="Ex: Aprovado CAIXA" value={analysisStatus} />
                 </div>
                 <div>
-                  <label className="text-[11px] font-medium text-text-muted block">Situação Documental</label>
+                  <label className="block text-caption font-medium text-text-muted">Situação Documental</label>
                   <Input onChange={(e) => setDocsStatus(e.target.value)} placeholder="Ex: Completa" value={docsStatus} />
                 </div>
               </div>
@@ -455,12 +455,12 @@ export function ClientContextPanel({
             {/* SE FOR OWNER: EXIBIÇÃO DE DADOS FINANCEIROS */}
             {isOwner && context.financial_info && (
               <div className="mt-3 rounded-control border border-border bg-neutral-soft/50 p-2.5 space-y-1.5">
-                <p className="text-[11px] font-bold text-primary flex items-center gap-1">
+                <p className="flex items-center gap-1 text-caption font-bold text-primary">
                   <Lock size={12} /> Análise Financeira (Owner-only)
                 </p>
 
                 {context.financial_info.family_income != null && (
-                  <p className="text-[11px]">
+                  <p className="text-caption">
                     <span className="text-text-muted">Renda familiar:</span>{" "}
                     <span className="font-semibold">
                       {formatCurrency(context.financial_info.family_income)}
@@ -469,7 +469,7 @@ export function ClientContextPanel({
                 )}
 
                 {context.financial_info.financial_analysis_status && (
-                  <p className="text-[11px]">
+                  <p className="text-caption">
                     <span className="text-text-muted">Status análise:</span>{" "}
                     <span className="font-semibold">
                       {formatEnumLabel(context.financial_info.financial_analysis_status)}
@@ -478,7 +478,7 @@ export function ClientContextPanel({
                 )}
 
                 {context.financial_info.approved_credit_amount != null && (
-                  <p className="text-[11px]">
+                  <p className="text-caption">
                     <span className="text-text-muted">Crédito aprovado:</span>{" "}
                     <span className="font-semibold">
                       {formatCurrency(context.financial_info.approved_credit_amount)}
@@ -487,7 +487,7 @@ export function ClientContextPanel({
                 )}
 
                 {context.financial_info.docs_status && (
-                  <p className="text-[11px]">
+                  <p className="text-caption">
                     <span className="text-text-muted">Documentação:</span>{" "}
                     <span className="font-semibold">
                       {formatEnumLabel(context.financial_info.docs_status)}
@@ -579,7 +579,7 @@ export function ClientContextPanel({
                     </Badge>
                     <span className="font-medium text-text">{task.title}</span>
                   </div>
-                  <p className="text-[10px] text-text-muted flex items-center gap-1">
+                  <p className="flex items-center gap-1 text-caption text-text-muted">
                     <Clock size={10} />
                     <span>Vencimento: {formatRelativeTime(task.due_at)}</span>
                   </p>
@@ -621,12 +621,12 @@ export function ClientContextPanel({
                   <span className="font-semibold text-amber-800 dark:text-amber-300">
                     Nota interna · não enviada ao cliente
                   </span>
-                  <time className="shrink-0 text-[10px] text-text-muted">
+                  <time className="shrink-0 text-caption text-text-muted">
                     {formatRelativeTime(note.created_at)}
                   </time>
                 </div>
                 <p className="whitespace-pre-wrap text-text">{note.content}</p>
-                <p className="mt-1 text-[10px] font-medium text-text-muted">
+                <p className="mt-1 text-caption font-medium text-text-muted">
                   por {note.author_name}
                 </p>
               </article>
@@ -650,13 +650,13 @@ export function ClientContextPanel({
                 <div className="absolute -left-[5px] top-1 h-2 w-2 rounded-full bg-primary" />
                 <div className="flex items-center justify-between">
                   <span className="font-medium text-text">{ev.title}</span>
-                  <span className="text-[10px] text-text-muted">
+                  <span className="text-caption text-text-muted">
                     {formatRelativeTime(ev.occurred_at)}
                   </span>
                 </div>
-                <p className="text-text-muted text-[11px] mt-0.5">{ev.description}</p>
+                <p className="mt-0.5 text-caption text-text-muted">{ev.description}</p>
                 {ev.actor && (
-                  <p className="text-[10px] text-text-muted font-medium mt-0.5">
+                  <p className="mt-0.5 text-caption font-medium text-text-muted">
                     por {ev.actor}
                   </p>
                 )}

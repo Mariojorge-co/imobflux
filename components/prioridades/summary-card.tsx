@@ -21,7 +21,7 @@ export function SummaryCard({
   return (
     <Card
       className={classNames(
-        "flex h-full flex-col justify-between gap-stack",
+        "flex h-full flex-row items-center justify-between gap-stack p-3 sm:flex-col sm:items-stretch",
         className,
       )}
     >
@@ -31,11 +31,11 @@ export function SummaryCard({
           <Icon aria-hidden="true" size={15} strokeWidth={1.5} />
         </span>
       </div>
-      <div className="mt-auto">
-        <p className="text-2xl font-semibold tracking-tight text-text">
+      <div className="shrink-0 text-right sm:mt-auto sm:text-left">
+        <p className="text-xl font-semibold tracking-tight text-text sm:text-2xl">
           {value}
         </p>
-        <p className="mt-0.5 text-caption text-text-muted">{context}</p>
+        <p className="mt-0.5 hidden text-caption text-text-muted sm:block">{context}</p>
       </div>
     </Card>
   );

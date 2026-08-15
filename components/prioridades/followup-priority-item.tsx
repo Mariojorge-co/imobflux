@@ -25,26 +25,36 @@ export function FollowupPriorityItem({ followup }: FollowupPriorityItemProps) {
   const [isPending, startTransition] = useTransition();
   const [isRescheduling, setIsRescheduling] = useState(false);
   const [dueAt, setDueAt] = useState("");
+  const priorityLabel = formatFollowupPriorityLabel(followup.due_at);
+  const isOverdue = priorityLabel.startsWith("Follow-up vencido");
   const targetUrl = followup.conversation_id
     ? `/conversas/${followup.conversation_id}${followup.opportunity_id ? `?opportunityId=${followup.opportunity_id}` : ""}`
     : `/contatos?q=${encodeURIComponent(followup.display_name)}`;
 
   return (
-    <article className="space-y-2 p-3">
-      <div className="flex items-center gap-3">
-        <Avatar name={followup.display_name} size="md" />
+    <article className="space-y-2 p-2.5 sm:p-3">
+      <div className="flex min-w-0 items-start gap-2.5">
+        <Avatar className="mt-0.5" name={followup.display_name} size="sm" />
         <Link className="min-w-0 flex-1 hover:underline" href={targetUrl}>
           <h3 className="truncate text-sm font-semibold text-text">{followup.display_name}</h3>
-          <p className="truncate text-xs text-text-muted">{followup.title}</p>
+          <p className="truncate text-caption text-text-muted">{followup.title}</p>
         </Link>
-        <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">
-          {formatFollowupPriorityLabel(followup.due_at)}
+        <span
+          className={[
+            "max-w-[42%] shrink-0 truncate rounded-pill px-2 py-0.5 text-caption font-semibold sm:max-w-none",
+            isOverdue
+              ? "bg-danger-soft text-danger"
+              : "bg-info-soft text-info",
+          ].join(" ")}
+          data-followup-state={isOverdue ? "overdue" : "today"}
+        >
+          {priorityLabel}
         </span>
       </div>
 
       {isRescheduling ? (
         <form
-          className="flex flex-wrap items-end gap-2 pl-12"
+          className="flex flex-wrap items-end gap-2 sm:pl-10"
           onSubmit={(event) => {
             event.preventDefault();
             if (!dueAt) return;
@@ -67,7 +77,7 @@ export function FollowupPriorityItem({ followup }: FollowupPriorityItemProps) {
           <Button onClick={() => setIsRescheduling(false)} type="button" variant="ghost">Cancelar</Button>
         </form>
       ) : (
-        <div className="flex justify-end gap-2">
+        <div className="flex flex-wrap justify-end gap-1.5">
           <Button onClick={() => setIsRescheduling(true)} type="button" variant="ghost"><CalendarClock size={14} /> Reagendar</Button>
           <Button
             disabled={isPending}

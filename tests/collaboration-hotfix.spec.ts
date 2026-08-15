@@ -10,7 +10,10 @@ import {
 const conversationId = "d3300003-0000-4000-8000-000000000001";
 
 test.describe("Hotfix colaborativo OWNER × ATTENDANT", () => {
-  test.beforeAll(() => resetAndLoadDemoMode());
+  test.beforeAll(async () => {
+    test.setTimeout(120_000);
+    await resetAndLoadDemoMode();
+  });
 
   test("alterna oito mensagens entre OWNER e ATTENDANT sem perda, bloqueio ou duplicação", async ({ browser }) => {
     test.setTimeout(90_000);
@@ -78,13 +81,16 @@ test.describe("Hotfix colaborativo OWNER × ATTENDANT", () => {
 
     await saveNote(attendantPage, "NOTA FUNCIONÁRIO");
     await ownerPage.reload();
-    await expect(ownerPage.getByText("NOTA FUNCIONÁRIO", { exact: true }).first()).toBeVisible();
-    await expect(ownerPage.getByText("por Atendente Demo", { exact: true }).first()).toBeVisible();
+    const ownerDrawer = await openContext(ownerPage);
+    await expect(ownerDrawer.getByText("NOTA FUNCIONÁRIO", { exact: true }).first()).toBeVisible();
+    await expect(ownerDrawer.getByText("por Atendente Demo", { exact: true }).first()).toBeVisible();
+    await ownerDrawer.getByRole("button", { name: "Fechar dados do cliente" }).click();
 
     await saveNote(ownerPage, "NOTA OWNER");
     await attendantPage.reload();
-    await expect(attendantPage.getByText("NOTA FUNCIONÁRIO", { exact: true }).first()).toBeVisible();
-    await expect(attendantPage.getByText("NOTA OWNER", { exact: true }).first()).toBeVisible();
+    const attendantDrawer = await openContext(attendantPage);
+    await expect(attendantDrawer.getByText("NOTA FUNCIONÁRIO", { exact: true }).first()).toBeVisible();
+    await expect(attendantDrawer.getByText("NOTA OWNER", { exact: true }).first()).toBeVisible();
     expect(queryLocalSql(`
       select count(*) from public.messages
       where text_content in ('NOTA FUNCIONÁRIO', 'NOTA OWNER');
@@ -113,7 +119,8 @@ test.describe("Hotfix colaborativo OWNER × ATTENDANT", () => {
     await expect(page.getByLabel("Resultados para nova conversa").getByText("DEMO — Cliente Público", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Cancelar" }).click();
 
-    await page.getByRole("button", { name: "Editar", exact: true }).first().click();
+    const contextDrawer = await openContext(page);
+    await contextDrawer.getByRole("button", { name: "Editar", exact: true }).first().click();
     await page.getByLabel("Nome no CRM").fill("Lucas CRM Confirmado");
     await page.getByRole("button", { name: "Salvar nome" }).click();
     await expect(page.getByText("Lucas CRM Confirmado", { exact: true }).first()).toBeVisible();
@@ -151,12 +158,26 @@ test.describe("Hotfix colaborativo OWNER × ATTENDANT", () => {
         id, '${conversationId}',
         (select id from public.workspace_members where workspace_id = contacts.workspace_id and role = 'owner' limit 1)
       from public.contacts where id = 'd3300001-0000-4000-8000-000000000001';
+
+      insert into public.work_tasks (
+        id, workspace_id, task_type, title, status, priority, due_at,
+        contact_id, conversation_id, created_by_member_id
+      ) select
+        'd3900001-0000-4000-8000-000000000003', workspace_id, 'follow_up',
+        'HOTFIX follow-up vencido', 'pending', 'normal', now() - interval '1 day',
+        id, '${conversationId}',
+        (select id from public.workspace_members where workspace_id = contacts.workspace_id and role = 'owner' limit 1)
+      from public.contacts where id = 'd3300001-0000-4000-8000-000000000001';
     `);
     await loginAsDemoOwner(page);
     await page.goto("/prioridades");
     const todayItem = page.getByText("HOTFIX follow-up hoje", { exact: true }).locator("xpath=ancestor::article");
+    const overdueItem = page.getByText("HOTFIX follow-up vencido", { exact: true }).locator("xpath=ancestor::article");
     await expect(todayItem).toBeVisible();
+    await expect(overdueItem).toBeVisible();
     await expect(todayItem.getByText(/Hoje às/)).toBeVisible();
+    await expect(todayItem.locator('[data-followup-state="today"]')).toHaveClass(/bg-info-soft/);
+    await expect(overdueItem.locator('[data-followup-state="overdue"]')).toHaveClass(/bg-danger-soft/);
     await expect(page.getByText("HOTFIX follow-up amanhã", { exact: true })).toHaveCount(0);
     await todayItem.getByRole("button", { name: "Concluir" }).click();
     await expect(page.getByText("HOTFIX follow-up hoje", { exact: true })).toHaveCount(0);
@@ -169,5 +190,14 @@ async function saveNote(page: Page, content: string) {
   await page.getByRole("button", { name: "Nota interna" }).click();
   await page.getByRole("textbox", { name: "Digitar nota interna (apenas CRM)" }).fill(content);
   await page.getByRole("button", { name: "Salvar nota interna" }).click();
-  await expect(page.getByText(content, { exact: true }).first()).toBeVisible();
+  const drawer = await openContext(page);
+  await expect(drawer.getByText(content, { exact: true }).first()).toBeVisible();
+  await drawer.getByRole("button", { name: "Fechar dados do cliente" }).click();
+}
+
+async function openContext(page: Page) {
+  await page.getByRole("button", { name: "Abrir dados do cliente" }).click();
+  const drawer = page.getByRole("dialog", { name: "Dados do cliente" });
+  await expect(drawer).toBeVisible();
+  return drawer;
 }

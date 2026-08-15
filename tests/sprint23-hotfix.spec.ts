@@ -6,8 +6,9 @@ import {
 } from "./helpers/local-test-state";
 
 test.describe("Sprint 23 — Hotfix Consolidado & Validações de UX/Bugs", () => {
-  test.beforeAll(() => {
-    resetAndLoadDemoMode();
+  test.beforeAll(async () => {
+    test.setTimeout(120_000);
+    await resetAndLoadDemoMode();
   });
 
   test("1. Validador de Utilitários: formatCurrency contra NaN, null, undefined", () => {

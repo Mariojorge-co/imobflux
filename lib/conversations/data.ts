@@ -227,7 +227,7 @@ export async function getConversationById(
   const supabase = await createServerSupabaseClient();
   const { data: conv } = await supabase
     .from("conversations")
-    .select("id, conversation_type, visibility, operational_status, started_at")
+    .select("id, conversation_type, visibility, operational_status, started_at, archived_at")
     .eq("id", conversationId)
     .maybeSingle();
 
@@ -239,6 +239,7 @@ export async function getConversationById(
     visibility: conv.visibility,
     operational_status: conv.operational_status,
     started_at: conv.started_at,
+    archived_at: conv.archived_at,
     last_activity_at: conv.started_at,
     last_msg_text: null,
     last_msg_direction: null,

@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
+import { createClient } from "@supabase/supabase-js";
 import {
+  demoOwner,
   loginAsDemoOwner,
   resetAndLoadDemoMode,
   runLocalSql,
@@ -10,8 +12,9 @@ import {
 // ─── Suíte de testes do Módulo de Conversas ──────────────────────────────────
 
 test.describe.serial("conversations module", () => {
-  test.beforeAll(() => {
-    resetAndLoadDemoMode();
+  test.beforeAll(async () => {
+    test.setTimeout(120_000);
+    await resetAndLoadDemoMode();
     runLocalSql(`
       insert into public.messages (
         id, workspace_id, channel_connection_id, conversation_id, direction,
@@ -50,6 +53,109 @@ test.describe.serial("conversations module", () => {
     await loginAsDemoOwner(page);
     await page.goto("/conversas");
     await expect(page.getByRole("list", { name: "Lista de conversas" })).toBeVisible();
+  });
+
+  test("contexto abre somente sob demanda em mobile e desktop", async ({ page }) => {
+    await loginAsDemoOwner(page);
+
+    for (const viewport of [
+      { width: 390, height: 844 },
+      { width: 1366, height: 768 },
+      { width: 1920, height: 1080 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto("/conversas/d3300003-0000-4000-8000-000000000001");
+
+      const trigger = page.getByRole("button", { name: "Abrir dados do cliente" });
+      const drawer = page.getByRole("dialog", { name: "Dados do cliente" });
+      await expect(trigger).toBeVisible();
+      await expect(drawer).toHaveCount(0);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+
+      await trigger.click();
+      await expect(drawer).toBeVisible();
+      const drawerWidth = await drawer.evaluate((element) => element.getBoundingClientRect().width);
+      expect(drawerWidth).toBeLessThanOrEqual(Math.min(400, viewport.width));
+
+      await page.keyboard.press("Escape");
+      await expect(drawer).toHaveCount(0);
+      await expect(trigger).toBeFocused();
+      await expect(page.getByRole("form", { name: "Formulário de envio de mensagem" })).toBeVisible();
+    }
+  });
+
+  test("OWNER carrega inbox e históricos reais sem erro de leitura ou DOM antigo", async ({ page }) => {
+    test.setTimeout(90_000);
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const clientKey = process.env.NEXT_PUBLIC_SUPABASE_CLIENT_KEY!;
+    const supabase = createClient(supabaseUrl, clientKey, {
+      auth: {
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+        persistSession: false,
+      },
+    });
+    const runtimeErrors: string[] = [];
+    const readErrorPattern = /Não foi possível carregar (a lista de conversas|o histórico de mensagens)|get_conversations_inbox|get_conversation_messages|server components? render/i;
+
+    page.on("pageerror", (error) => {
+      if (readErrorPattern.test(error.message)) runtimeErrors.push(error.message);
+    });
+    page.on("console", (message) => {
+      if (message.type() === "error" && readErrorPattern.test(message.text())) {
+        runtimeErrors.push(message.text());
+      }
+    });
+
+    const { error: authError } = await supabase.auth.signInWithPassword(demoOwner);
+    expect(authError).toBeNull();
+
+    const inboxResult = await supabase.rpc("get_conversations_inbox", {
+      p_view: "all",
+      p_limit: 20,
+    });
+    expect(inboxResult.error, JSON.stringify(inboxResult.error)).toBeNull();
+    expect(inboxResult.data?.items?.length).toBeGreaterThanOrEqual(2);
+
+    const firstMessagesResult = await supabase.rpc("get_conversation_messages", {
+      p_conversation_id: "d3300003-0000-4000-8000-000000000001",
+      p_limit: 50,
+    });
+    expect(firstMessagesResult.error, JSON.stringify(firstMessagesResult.error)).toBeNull();
+    expect(firstMessagesResult.data?.messages?.length).toBeGreaterThan(0);
+
+    await loginAsDemoOwner(page);
+    await page.goto("/conversas");
+    await expect(page.getByRole("list", { name: "Lista de conversas" })).toBeVisible();
+
+    const scenarios = [
+      {
+        id: "d3300003-0000-4000-8000-000000000001",
+        message: "Mensagem paginada 1",
+      },
+      {
+        id: "d3300003-0000-4000-8000-000000000002",
+        message: "Boa tarde! Gostaria de saber o valor do condomínio da casa em Marechal.",
+      },
+    ];
+
+    for (const scenario of scenarios) {
+      const card = page.locator(`#conv-card-${scenario.id}`);
+      await expect(card).toBeVisible();
+      await card.click();
+      await expect(page).toHaveURL(new RegExp(`/conversas/${scenario.id}$`), {
+        timeout: 15_000,
+      });
+
+      const history = page.getByRole("log", { name: "Histórico de mensagens" });
+      await expect(history).toBeVisible();
+      await expect(history.getByText(scenario.message, { exact: true })).toBeVisible();
+      await expect(page.getByText(/Não foi possível carregar (a lista de conversas|o histórico de mensagens)/)).toHaveCount(0);
+    }
+
+    await page.waitForTimeout(500);
+    expect(runtimeErrors).toEqual([]);
+    await supabase.auth.signOut();
   });
 
   test("exibe estado vazio quando não há conversas (busca sem resultado)", async ({ page }) => {
@@ -94,10 +200,18 @@ test.describe.serial("conversations module", () => {
     await loginAsDemoOwner(page);
     const conversationId = "d3300003-0000-4000-8000-000000000001";
 
-    await page.goto(`/conversas/${conversationId}`);
+    await page.goto(`/conversas/${conversationId}`, {
+      waitUntil: "domcontentloaded",
+    });
 
     await expect(page.getByRole("log", { name: "Histórico de mensagens" })).toBeVisible();
-    await expect(page.getByText("Apê 2/4 no Farol", { exact: true })).toBeVisible();
+    const contextButton = page.getByRole("button", { name: "Abrir dados do cliente" });
+    if (await contextButton.isVisible()) {
+      await contextButton.click();
+      await expect(page.getByRole("dialog", { name: "Dados do cliente" }).getByText("Apê 2/4 no Farol", { exact: true })).toBeVisible();
+    } else {
+      await expect(page.getByText("Apê 2/4 no Farol", { exact: true })).toBeVisible();
+    }
     await expect(page.getByRole("combobox", { name: /Selecionar oportunidade/i })).toHaveCount(0);
   });
 
@@ -125,6 +239,58 @@ test.describe.serial("conversations module", () => {
 
     await page.getByRole("link", { name: "Voltar para a lista de conversas" }).click();
     await expect(page).toHaveURL(/\/conversas$/);
+  });
+
+  test("Bloco A mantém Conversas e Prioridades responsivos nos viewports alvo", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await loginAsDemoOwner(page);
+
+    await page.goto("/prioridades");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+    await expect(page.getByRole("heading", { name: /Equipe Devendo Resposta/ })).toBeVisible();
+
+    await page.goto("/conversas");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+    await expect(page.locator('[id^="conv-card-"]').nth(5)).toBeVisible();
+
+    await page.goto("/conversas/d3300003-0000-4000-8000-000000000001");
+    const conversationHeader = page.locator("main").getByRole("paragraph").filter({ hasText: "DEMO — Cliente Público" });
+    await expect(conversationHeader).toBeVisible();
+    await expect(page.locator("main").getByRole("paragraph").filter({ hasText: "(82) 99999-0001" })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+
+    const mobileLayout = await page.evaluate(() => {
+      const history = document.querySelector<HTMLElement>('[role="log"]');
+      const composer = document.querySelector<HTMLElement>('form[aria-label="Formulário de envio de mensagem"]')?.parentElement;
+      const targets = [
+        document.querySelector<HTMLElement>('a[aria-label="Voltar para a lista de conversas"]'),
+        document.querySelector<HTMLElement>('button[aria-label="Abrir dados do cliente"]'),
+        document.querySelector<HTMLElement>('button[aria-label="Enviar mensagem"]'),
+      ];
+      return {
+        composerBottom: composer?.getBoundingClientRect().bottom ?? 0,
+        historyOverflow: history ? getComputedStyle(history).overflowY : "",
+        targetSizes: targets.map((element) => element
+          ? { height: element.getBoundingClientRect().height, width: element.getBoundingClientRect().width }
+          : null),
+      };
+    });
+    expect(mobileLayout.composerBottom).toBeGreaterThanOrEqual(840);
+    expect(mobileLayout.composerBottom).toBeLessThanOrEqual(844);
+    expect(mobileLayout.historyOverflow).toBe("auto");
+    for (const size of mobileLayout.targetSizes) {
+      expect(size).not.toBeNull();
+      expect(size!.height).toBeGreaterThanOrEqual(44);
+      expect(size!.width).toBeGreaterThanOrEqual(44);
+    }
+
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await expect(page.getByRole("button", { name: "Abrir dados do cliente" })).toBeVisible();
+    await expect(page.getByRole("combobox", { name: "Alterar etapa da oportunidade ativa" })).toBeVisible();
+
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await expect(page.getByRole("heading", { name: "Identificação" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Abrir dados do cliente" })).toBeVisible();
   });
 
   test("pagina o histórico sem duplicar, preserva scroll e limpa ao trocar de conversa", async ({ page }) => {

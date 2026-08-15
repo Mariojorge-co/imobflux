@@ -26,24 +26,30 @@ export function PriorityClientItem({
       className="block transition-colors hover:bg-neutral-soft/60 cursor-pointer"
       href={targetUrl}
     >
-      <article className="p-3">
-        <div className="flex items-center gap-3">
-          <Avatar name={client.display_name} size="md" />
+      <article className="p-2.5 sm:p-3">
+        <div className="flex min-w-0 items-start gap-2.5">
+          <Avatar className="mt-0.5" name={client.display_name} size="sm" />
 
           <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center justify-between gap-2">
               <h3 className="truncate text-sm font-semibold text-text">
                 {client.display_name}
               </h3>
               {client.sla_text && (
-                <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+                <span className="hidden max-w-[62%] shrink-0 truncate rounded-pill bg-primary/10 px-2 py-0.5 text-caption font-medium text-primary sm:inline-block">
                   {client.sla_text}
                 </span>
               )}
             </div>
 
-            <div className="mt-1 flex items-center justify-between gap-2 text-xs text-text-muted">
-              <span className="truncate">
+            {client.sla_text && (
+              <span className="mt-1 inline-block max-w-full truncate rounded-pill bg-primary/10 px-2 py-0.5 text-caption font-medium text-primary sm:hidden">
+                {client.sla_text}
+              </span>
+            )}
+
+            <div className="mt-1 flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-0.5 text-caption text-text-muted">
+              <span className="min-w-0 truncate">
                 {labelOverride || "Última atualização"}
               </span>
               <time className="shrink-0 text-text-muted">{relativeTime}</time>

@@ -13,8 +13,7 @@ export default async function globalSetup() {
         env,
         stdio: "pipe",
       });
-      execSync("docker restart supabase_kong_imobflux", { env, stdio: "pipe" });
-      execSync("powershell.exe -NoProfile -Command Start-Sleep -Seconds 8", {
+      execSync("docker exec supabase_kong_imobflux kong reload", {
         env,
         stdio: "pipe",
       });

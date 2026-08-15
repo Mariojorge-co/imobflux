@@ -27,7 +27,7 @@ export function Button({
   return (
     <button
       className={classNames(
-        "inline-flex items-center justify-center gap-inline rounded-control border px-control-x py-control-y text-body font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:cursor-not-allowed disabled:opacity-50",
+        "inline-flex min-h-11 items-center justify-center gap-inline rounded-control border px-control-x py-control-y text-body font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:cursor-not-allowed disabled:opacity-50",
         buttonVariants[variant],
         className,
       )}

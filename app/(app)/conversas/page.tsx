@@ -1,6 +1,7 @@
 import { MessageCircle } from "lucide-react";
 import { getConversationsInbox } from "@/lib/conversations/data";
 import { ConversationsList } from "@/components/conversations/conversations-list";
+import { EmptyState } from "@/components/ui";
 
 /**
  * Rota base /conversas — Server Component.
@@ -17,26 +18,18 @@ export default async function ConversasPage() {
   return (
     <div className="flex h-full w-full">
       {/* Coluna esquerda: lista de conversas (320px no desktop, tela cheia no mobile) */}
-      <div className="w-full shrink-0 md:w-80">
+      <div className="w-full shrink-0 md:w-[19rem] xl:w-80">
         <ConversationsList initialCounts={inbox.counts} initialItems={inbox.items} />
       </div>
 
       {/* Coluna direita: estado "selecione uma conversa" — oculta no mobile */}
-      <div className="hidden flex-1 flex-col items-center justify-center gap-4 bg-background md:flex">
-        <MessageCircle
-          aria-hidden="true"
-          className="text-text-muted"
-          size={48}
-          strokeWidth={1.2}
+      <div className="hidden flex-1 items-center justify-center bg-background p-section md:flex">
+        <EmptyState
+          className="max-w-md bg-transparent"
+          description="Escolha uma conversa na lista para visualizar o histórico e continuar o atendimento."
+          icon={MessageCircle}
+          title="Selecione uma conversa"
         />
-        <div className="text-center">
-          <p className="text-sm font-medium text-text">
-            Selecione uma conversa
-          </p>
-          <p className="mt-1 text-xs text-text-muted">
-            Escolha uma conversa na lista para visualizar o histórico.
-          </p>
-        </div>
       </div>
     </div>
   );

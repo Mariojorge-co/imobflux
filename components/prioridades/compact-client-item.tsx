@@ -41,21 +41,21 @@ export function CompactClientItem({
       className="block transition-colors hover:bg-neutral-soft/60 cursor-pointer"
       href={targetUrl}
     >
-      <article className="flex items-start gap-stack p-stack sm:p-card">
+      <article className="flex min-w-0 items-start gap-2.5 p-3">
         <Avatar name={client.display_name} size="sm" />
         <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between">
-            <h3 className="text-body font-semibold text-text">
+          <div className="flex min-w-0 items-center justify-between gap-2">
+            <h3 className="truncate text-body font-semibold text-text">
               {client.display_name}
             </h3>
             {client.sla_text && (
-              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+              <span className="max-w-[50%] shrink-0 truncate rounded-pill bg-primary/10 px-2 py-0.5 text-caption font-semibold text-primary">
                 {client.sla_text}
               </span>
             )}
           </div>
           <p className="mt-1 text-caption text-text-muted">{formattedDate}</p>
-          <div className="mt-inline flex flex-wrap items-center gap-inline">
+          <div className="mt-1 flex flex-wrap items-center gap-inline">
             <Badge tone={classificationTones[client.classification] || "neutral"}>
               {classificationLabels[client.classification] || "Contato"}
             </Badge>

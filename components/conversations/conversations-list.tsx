@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Archive, MessageCircle, Plus } from "lucide-react";
-import { Avatar, SearchInput } from "@/components/ui";
+import { Avatar, Button, EmptyState, Input, ModalDialog, SearchInput } from "@/components/ui";
 import {
   refreshConversationsInboxAction,
   searchConversationsAction,
@@ -272,12 +272,12 @@ export function ConversationsList({
   return (
     <div className="flex h-full flex-col border-r border-border bg-surface">
       {/* Cabeçalho da coluna esquerda (desktop) */}
-      <div className="border-b border-border p-4">
-        <div className="mb-3 flex items-center justify-between gap-2">
+      <div className="border-b border-border p-3">
+        <div className="mb-2.5 flex items-center justify-between gap-2">
           <h1 className="text-section-title font-semibold text-text">Conversas</h1>
-          <button className="flex items-center gap-1 rounded-control px-2 py-1 text-xs font-medium text-primary hover:bg-neutral-soft" onClick={() => setIsNewConversationOpen(true)} type="button">
-            <Plus size={14} /> Nova conversa
-          </button>
+          <Button className="px-2.5" onClick={() => setIsNewConversationOpen(true)} variant="secondary">
+            <Plus aria-hidden="true" size={16} /> Nova conversa
+          </Button>
         </div>
         <SearchInput
           aria-label="Buscar conversas por nome ou telefone"
@@ -287,14 +287,15 @@ export function ConversationsList({
           placeholder="Nome ou telefone…"
           value={search}
         />
-        <div className="mt-3 flex flex-wrap gap-1" aria-label="Filtros de conversas">
+        <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Filtros de conversas">
           {([
             ["all", `Tudo (${counts.all})`],
             ["unread", `Não lidas (${counts.unread})`],
             ["groups", `Grupos (${counts.groups})`],
           ] as Array<[ConversationInboxView, string]>).map(([key, label]) => (
             <button
-              className={view === key ? "rounded-full bg-primary px-2.5 py-1 text-xs text-primary-foreground" : "rounded-full bg-neutral-soft px-2.5 py-1 text-xs text-text-muted"}
+              aria-pressed={view === key}
+              className={view === key ? "min-h-11 rounded-pill bg-primary px-3 text-caption font-medium text-primary-foreground" : "min-h-11 rounded-pill border border-transparent bg-neutral-soft px-3 text-caption font-medium text-text-muted hover:border-border-strong hover:text-text"}
               key={key}
               onClick={() => handleViewChange(key)}
               type="button"
@@ -304,7 +305,8 @@ export function ConversationsList({
           ))}
         </div>
         <button
-          className={view === "archived" ? "mt-2 flex w-full items-center gap-2 rounded-control bg-neutral-soft px-2 py-1.5 text-xs font-medium text-text" : "mt-2 flex w-full items-center gap-2 rounded-control px-2 py-1.5 text-xs text-text-muted hover:bg-neutral-soft"}
+          aria-pressed={view === "archived"}
+          className={view === "archived" ? "mt-1.5 flex min-h-11 w-full items-center gap-2 rounded-control bg-neutral-soft px-3 text-caption font-medium text-text" : "mt-1.5 flex min-h-11 w-full items-center gap-2 rounded-control px-3 text-caption text-text-muted hover:bg-neutral-soft hover:text-text"}
           onClick={() => handleViewChange("archived")}
           type="button"
         >
@@ -312,8 +314,11 @@ export function ConversationsList({
           {counts.archived_unread > 0 ? <span className="ml-auto rounded-full bg-primary px-1.5 text-primary-foreground">{counts.archived_unread}</span> : null}
         </button>
       </div>
-      {isNewConversationOpen ? (
-        <dialog className="fixed inset-0 z-50 m-auto w-[min(100%-2rem,26rem)] rounded-card border border-border bg-surface p-5 text-text shadow-xl backdrop:bg-text/30" open>
+      <ModalDialog
+        labelledBy="new-conversation-title"
+        onOpenChange={setIsNewConversationOpen}
+        open={isNewConversationOpen}
+      >
           <form
             className="space-y-4"
             onSubmit={(event) => {
@@ -338,8 +343,8 @@ export function ConversationsList({
               });
             }}
           >
-            <div><h2 className="font-semibold">Nova conversa</h2><p className="text-xs text-text-muted">Pesquisar nome ou número</p></div>
-            <input aria-label="Pesquisar nome ou número" aria-busy={isResolvingNewConversation} className="w-full rounded-control border border-border bg-background px-3 py-2 text-sm" onChange={(event) => resolveNewConversation(event.target.value)} placeholder="Nome ou número" value={newConversationPhone} />
+            <div><h2 className="font-semibold" id="new-conversation-title">Nova conversa</h2><p className="text-caption text-text-muted">Pesquisar nome ou número</p></div>
+            <Input aria-label="Pesquisar nome ou número" aria-busy={isResolvingNewConversation} onChange={(event) => resolveNewConversation(event.target.value)} placeholder="Nome ou número" value={newConversationPhone} />
             {isResolvingNewConversation ? <p className="text-xs text-text-muted">Buscando…</p> : null}
             {!isResolvingNewConversation && newConversationCandidates.length > 0 ? (
               <div aria-label="Resultados para nova conversa" className="divide-y divide-border rounded-control border border-border">
@@ -360,10 +365,9 @@ export function ConversationsList({
               <p className="text-xs text-text-muted">Número novo. Use “Iniciar conversa” para continuar.</p>
             ) : null}
             {newConversationError ? <p className="text-xs text-text-muted">{newConversationError}</p> : null}
-            <div className="flex justify-end gap-2"><button className="rounded-control px-3 py-2 text-sm" onClick={() => { setIsNewConversationOpen(false); setNewConversationError(null); setNewConversationCandidates([]); setResolvedPhone(null); }} type="button">Cancelar</button><button className="rounded-control bg-primary px-3 py-2 text-sm text-primary-foreground disabled:opacity-50" disabled={isResolvingNewConversation || (!resolvedPhone && newConversationCandidates.length === 0)} type="submit">{resolvedPhone && newConversationCandidates.length === 0 ? "Iniciar conversa" : "Continuar"}</button></div>
+            <div className="flex justify-end gap-2"><Button onClick={() => { setIsNewConversationOpen(false); setNewConversationError(null); setNewConversationCandidates([]); setResolvedPhone(null); }} type="button" variant="ghost">Cancelar</Button><Button disabled={isResolvingNewConversation || (!resolvedPhone && newConversationCandidates.length === 0)} type="submit">{resolvedPhone && newConversationCandidates.length === 0 ? "Iniciar conversa" : "Continuar"}</Button></div>
           </form>
-        </dialog>
-      ) : null}
+      </ModalDialog>
 
       {/* Lista de conversas */}
       <div
@@ -381,19 +385,12 @@ export function ConversationsList({
         )}
 
         {!isPending && items.length === 0 && (
-          <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
-            <MessageCircle
-              aria-hidden="true"
-              className="text-text-muted"
-              size={40}
-              strokeWidth={1.4}
-            />
-            <p className="text-sm text-text-muted">
-              {search
-                ? "Nenhuma conversa encontrada para esta busca."
-                : "Nenhuma conversa disponível."}
-            </p>
-          </div>
+          <EmptyState
+            className="m-3 border-0 py-section"
+            description={search ? "Tente outro nome ou telefone." : "As conversas autorizadas aparecerão aqui."}
+            icon={MessageCircle}
+            title={search ? "Nenhuma conversa encontrada" : "Nenhuma conversa disponível"}
+          />
         )}
 
         {items.map((conv) => (
@@ -471,7 +468,7 @@ function ConversationCard({ item, isSelected, onClick }: ConversationCardProps) 
       aria-current={isSelected ? "true" : undefined}
       aria-label={`Abrir conversa com ${displayName}`}
       className={[
-        "flex w-full cursor-pointer flex-col gap-1.5 border-b border-border px-4 py-3 text-left transition-colors relative",
+        "relative flex w-full cursor-pointer items-start gap-2.5 border-b border-border px-3 py-2.5 text-left transition-colors",
         isSelected
           ? "bg-neutral-soft"
           : "hover:bg-neutral-soft/60",
@@ -481,9 +478,10 @@ function ConversationCard({ item, isSelected, onClick }: ConversationCardProps) 
       onClick={onClick}
       type="button"
     >
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <Avatar name={displayName} size="sm" src={item.avatar_url ?? undefined} />
+      <Avatar className="mt-0.5" name={displayName} size="sm" src={item.avatar_url ?? undefined} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-1.5">
           {item.is_unread && (
             <span className="h-2 w-2 rounded-full bg-primary shrink-0" title="Não lida" />
           )}
@@ -491,25 +489,23 @@ function ConversationCard({ item, isSelected, onClick }: ConversationCardProps) 
             {isGroup ? `👥 ${displayName}` : displayName}
           </span>
         </div>
-        <span className="shrink-0 text-[11px] text-text-muted">{timeLabel}</span>
-      </div>
-
-      <div className="flex items-center justify-between gap-2">
-        <p className="truncate text-xs text-text-muted flex-1">{snippet}</p>
-      </div>
+          <span className="shrink-0 text-caption text-text-muted">{timeLabel}</span>
+        </div>
+        <p className="mt-0.5 truncate text-caption text-text-muted">{snippet}</p>
 
       {sla && (
-        <div className="mt-1 flex items-center gap-1">
+        <div className="mt-1 flex min-w-0 items-center gap-1">
           <span
             className={[
-              "rounded-full px-2 py-0.5 text-[10px] font-medium tracking-tight",
+              "max-w-full truncate rounded-pill px-2 py-0.5 text-caption font-medium tracking-tight",
               getSLABadgeClass(),
             ].join(" ")}
           >
             {sla.badgeText}
           </span>
         </div>
-      )}
+        )}
+      </div>
     </button>
   );
 }

@@ -1,5 +1,6 @@
 import { execSync } from "child_process";
 import { expect, type Page } from "@playwright/test";
+import { createClient } from "@supabase/supabase-js";
 
 export const demoOwner = {
   email: "corretor@imobflux.local",
@@ -31,12 +32,7 @@ export function resetLocalDatabase() {
         shell: windowsShell,
         stdio: "pipe",
       });
-      execSync("docker restart supabase_kong_imobflux", {
-        env: localCommandEnvironment(),
-        shell: windowsShell,
-        stdio: "pipe",
-      });
-      execSync("powershell.exe -NoProfile -Command Start-Sleep -Seconds 8", {
+      execSync("docker exec supabase_kong_imobflux kong reload", {
         env: localCommandEnvironment(),
         shell: windowsShell,
         stdio: "pipe",
@@ -65,9 +61,61 @@ export function cleanDemoMode() {
   });
 }
 
-export function resetAndLoadDemoMode() {
+async function waitForConversationReads() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const clientKey = process.env.NEXT_PUBLIC_SUPABASE_CLIENT_KEY;
+
+  if (!supabaseUrl || !clientKey) {
+    throw new Error("Configuração local do Supabase ausente para validar as RPCs de Conversas.");
+  }
+
+  const supabase = createClient(supabaseUrl, clientKey, {
+    auth: {
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+      persistSession: false,
+    },
+  });
+  let lastFailure = "RPCs ainda indisponíveis.";
+
+  for (let attempt = 1; attempt <= 30; attempt += 1) {
+    const { error: authError } = await supabase.auth.signInWithPassword(demoOwner);
+
+    if (!authError) {
+      const [inboxResult, messagesResult] = await Promise.all([
+        supabase.rpc("get_conversations_inbox", {
+          p_view: "all",
+          p_limit: 1,
+        }),
+        supabase.rpc("get_conversation_messages", {
+          p_conversation_id: "d3300003-0000-4000-8000-000000000001",
+          p_limit: 1,
+        }),
+      ]);
+
+      if (!inboxResult.error && !messagesResult.error) {
+        await supabase.auth.signOut();
+        return;
+      }
+
+      lastFailure = JSON.stringify({
+        inbox: inboxResult.error,
+        messages: messagesResult.error,
+      });
+    } else {
+      lastFailure = JSON.stringify(authError);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+
+  throw new Error(`Supabase local não ficou pronto para Conversas: ${lastFailure}`);
+}
+
+export async function resetAndLoadDemoMode() {
   resetLocalDatabase();
   loadDemoMode();
+  await waitForConversationReads();
 }
 
 export function runLocalSql(sql: string) {

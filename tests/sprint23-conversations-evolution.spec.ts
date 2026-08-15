@@ -8,8 +8,9 @@ import {
 } from "./helpers/local-test-state";
 
 test.describe("Sprint 23 — Conversas 2.0 & Evolução Operacional", () => {
-  test.beforeAll(() => {
-    resetAndLoadDemoMode();
+  test.beforeAll(async () => {
+    test.setTimeout(120_000);
+    await resetAndLoadDemoMode();
     runLocalSql(`
       update public.opportunities
       set contact_id = 'd3300001-0000-4000-8000-000000000001'

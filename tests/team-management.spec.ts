@@ -7,7 +7,10 @@ import {
 } from "./helpers/local-test-state";
 
 test.describe("Gestão de Equipe OWNER × ATTENDANT", () => {
-  test.beforeAll(() => resetAndLoadDemoMode());
+  test.beforeAll(async () => {
+    test.setTimeout(120_000);
+    await resetAndLoadDemoMode();
+  });
 
   test("OWNER lista a equipe e convite real permite ao funcionário definir a própria senha", async ({ browser, request }) => {
     const ownerContext = await browser.newContext();

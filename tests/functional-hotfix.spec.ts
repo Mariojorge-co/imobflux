@@ -10,8 +10,9 @@ const conversationOne = "d3300003-0000-4000-8000-000000000001";
 const conversationTwo = "d3300003-0000-4000-8000-000000000002";
 
 test.describe("Hotfix funcional de conversas e prioridades", () => {
-  test.beforeAll(() => {
-    resetAndLoadDemoMode();
+  test.beforeAll(async () => {
+    test.setTimeout(120_000);
+    await resetAndLoadDemoMode();
   });
 
   test("mensagem persistida aparece imediatamente, atualiza preview e não duplica", async ({ page }) => {

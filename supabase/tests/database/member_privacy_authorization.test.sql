@@ -2,7 +2,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions, auth, pg_catalog;
 
-select plan(72);
+select plan(76);
 
 insert into auth.users (id, email)
 values
@@ -284,6 +284,13 @@ select throws_ok(
 select is(public.set_conversation_archived('a2400007-0000-4000-8000-000000000001', true)->>'archived', 'true', 'authorized member can archive a conversation');
 select is((public.get_conversations_inbox()->'counts'->>'unread')::int, 1, 'archived unread conversation is excluded from the main unread count');
 select is((public.get_conversations_inbox()->'counts'->>'archived_unread')::int, 1, 'archived unread conversation has its own count');
+
+set local "request.jwt.claim.sub" = 'a2400000-0000-4000-8000-000000000001';
+select lives_ok($$select public.queue_outgoing_text_message('a2400007-0000-4000-8000-000000000001', 'OWNER envia em arquivada', 'a2400010-0000-4000-8000-000000000009')$$, 'OWNER enfileira mensagem em conversa arquivada');
+select ok((select archived_at is not null from public.conversations where id = 'a2400007-0000-4000-8000-000000000001'), 'envio do OWNER não desarquiva a conversa');
+set local "request.jwt.claim.sub" = 'a2400000-0000-4000-8000-000000000002';
+select lives_ok($$select public.queue_outgoing_text_message('a2400007-0000-4000-8000-000000000001', 'ATTENDANT envia em arquivada', 'a2400010-0000-4000-8000-000000000010')$$, 'ATTENDANT autorizado enfileira mensagem em conversa arquivada');
+select ok((select archived_at is not null from public.conversations where id = 'a2400007-0000-4000-8000-000000000001'), 'envio do ATTENDANT não desarquiva a conversa');
 
 set local role service_role;
 select public.ingest_whatsapp_text_message(

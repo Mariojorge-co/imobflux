@@ -167,13 +167,13 @@ export function MessageForm({
   const isButtonDisabled = isSubmitting || isTextEmpty || isOverLimit;
 
   return (
-    <div className="shrink-0 border-t border-border bg-surface px-4 py-2.5">
+    <div className="shrink-0 border-t border-border bg-surface px-3 py-2 sm:px-4">
       {/* Abas: Mensagem vs Nota Interna */}
-      <div className="mb-2 flex items-center gap-1 border-b border-border/60 pb-1.5 text-xs">
+      <div className="mb-2 flex items-center gap-1 border-b border-border/60 pb-1 text-caption">
         <button
           aria-pressed={activeTab === "message"}
           className={[
-            "flex items-center gap-1.5 rounded-control px-2.5 py-1 font-medium transition-colors",
+            "flex min-h-11 items-center gap-1.5 rounded-control px-3 font-medium transition-colors",
             activeTab === "message"
               ? "bg-primary/10 text-primary"
               : "text-text-muted hover:text-text",
@@ -191,7 +191,7 @@ export function MessageForm({
         <button
           aria-pressed={activeTab === "note"}
           className={[
-            "flex items-center gap-1.5 rounded-control px-2.5 py-1 font-medium transition-colors",
+            "flex min-h-11 items-center gap-1.5 rounded-control px-3 font-medium transition-colors",
             activeTab === "note"
               ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
               : "text-text-muted hover:text-text",
@@ -215,19 +215,19 @@ export function MessageForm({
       {feedback && (
         <div
           className={[
-            "mb-2 flex items-center justify-between rounded-md px-3 py-1.5 text-xs font-medium",
+            "mb-2 flex min-h-11 items-center justify-between rounded-control px-3 py-1.5 text-caption font-medium",
             feedback.type === "success"
               ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
               : feedback.type === "error"
-                ? "bg-destructive/10 text-destructive"
-                : "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+                ? "bg-danger-soft text-danger"
+                : "bg-info-soft text-info",
           ].join(" ")}
           id="msg-send-feedback"
         >
           <span>{feedback.message}</span>
           <button
             aria-label="Fechar mensagem de status"
-            className="ml-2 text-text-muted hover:text-text"
+            className="ml-2 flex size-11 shrink-0 items-center justify-center rounded-control text-text-muted hover:bg-surface/70 hover:text-text"
             onClick={() => setFeedback(null)}
             type="button"
           >
@@ -242,7 +242,7 @@ export function MessageForm({
             ? "Formulário de nota interna"
             : "Formulário de envio de mensagem"
         }
-        className="flex flex-col gap-2 sm:flex-row sm:items-end"
+        className="flex items-end gap-2"
         onSubmit={(e) => {
           e.preventDefault();
           handleSubmit();
@@ -261,7 +261,7 @@ export function MessageForm({
                 : "Digitar mensagem de texto"
             }
             className={[
-              "w-full resize-none rounded-control border bg-background px-3 py-2 text-sm text-text placeholder:text-text-muted focus:outline-none focus:ring-1 disabled:opacity-50",
+              "min-h-[4.5rem] w-full resize-none rounded-control border bg-background px-3 py-2 text-body text-text placeholder:text-text-muted focus:outline-none focus:ring-2 disabled:opacity-50",
               activeTab === "note"
                 ? "border-amber-500/40 focus:border-amber-500 focus:ring-amber-500"
                 : "border-border focus:border-primary focus:ring-primary",
@@ -283,8 +283,8 @@ export function MessageForm({
           {showCounter && (
             <span
               className={[
-                "absolute bottom-2 right-3 text-[10px]",
-                isOverLimit ? "font-bold text-destructive" : "text-text-muted",
+                "absolute bottom-2 right-3 text-caption",
+                isOverLimit ? "font-bold text-danger" : "text-text-muted",
               ].join(" ")}
               id={`${inputId}-counter`}
             >
@@ -302,7 +302,7 @@ export function MessageForm({
                 : "Enviar mensagem"
           }
           className={[
-            "flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center gap-2 rounded-control px-3 sm:px-4 py-2.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+            "flex size-11 shrink-0 items-center justify-center gap-2 rounded-control p-0 text-body font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 sm:h-auto sm:w-auto sm:min-w-11 sm:px-4 sm:py-2.5",
             activeTab === "note"
               ? "bg-amber-600 text-white hover:bg-amber-700"
               : "bg-primary text-primary-foreground hover:bg-primary/90",
