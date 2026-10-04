@@ -1,9 +1,20 @@
 "use client";
 
-import { useId, useState } from "react";
-import { Archive, Copy, MessageCircle, MoreVertical, MoveRight, User, UserCheck } from "lucide-react";
+import { useId, useRef, useState } from "react";
+import {
+  Archive,
+  Banknote,
+  Copy,
+  MessageCircle,
+  MoreVertical,
+  MoveRight,
+  Tag,
+  User,
+  UserCheck,
+} from "lucide-react";
 import { formatRelativeTime } from "@/lib/date";
 import type { KanbanCard as KanbanCardType } from "@/types/kanban";
+import { ViewportMenu } from "@/components/ui";
 
 interface KanbanCardProps {
   card: KanbanCardType;
@@ -16,6 +27,21 @@ interface KanbanCardProps {
   onCopyLink?: (card: KanbanCardType) => void;
   onArchiveOpportunity?: (cardId: string) => void;
   isPending?: boolean;
+  isDropTarget?: boolean;
+}
+
+function formatCardValue(card: KanbanCardType): string | null {
+  if (card.approved_amount && card.approved_amount > 0) {
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+      maximumFractionDigits: 0,
+    }).format(card.approved_amount);
+  }
+  if (card.value_range_preference && card.value_range_preference.trim()) {
+    return card.value_range_preference.trim();
+  }
+  return null;
 }
 
 export function KanbanCard({
@@ -29,9 +55,11 @@ export function KanbanCard({
   onCopyLink,
   onArchiveOpportunity,
   isPending = false,
+  isDropTarget = false,
 }: KanbanCardProps) {
   const [showMoveSelect, setShowMoveSelect] = useState(false);
   const [showKebabMenu, setShowKebabMenu] = useState(false);
+  const kebabButtonRef = useRef<HTMLButtonElement>(null);
   const selectId = useId();
 
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
@@ -50,9 +78,14 @@ export function KanbanCard({
   };
 
   const handleCardClick = (e: React.MouseEvent) => {
-    // Evita abrir o drawer se o clique ocorreu em botões ou menuzinhos internos
     const target = e.target as HTMLElement;
-    if (target.closest("button") || target.closest("select") || target.closest("label")) {
+    if (
+      target.closest("button") ||
+      target.closest("select") ||
+      target.closest("label") ||
+      target.closest("a") ||
+      target.closest("[role='menu']")
+    ) {
       return;
     }
     if (onCardClick) {
@@ -62,175 +95,210 @@ export function KanbanCard({
 
   const availableTargetStages = stages.filter((s) => s.id !== currentStageId);
   const isOwner = userRole === "owner";
+  const closeKebabMenu = () => {
+    setShowKebabMenu(false);
+    requestAnimationFrame(() => kebabButtonRef.current?.focus());
+  };
+
+  const cardValue = formatCardValue(card);
+  const cardResponsible = card.responsible_name;
+  const cardOrigin = !cardValue || !cardResponsible ? card.origin : null;
 
   return (
     <div
+      className={`group relative rounded-card border border-border bg-surface p-3 text-text shadow-xs transition-all hover:border-primary/60 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+        isDropTarget ? "border-t-4 border-t-primary ring-2 ring-primary/20" : ""
+      } ${
+        isPending ? "opacity-50 pointer-events-none" : "cursor-pointer"
+      }`}
+      data-kanban-card-id={card.id}
+      data-testid={`kanban-card-${card.id}`}
       draggable={!isPending}
       onClick={handleCardClick}
       onDragStart={handleDragStart}
-      data-testid={`kanban-card-${card.id}`}
-      className={`group relative rounded-card border border-border bg-surface p-card text-text shadow-sm transition-all hover:border-primary hover:shadow-md ${
-        isPending ? "opacity-50 pointer-events-none" : "cursor-pointer"
-      }`}
     >
-      {/* Botão do Menu Kebab (⋮) */}
-      <div className="absolute top-2 right-2 z-10">
+      {/* Menu Kebab (⋮) */}
+      <div className="absolute top-2.5 right-2 z-10">
         <button
-          type="button"
-          aria-label={`Menu de ações da oportunidade ${card.title}`}
+          aria-expanded={showKebabMenu}
+          aria-haspopup="true"
+          aria-label={`Ações da oportunidade ${card.title}`}
+          className="flex size-7 items-center justify-center rounded-control text-text-muted hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          disabled={isPending}
+          id={`kanban-actions-${card.id}`}
           onClick={(e) => {
             e.stopPropagation();
             setShowKebabMenu((prev) => !prev);
           }}
-          disabled={isPending}
-          className="rounded p-1 text-text-muted hover:bg-neutral-soft hover:text-text transition-colors focus:outline-none focus:ring-1 focus:ring-primary"
+          ref={kebabButtonRef}
+          type="button"
         >
-          <MoreVertical className="h-4 w-4" />
+          <MoreVertical aria-hidden="true" size={15} />
         </button>
 
-        {/* Menu Dropdown Kebab */}
-        {showKebabMenu ? (
-          <>
-            <div
-              className="fixed inset-0 z-20"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowKebabMenu(false);
-              }}
-            />
-            <div className="absolute right-0 top-6 z-30 min-w-[11rem] rounded-card border border-border bg-surface py-1 text-body shadow-lg">
+        <ViewportMenu
+          anchorRef={kebabButtonRef}
+          labelledBy={`kanban-actions-${card.id}`}
+          onClose={closeKebabMenu}
+          open={showKebabMenu}
+        >
               <button
-                type="button"
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-body text-text hover:bg-neutral-soft transition-colors"
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-body text-text hover:bg-neutral-soft focus-visible:bg-neutral-soft focus-visible:outline-none"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setShowKebabMenu(false);
+                  closeKebabMenu();
                   if (onOpenConversation) onOpenConversation(card);
                 }}
+                role="menuitem"
+                type="button"
               >
-                <MessageCircle className="h-4 w-4 text-primary" />
+                <MessageCircle aria-hidden="true" className="text-success" size={15} />
                 <span>Abrir conversa</span>
               </button>
 
               <button
-                type="button"
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-body text-text hover:bg-neutral-soft transition-colors"
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-body text-text hover:bg-neutral-soft focus-visible:bg-neutral-soft focus-visible:outline-none"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setShowKebabMenu(false);
+                  closeKebabMenu();
                   if (onCardClick) onCardClick(card);
                 }}
+                role="menuitem"
+                type="button"
               >
-                <User className="h-4 w-4 text-text-muted" />
-                <span>Editar oportunidade</span>
+                <User aria-hidden="true" className="text-text-muted" size={15} />
+                <span>Ver detalhes</span>
               </button>
 
               <button
-                type="button"
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-body text-text hover:bg-neutral-soft transition-colors"
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-body text-text hover:bg-neutral-soft focus-visible:bg-neutral-soft focus-visible:outline-none"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setShowKebabMenu(false);
+                  closeKebabMenu();
                   if (onCopyLink) onCopyLink(card);
                 }}
+                role="menuitem"
+                type="button"
               >
-                <Copy className="h-4 w-4 text-text-muted" />
+                <Copy aria-hidden="true" className="text-text-muted" size={15} />
                 <span>Copiar link</span>
               </button>
 
               {isOwner ? (
                 <button
-                  type="button"
-                  className="flex w-full items-center gap-2 border-t border-border px-3 py-1.5 text-left text-body text-danger hover:bg-danger-soft transition-colors"
+                  className="flex w-full items-center gap-2 border-t border-border px-3 py-1.5 text-left text-body text-danger hover:bg-danger-soft focus-visible:bg-danger-soft focus-visible:outline-none"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setShowKebabMenu(false);
+                    closeKebabMenu();
                     if (onArchiveOpportunity) onArchiveOpportunity(card.id);
                   }}
+                  role="menuitem"
+                  type="button"
                 >
-                  <Archive className="h-4 w-4" />
+                  <Archive aria-hidden="true" size={15} />
                   <span>Arquivar oportunidade</span>
                 </button>
               ) : null}
-            </div>
-          </>
-        ) : null}
+        </ViewportMenu>
       </div>
 
       {/* Título da Oportunidade */}
-      <h4 className="text-body font-semibold text-text line-clamp-2 pr-6">
+      <button
+        className="block w-full pr-7 text-left text-body font-semibold text-text line-clamp-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+        disabled={isPending}
+        onClick={(event) => {
+          event.stopPropagation();
+          onCardClick?.(card);
+        }}
+        type="button"
+      >
         {card.title}
-      </h4>
+      </button>
 
-      {/* Descrição opcional */}
-      {card.description ? (
-        <p className="mt-1 text-caption text-text-muted line-clamp-2">
-          {card.description}
-        </p>
-      ) : null}
-
-      {/* Detalhes do Contato */}
-      <div className="mt-2.5 flex items-center justify-between border-t border-border pt-2 text-caption text-text-muted">
-        <div className="flex items-center gap-1.5 truncate">
-          <User className="h-3.5 w-3.5 shrink-0 text-text-muted" />
-          <span className="font-medium text-text truncate" title={card.contact_name}>
-            {card.contact_name}
-          </span>
-        </div>
-
-        {/* Responsável */}
-        {card.responsible_name ? (
-          <div
-            className="flex items-center gap-1 text-caption text-text-muted shrink-0 bg-neutral-soft px-1.5 py-0.5 rounded-control"
-            title={`Responsável: ${card.responsible_name}`}
-          >
-            <UserCheck className="h-3 w-3 text-primary" />
-            <span className="max-w-[80px] truncate">{card.responsible_name}</span>
-          </div>
-        ) : null}
+      {/* Nome do Contato */}
+      <div className="mt-1.5 flex items-center gap-1.5 text-caption text-text-muted">
+        <User aria-hidden="true" className="size-3.5 shrink-0 text-text-muted" />
+        <span className="font-medium text-text truncate" title={card.contact_name}>
+          {card.contact_name}
+        </span>
       </div>
 
-      {/* Rodapé do Card: Data e Ações Mobile/Teclado */}
-      <div className="mt-2 flex items-center justify-between text-caption text-text-muted">
+      {/* Metadados adicionais (máx 2: Valor, Responsável ou Origem) */}
+      {(cardValue || cardResponsible || cardOrigin) ? (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 pt-1.5 border-t border-border/70 text-caption">
+          {cardValue ? (
+            <span
+              className="inline-flex items-center gap-1 rounded-control bg-success-soft px-1.5 py-0.5 font-medium text-success border border-success-border"
+              title={`Valor: ${cardValue}`}
+            >
+              <Banknote aria-hidden="true" size={12} />
+              <span className="truncate max-w-[120px]">{cardValue}</span>
+            </span>
+          ) : null}
+
+          {cardResponsible ? (
+            <span
+              className="inline-flex items-center gap-1 rounded-control bg-neutral-soft px-1.5 py-0.5 font-medium text-neutral border border-neutral-border"
+              title={`Responsável: ${cardResponsible}`}
+            >
+              <UserCheck aria-hidden="true" size={12} />
+              <span className="truncate max-w-[100px]">{cardResponsible}</span>
+            </span>
+          ) : null}
+
+          {(!cardValue || !cardResponsible) && cardOrigin ? (
+            <span
+              className="inline-flex items-center gap-1 rounded-control bg-neutral-soft px-1.5 py-0.5 text-text-muted border border-border"
+              title={`Origem: ${cardOrigin}`}
+            >
+              <Tag aria-hidden="true" size={11} />
+              <span className="truncate max-w-[90px]">{cardOrigin}</span>
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* Rodapé do Card: Data e Ação Acessível de Mover */}
+      <div className="mt-2 flex items-center justify-between text-caption text-text-muted pt-1 border-t border-border/50">
         <span>{formatRelativeTime(card.updated_at)}</span>
 
-        {/* Botão de Alternativa de Movimentação sem Drag-and-Drop */}
+        {/* Alternativa Acessível de Movimentação */}
         {availableTargetStages.length > 0 ? (
           <div className="relative">
             {!showMoveSelect ? (
               <button
-                type="button"
+                aria-label={`Mover oportunidade ${card.title} para outra etapa`}
+                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-caption font-medium text-primary hover:bg-neutral-soft hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                disabled={isPending}
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowMoveSelect(true);
                 }}
-                disabled={isPending}
-                aria-label={`Mover oportunidade ${card.title} para outra etapa`}
-                className="flex items-center gap-1 text-primary hover:underline font-medium px-1 py-0.5 rounded transition-colors focus:outline-none focus:ring-1 focus:ring-primary"
+                type="button"
               >
                 <span>Mover</span>
-                <MoveRight className="h-3 w-3" />
+                <MoveRight aria-hidden="true" size={12} />
               </button>
             ) : (
               <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                <label htmlFor={selectId} className="sr-only">
+                <label className="sr-only" htmlFor={selectId}>
                   Selecione a etapa de destino
                 </label>
                 <select
-                  id={selectId}
-                  disabled={isPending}
+                  className="rounded border border-border bg-surface px-1 py-0.5 text-caption text-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
                   defaultValue=""
+                  disabled={isPending}
+                  id={selectId}
+                  onBlur={() => setShowMoveSelect(false)}
                   onChange={(e) => {
                     if (e.target.value) {
                       onMoveStage(card.id, currentStageId, e.target.value);
                       setShowMoveSelect(false);
                     }
                   }}
-                  onBlur={() => setShowMoveSelect(false)}
-                  className="text-caption bg-surface border border-border rounded px-1 py-0.5 text-text focus:outline-none focus:ring-1 focus:ring-primary"
                 >
-                  <option value="" disabled>
-                    Selecione a etapa...
+                  <option disabled value="">
+                    Etapa...
                   </option>
                   {availableTargetStages.map((s) => (
                     <option key={s.id} value={s.id}>
@@ -239,14 +307,15 @@ export function KanbanCard({
                   ))}
                 </select>
                 <button
-                  type="button"
+                  aria-label="Cancelar seleção de etapa"
+                  className="px-1 text-caption text-text-muted hover:text-text"
                   onClick={(e) => {
                     e.stopPropagation();
                     setShowMoveSelect(false);
                   }}
-                  className="text-text-muted hover:text-text text-caption px-1"
+                  type="button"
                 >
-                  ×
+                  ✕
                 </button>
               </div>
             )}

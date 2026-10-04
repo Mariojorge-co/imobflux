@@ -1,7 +1,7 @@
 # Modelo lógico do banco de dados do ImobFlux
 
-Status: especificação lógica da Sprint 9, sem SQL, migrations, RLS ou
-implementação de Supabase.
+Status: especificação lógica original da Sprint 9, complementada pelas decisões
+executáveis posteriores. O modelo de 18 tabelas permanece preservado.
 
 ## 1. Objetivo
 
@@ -686,8 +686,9 @@ duplicar contato ou histórico de etapa.
 | `title` | `text` | não | texto não vazio | Contexto comercial mínimo |
 | `description` | `text` | sim | contexto adicional | Ausência é válida no início da negociação |
 | `status` | `text` | não | `opportunity_status` | Aberta, ganha ou perdida |
+| `sort_order` | `bigint` | não | posição na etapa | Ordenação persistente do Kanban |
 | `created_at` | `timestamptz` | não | criação | Ciclo de vida |
-| `updated_at` | `timestamptz` | não | atualização | Estado atual mutável |
+| `updated_at` | `timestamptz` | não | atualização semântica | Não muda por renumeração isolada |
 | `closed_at` | `timestamptz` | sim | coerente com ganha/perdida | Ausente enquanto aberta ou apenas arquivada |
 | `archived_at` | `timestamptz` | sim | arquivamento independente | Arquivamento funcional sem alterar o resultado |
 
@@ -706,7 +707,7 @@ ser anterior à criação; datas não anteriores à criação.
 atuais; membro 1:N responsabilidades; Opportunity N:N Conversation;
 Opportunity 1:N PipelineHistory.
 
-**Índices:** `(workspace_id, current_stage_id, status, updated_at DESC, id)` para
+**Índices:** `(workspace_id, current_stage_id, status, archived_at, sort_order, id)` para
 Kanban; `(workspace_id, responsible_member_id, status)` para carga de trabalho;
 `(workspace_id, contact_id, created_at DESC)` para histórico do contato;
 `(workspace_id, archived_at)` para filtrar ativas.
@@ -1124,7 +1125,7 @@ Os índices abaixo respondem a consultas previstas. PKs e UNIQUEs já criam seus
 | `conversation_assignments` | `(workspace_id, conversation_id, ended_at)` | Responsáveis atuais e histórico |
 | `conversation_assignments` | `(workspace_id, member_id, ended_at, assigned_at DESC)` | Carga por membro |
 | `pipeline_stages` | `(workspace_id, is_active, position)` | Ordenar o Kanban |
-| `opportunities` | `(workspace_id, current_stage_id, status, updated_at DESC, id)` | Colunas do Kanban |
+| `opportunities` | `(workspace_id, current_stage_id, status, archived_at, sort_order, id)` | Colunas do Kanban |
 | `opportunities` | `(workspace_id, responsible_member_id, status)` | Oportunidades por responsável |
 | `opportunities` | `(workspace_id, contact_id, created_at DESC)` | Negociações do contato |
 | `opportunity_conversations` | índices ativos por oportunidade e conversa | Navegar a associação N:N |
@@ -1445,7 +1446,7 @@ a mesma fronteira de workspace e privacidade do dado original.
   workspace são obrigatórios;
 - participantes/proteção: joins críticos da futura RLS;
 - prioridades: índice de tarefas por status, prazo e prioridade;
-- Kanban: oportunidades por etapa atual e status;
+- Kanban: oportunidades por etapa atual, status, arquivamento e `sort_order`;
 - `pipeline_history`: append-only com keyset.
 
 Particionamento físico não é recomendado no MVP. Poderá ser avaliado para

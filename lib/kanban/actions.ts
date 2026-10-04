@@ -8,6 +8,7 @@ import type {
   CreateOpportunityResult,
   KanbanCard,
   MoveOpportunityResult,
+  ReorderOpportunityResult,
   OpenOrCreateConversationResult,
   UpdateOpportunityInput,
   UpdateOpportunityResult,
@@ -15,6 +16,53 @@ import type {
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export async function reorderOpportunityAction(
+  opportunityId: string,
+  expectedCurrentStageId: string,
+  targetStageId: string,
+  beforeOpportunityId: string | null,
+): Promise<ReorderOpportunityResult> {
+  const supabase = await createServerSupabaseClient();
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError || !authData.user) {
+    return { success: false, code: "UNAUTHORIZED", error: "Sessão não autenticada." };
+  }
+  if (
+    !UUID_REGEX.test(opportunityId) ||
+    !UUID_REGEX.test(expectedCurrentStageId) ||
+    !UUID_REGEX.test(targetStageId) ||
+    (beforeOpportunityId !== null && !UUID_REGEX.test(beforeOpportunityId))
+  ) {
+    return { success: false, code: "VALIDATION_ERROR", error: "Identificadores inválidos fornecidos." };
+  }
+  try {
+    const { data, error } = await supabase.rpc("reorder_opportunity", {
+      p_opportunity_id: opportunityId,
+      p_expected_current_stage_id: expectedCurrentStageId,
+      p_target_stage_id: targetStageId,
+      ...(beforeOpportunityId ? { p_before_opportunity_id: beforeOpportunityId } : {}),
+    });
+    if (error) {
+      console.error("Erro RPC reorder_opportunity:", error);
+      return { success: false, code: "INTERNAL_ERROR", error: "Falha ao persistir a ordem do Kanban." };
+    }
+    const result = data as { status?: string; actual_stage_id?: string } | null;
+    if (result?.status === "conflict") {
+      return { success: false, code: "CONFLICT", error: "A oportunidade foi alterada por outra operação." };
+    }
+    revalidatePath("/kanban");
+    return {
+      success: true,
+      opportunityId,
+      stageId: targetStageId,
+      beforeOpportunityId,
+    };
+  } catch (error) {
+    console.error("Erro inesperado em reorderOpportunityAction:", error);
+    return { success: false, code: "INTERNAL_ERROR", error: "Erro interno ao reordenar a oportunidade." };
+  }
+}
 
 /**
  * Server Action: Movimenta uma oportunidade para uma nova etapa do Kanban.

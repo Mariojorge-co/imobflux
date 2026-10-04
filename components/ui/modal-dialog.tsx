@@ -20,19 +20,26 @@ export function ModalDialog({
   open,
 }: ModalDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
-    if (open && !dialog.open) dialog.showModal();
-    if (!open && dialog.open) dialog.close();
+
+    if (open && !dialog.open) {
+      previousFocusRef.current = document.activeElement as HTMLElement | null;
+      dialog.showModal();
+    } else if (!open && dialog.open) {
+      dialog.close();
+      previousFocusRef.current?.focus();
+    }
   }, [open]);
 
   return (
     <dialog
       aria-labelledby={labelledBy}
       className={classNames(
-        "m-auto w-[min(calc(100%_-_2rem),28rem)] rounded-card border border-border bg-surface p-card text-text shadow-xl backdrop:bg-text/35",
+        "m-auto w-[min(calc(100%_-_2rem),28rem)] rounded-card border border-border bg-surface p-card text-text shadow-xl backdrop:bg-text/35 backdrop:backdrop-blur-xs",
         className,
       )}
       onCancel={(event) => {

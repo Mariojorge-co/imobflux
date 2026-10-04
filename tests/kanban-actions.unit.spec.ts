@@ -157,7 +157,42 @@ test.describe("Sprint 18 — Kanban Server Actions Complete Unit Tests", () => {
     expect(revalidatePathCalls.length).toBe(0);
   });
 
-  test("6. createOpportunityAction valida título obrigatório", async () => {
+  test("6. reorderOpportunityAction persiste a posição antes do card indicado", async () => {
+    const res = await actionsModule.reorderOpportunityAction(
+      "55000000-0000-4000-8000-000000000001",
+      "41000000-0000-4000-8000-000000000001",
+      "41000000-0000-4000-8000-000000000001",
+      "55000000-0000-4000-8000-000000000002",
+    );
+
+    expect(res.success).toBe(true);
+    expect(rpcCalls[0]).toEqual({
+      fnName: "reorder_opportunity",
+      args: {
+        p_opportunity_id: "55000000-0000-4000-8000-000000000001",
+        p_expected_current_stage_id: "41000000-0000-4000-8000-000000000001",
+        p_target_stage_id: "41000000-0000-4000-8000-000000000001",
+        p_before_opportunity_id: "55000000-0000-4000-8000-000000000002",
+      },
+    });
+  });
+
+  test("7. reorderOpportunityAction trata conflito sem deixar sucesso local", async () => {
+    rpcMockResult = { data: { status: "conflict" }, error: null };
+
+    const res = await actionsModule.reorderOpportunityAction(
+      "55000000-0000-4000-8000-000000000001",
+      "41000000-0000-4000-8000-000000000001",
+      "41000000-0000-4000-8000-000000000002",
+      null,
+    );
+
+    expect(res.success).toBe(false);
+    expect(res.code).toBe("CONFLICT");
+    expect(revalidatePathCalls.length).toBe(0);
+  });
+
+  test("8. createOpportunityAction valida título obrigatório", async () => {
     const res = await actionsModule.createOpportunityAction({
       title: "   ",
       contactId: "51000000-0000-4000-8000-000000000001",
@@ -169,7 +204,7 @@ test.describe("Sprint 18 — Kanban Server Actions Complete Unit Tests", () => {
     expect(rpcCalls.length).toBe(0);
   });
 
-  test("7. createOpportunityAction executa criação com sucesso e chama revalidatePath", async () => {
+  test("9. createOpportunityAction executa criação com sucesso e chama revalidatePath", async () => {
     rpcMockResult = {
       data: "55000000-0000-4000-8000-000000000099",
       error: null,

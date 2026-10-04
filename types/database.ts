@@ -834,6 +834,7 @@ export type Database = {
           property_summary: string | null
           property_type_preference: string | null
           responsible_member_id: string | null
+          sort_order: number
           rework_reason: string | null
           rework_reevaluation_date: string | null
           status: string
@@ -866,6 +867,7 @@ export type Database = {
           property_summary?: string | null
           property_type_preference?: string | null
           responsible_member_id?: string | null
+          sort_order?: number
           rework_reason?: string | null
           rework_reevaluation_date?: string | null
           status: string
@@ -898,6 +900,7 @@ export type Database = {
           property_summary?: string | null
           property_type_preference?: string | null
           responsible_member_id?: string | null
+          sort_order?: number
           rework_reason?: string | null
           rework_reevaluation_date?: string | null
           status?: string
@@ -1603,6 +1606,15 @@ export type Database = {
       }
       mark_team_invitation_resent: { Args: { p_member_id: string }; Returns: Json }
       normalize_brazilian_phone: { Args: { p_value: string }; Returns: string }
+      reorder_opportunity: {
+        Args: {
+          p_before_opportunity_id?: string
+          p_expected_current_stage_id: string
+          p_opportunity_id: string
+          p_target_stage_id: string
+        }
+        Returns: Json
+      }
       move_opportunity_stage: {
         Args: {
           p_expected_current_stage_id: string

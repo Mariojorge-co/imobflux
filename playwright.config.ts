@@ -26,7 +26,7 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: {
-    command: "npm run dev",
+    command: process.platform === "win32" ? "npm.cmd run dev" : "npm run dev",
     reuseExistingServer: true,
     timeout: 120_000,
     url: "http://localhost:3000/login",

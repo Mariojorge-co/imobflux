@@ -142,15 +142,76 @@ export async function getContacts(
 
   const phonesByContact = new Map<string, string[]>();
   const avatarsByContact = new Map<string, string>();
+  const pointToContact = new Map<string, string>();
 
   for (const point of points) {
-    if (point.contact_id && point.display_value) {
-      const values = phonesByContact.get(point.contact_id) ?? [];
-      values.push(point.display_value);
-      phonesByContact.set(point.contact_id, values);
+    if (point.contact_id) {
+      pointToContact.set(point.id, point.contact_id);
+      if (point.display_value) {
+        const values = phonesByContact.get(point.contact_id) ?? [];
+        values.push(point.display_value);
+        phonesByContact.set(point.contact_id, values);
+      }
+      if (point.external_avatar_url && !avatarsByContact.has(point.contact_id)) {
+        avatarsByContact.set(point.contact_id, `/api/contact-avatar/${point.id}`);
+      }
     }
-    if (point.contact_id && point.external_avatar_url && !avatarsByContact.has(point.contact_id)) {
-      avatarsByContact.set(point.contact_id, `/api/contact-avatar/${point.id}`);
+  }
+
+  const conversationsByContact = new Map<string, string>();
+  if (points.length > 0) {
+    const pointIds = points.map((p) => p.id);
+    const { data: participants, error: participantsError } = await supabase
+      .from("conversation_participants")
+      .select("contact_point_id, conversation_id")
+      .eq("workspace_id", workspaceId)
+      .in("contact_point_id", pointIds)
+      .is("left_at", null);
+
+    if (participantsError) {
+      throw new Error("Não foi possível carregar as conversas dos contatos.");
+    }
+
+    const conversationIds = [
+      ...new Set(
+        (participants ?? [])
+          .map((participant) => participant.conversation_id)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const { data: conversations, error: conversationsError } = conversationIds.length
+      ? await supabase
+          .from("conversations")
+          .select("id, conversation_type")
+          .eq("workspace_id", workspaceId)
+          .in("id", conversationIds)
+      : { data: [], error: null };
+
+    if (conversationsError) {
+      throw new Error("Não foi possível carregar as conversas dos contatos.");
+    }
+
+    const individualConversationIds = new Set(
+      (conversations ?? [])
+        .filter((conversation) => conversation.conversation_type === "individual")
+        .map((conversation) => conversation.id),
+    );
+    const candidatesByContact = new Map<string, Set<string>>();
+
+    for (const participant of participants ?? []) {
+      if (!participant.contact_point_id || !participant.conversation_id) continue;
+      if (!individualConversationIds.has(participant.conversation_id)) continue;
+      const contactId = pointToContact.get(participant.contact_point_id);
+      if (!contactId) continue;
+      const candidates = candidatesByContact.get(contactId) ?? new Set<string>();
+      candidates.add(participant.conversation_id);
+      candidatesByContact.set(contactId, candidates);
+    }
+
+    for (const [contactId, candidates] of candidatesByContact) {
+      if (candidates.size === 1) {
+        conversationsByContact.set(contactId, [...candidates][0]);
+      }
     }
   }
 
@@ -162,6 +223,7 @@ export async function getContacts(
       archivedAt: contact.archived_at,
       avatarUrl: avatarsByContact.get(contact.id) ?? null,
       classification: contact.classification as ContactClassification,
+      conversationId: conversationsByContact.get(contact.id) ?? null,
       displayName: contact.display_name,
       hasMultipleActivePhones: (phonesByContact.get(contact.id)?.length ?? 0) > 1,
       id: contact.id,

@@ -2,11 +2,22 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Archive, Pencil, Plus, RotateCcw, UserRound } from "lucide-react";
+import {
+  Archive,
+  MessageCircle,
+  MoreVertical,
+  Pencil,
+  Plus,
+  Power,
+  RotateCcw,
+  Shield,
+  UserRound,
+} from "lucide-react";
 import {
   useActionState,
   useCallback,
   useEffect,
+  useId,
   useRef,
   useState,
   useTransition,
@@ -20,16 +31,19 @@ import {
   updateContactAction,
   setContactTeamVisibilityAction,
 } from "@/app/(app)/contatos/actions";
+import { startIndividualConversationAction } from "@/lib/conversations/actions";
 import {
-  Badge,
   Avatar,
+  Badge,
   Button,
   Card,
   EmptyState,
   Input,
+  ModalDialog,
   SearchInput,
   Select,
   StatusChip,
+  ViewportMenu,
 } from "@/components/ui";
 import { classNames } from "@/lib/class-names";
 import type {
@@ -40,7 +54,8 @@ import type {
 } from "@/types/contacts";
 import { initialContactActionState } from "@/types/contacts";
 
-type FeedbackSource = "lifecycle" | "general";
+type FeedbackSource = "lifecycle" | "general" | "conversation";
+type FeedbackTone = "error" | "success";
 
 async function contactLifecycleAction(
   prev: ContactActionState,
@@ -89,25 +104,13 @@ function ContactFormDialog({
   onSuccess: (message: string) => void;
   open: boolean;
 }) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const action = contact ? updateContactAction : createContactAction;
   const [state, formAction] = useActionState(action, initialContactActionState);
 
   useEffect(() => {
-    const dialog = dialogRef.current;
-
-    if (!dialog) {
-      return;
-    }
-
-    if (open && !dialog.open) {
-      dialog.showModal();
+    if (open) {
       requestAnimationFrame(() => nameInputRef.current?.focus());
-    }
-
-    if (!open && dialog.open) {
-      dialog.close();
     }
   }, [open]);
 
@@ -119,20 +122,18 @@ function ContactFormDialog({
   }, [onClose, onSuccess, state]);
 
   return (
-    <dialog
-      aria-labelledby="contact-form-title"
-      className="w-[min(100%-2rem,34rem)] rounded-card border border-border bg-surface p-0 text-text shadow-xl backdrop:bg-text/30"
-      onCancel={(event) => {
-        event.preventDefault();
-        onClose();
+    <ModalDialog
+      className="w-[min(calc(100%_-_2rem),34rem)]"
+      labelledBy="contact-form-title"
+      onOpenChange={(isOpen) => {
+        if (!isOpen) onClose();
       }}
-      onClose={onClose}
-      ref={dialogRef}
+      open={open}
     >
-      <form action={formAction} className="space-y-stack p-card" onSubmit={onGeneralStart}>
+      <form action={formAction} className="space-y-stack" onSubmit={onGeneralStart}>
         {contact ? <input name="contactId" type="hidden" value={contact.id} /> : null}
         <div>
-          <h2 className="text-section-title font-semibold" id="contact-form-title">
+          <h2 className="text-section-title font-semibold text-text" id="contact-form-title">
             {contact ? "Editar contato" : "Novo contato"}
           </h2>
           <p className="mt-inline text-body text-text-muted">
@@ -141,7 +142,7 @@ function ContactFormDialog({
         </div>
 
         <label className="block space-y-inline" htmlFor="contact-display-name">
-          <span className="text-body font-medium">Nome</span>
+          <span className="text-body font-medium text-text">Nome</span>
           <Input
             defaultValue={contact?.displayName ?? ""}
             id="contact-display-name"
@@ -152,7 +153,7 @@ function ContactFormDialog({
         </label>
 
         <label className="block space-y-inline" htmlFor="contact-classification">
-          <span className="text-body font-medium">Classificação</span>
+          <span className="text-body font-medium text-text">Classificação</span>
           <Select
             defaultValue={contact?.classification ?? "lead"}
             id="contact-classification"
@@ -165,7 +166,7 @@ function ContactFormDialog({
         </label>
 
         <label className="block space-y-inline" htmlFor="contact-phone">
-          <span className="text-body font-medium">Telefone principal</span>
+          <span className="text-body font-medium text-text">Telefone principal</span>
           <Input
             defaultValue={contact?.phoneDisplayValue ?? ""}
             id="contact-phone"
@@ -184,127 +185,190 @@ function ContactFormDialog({
           </p>
         ) : null}
 
-        <div className="flex flex-wrap justify-end gap-inline">
+        <div className="flex flex-wrap justify-end gap-inline pt-2">
           <Button onClick={onClose} type="button" variant="ghost">
             Cancelar
           </Button>
           <SubmitButton>{contact ? "Salvar alterações" : "Cadastrar contato"}</SubmitButton>
         </div>
       </form>
-    </dialog>
+    </ModalDialog>
   );
 }
 
-function ContactActions({
+function ContactContextMenu({
+  canManagePrivacy,
   contact,
   lifecycleAction,
-  lifecycleState,
   onEdit,
   onFeedback,
   onGeneralStart,
   onLifecycleStart,
+  onTogglePrivacy,
 }: {
+  canManagePrivacy: boolean;
   contact: ContactListItem;
   lifecycleAction: (formData: FormData) => void;
-  lifecycleState: typeof initialContactActionState;
   onEdit: (contact: ContactListItem, trigger: HTMLElement) => void;
-  onFeedback: (message: string) => void;
+  onFeedback: (message: string, tone?: FeedbackTone) => void;
   onGeneralStart: () => void;
   onLifecycleStart: () => void;
+  onTogglePrivacy: (contact: ContactListItem) => void;
 }) {
-  const archiveDialogRef = useRef<HTMLDialogElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuId = useId();
+
   const [statusState, statusAction] = useActionState(
     changeContactStatusAction,
     initialContactActionState,
   );
 
   useEffect(() => {
-    if (statusState.status === "success") {
-      onFeedback(statusState.message);
-    }
+    if (statusState.status === "idle") return;
+    onFeedback(statusState.message, statusState.status === "error" ? "error" : "success");
   }, [onFeedback, statusState]);
 
-  const errorState = [statusState, lifecycleState].find(
-    (state) => state.status === "error",
-  );
+  const closeMenu = useCallback(() => {
+    setIsOpen(false);
+    requestAnimationFrame(() => buttonRef.current?.focus());
+  }, []);
 
   return (
-    <div className="flex flex-wrap items-center justify-start gap-1.5 sm:justify-end w-full">
-      {contact.archivedAt ? (
-        <form action={lifecycleAction} onSubmit={onLifecycleStart}>
-          <input name="_lifecycleOperation" type="hidden" value="restore" />
-          <input name="contactId" type="hidden" value={contact.id} />
-          <Button type="submit" variant="secondary">
-            <RotateCcw aria-hidden="true" size={16} />
-            Restaurar
-          </Button>
-        </form>
-      ) : (
-        <>
-          {contact.hasMultipleActivePhones ? (
-            <span className="text-caption text-text-muted">
-              Edição indisponível: múltiplos telefones ativos.
-            </span>
-          ) : (
-            <Button
-              aria-label={`Editar ${contact.displayName}`}
-              onClick={(event) => onEdit(contact, event.currentTarget)}
-              variant="ghost"
-            >
-              <Pencil aria-hidden="true" size={16} />
-              Editar
-            </Button>
-          )}
-          <form action={statusAction} onSubmit={onGeneralStart}>
-            <input name="contactId" type="hidden" value={contact.id} />
-            <input
-              name="status"
-              type="hidden"
-              value={contact.operationalStatus === "active" ? "inactive" : "active"}
-            />
-            <Button type="submit" variant="ghost">
-              {contact.operationalStatus === "active" ? "Inativar" : "Reativar"}
-            </Button>
-          </form>
-          <Button
-            onClick={() => archiveDialogRef.current?.showModal()}
-            variant="ghost"
-          >
-            <Archive aria-hidden="true" size={16} />
-            Arquivar
-          </Button>
-        </>
-      )}
+    <div className="relative inline-block text-left">
+      <button
+        aria-expanded={isOpen}
+        aria-haspopup="true"
+        aria-label={`Ações secundárias para ${contact.displayName}`}
+        className="flex size-9 items-center justify-center rounded-control text-text-muted hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        id={menuId}
+        onClick={() => setIsOpen((prev) => !prev)}
+        ref={buttonRef}
+        type="button"
+      >
+        <MoreVertical aria-hidden="true" size={18} />
+      </button>
 
-      {errorState ? (
-        <span className="basis-full text-right text-caption text-danger" role="alert">
-          {errorState.message}
+      <ViewportMenu
+        anchorRef={buttonRef}
+        labelledBy={menuId}
+        onClose={closeMenu}
+        open={isOpen}
+      >
+          {contact.archivedAt ? (
+            <form action={lifecycleAction} onSubmit={() => { closeMenu(); onLifecycleStart(); }}>
+              <input name="_lifecycleOperation" type="hidden" value="restore" />
+              <input name="contactId" type="hidden" value={contact.id} />
+              <button
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-body text-text hover:bg-neutral-soft focus-visible:bg-neutral-soft focus-visible:outline-none"
+                role="menuitem"
+                type="submit"
+              >
+                <RotateCcw aria-hidden="true" size={15} />
+                Restaurar contato
+              </button>
+            </form>
+          ) : (
+            <>
+              {!contact.hasMultipleActivePhones ? (
+                <button
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-body text-text hover:bg-neutral-soft focus-visible:bg-neutral-soft focus-visible:outline-none"
+                  onClick={(e) => {
+                    closeMenu();
+                    onEdit(contact, e.currentTarget);
+                  }}
+                  role="menuitem"
+                  type="button"
+                >
+                  <Pencil aria-hidden="true" size={15} />
+                  Editar contato
+                </button>
+              ) : null}
+
+              <form action={statusAction} onSubmit={() => { closeMenu(); onGeneralStart(); }}>
+                <input name="contactId" type="hidden" value={contact.id} />
+                <input
+                  name="status"
+                  type="hidden"
+                  value={contact.operationalStatus === "active" ? "inactive" : "active"}
+                />
+                <button
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-body text-text hover:bg-neutral-soft focus-visible:bg-neutral-soft focus-visible:outline-none"
+                  role="menuitem"
+                  type="submit"
+                >
+                  <Power aria-hidden="true" size={15} />
+                  {contact.operationalStatus === "active" ? "Inativar contato" : "Reativar contato"}
+                </button>
+              </form>
+
+              {canManagePrivacy ? (
+                <button
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-body text-text hover:bg-neutral-soft focus-visible:bg-neutral-soft focus-visible:outline-none"
+                  onClick={() => {
+                    closeMenu();
+                    onTogglePrivacy(contact);
+                  }}
+                  role="menuitem"
+                  type="button"
+                >
+                  <Shield aria-hidden="true" size={15} />
+                  {contact.isProtected ? "Visível para equipe" : "Tornar OWNER-only"}
+                </button>
+              ) : null}
+
+              <button
+                className="flex w-full items-center gap-2 border-t border-border px-3 py-2 text-left text-body text-danger hover:bg-danger-soft focus-visible:bg-danger-soft focus-visible:outline-none"
+                onClick={() => {
+                  closeMenu();
+                  setIsArchiveModalOpen(true);
+                }}
+                role="menuitem"
+                type="button"
+              >
+                <Archive aria-hidden="true" size={15} />
+                Arquivar contato
+              </button>
+            </>
+          )}
+      </ViewportMenu>
+
+      {statusState.status === "error" ? (
+        <span className="sr-only" role="alert">
+          {statusState.message}
         </span>
       ) : null}
 
-      <dialog
-        aria-labelledby={`archive-contact-${contact.id}`}
-        className="w-[min(100%-2rem,28rem)] rounded-card border border-border bg-surface p-0 text-text shadow-xl backdrop:bg-text/30"
-        onCancel={(event) => {
-          event.preventDefault();
-          archiveDialogRef.current?.close();
-        }}
-        ref={archiveDialogRef}
+      <ModalDialog
+        labelledBy={`archive-contact-title-${contact.id}`}
+        onOpenChange={setIsArchiveModalOpen}
+        open={isArchiveModalOpen}
       >
-        <form action={lifecycleAction} className="space-y-stack p-card" onSubmit={onLifecycleStart}>
+        <form
+          action={lifecycleAction}
+          className="space-y-stack"
+          onSubmit={() => {
+            setIsArchiveModalOpen(false);
+            onLifecycleStart();
+          }}
+        >
           <input name="_lifecycleOperation" type="hidden" value="archive" />
           <input name="contactId" type="hidden" value={contact.id} />
           <div>
-            <h2 className="text-section-title font-semibold" id={`archive-contact-${contact.id}`}>
+            <h2
+              className="text-section-title font-semibold text-text"
+              id={`archive-contact-title-${contact.id}`}
+            >
               Arquivar contato?
             </h2>
             <p className="mt-inline text-body text-text-muted">
-              O contato sairá da listagem padrão, mas poderá ser restaurado depois.
+              O contato &ldquo;{contact.displayName}&rdquo; sairá da listagem padrão, mas poderá ser restaurado a qualquer momento.
             </p>
           </div>
-          <div className="flex justify-end gap-inline">
+          <div className="flex justify-end gap-inline pt-2">
             <Button
-              onClick={() => archiveDialogRef.current?.close()}
+              onClick={() => setIsArchiveModalOpen(false)}
               type="button"
               variant="ghost"
             >
@@ -315,35 +379,41 @@ function ContactActions({
             </Button>
           </div>
         </form>
-      </dialog>
+      </ModalDialog>
     </div>
   );
 }
 
-function ContactStatus({ contact }: { contact: ContactListItem }) {
-  if (contact.archivedAt) {
-    return <StatusChip status="neutral">Arquivado</StatusChip>;
-  }
-
-  return contact.operationalStatus === "active" ? (
-    <StatusChip status="success">Ativo</StatusChip>
-  ) : (
-    <StatusChip status="warning">Inativo</StatusChip>
+function ContactIdentity({ contact }: { contact: ContactListItem }) {
+  return (
+    <div className="flex items-center gap-3 min-w-0">
+      <Avatar name={contact.displayName} size="sm" src={contact.avatarUrl ?? undefined} />
+      <div className="min-w-0 flex-1">
+        <p className="font-medium text-text truncate text-body" title={contact.displayName}>
+          {contact.displayName}
+        </p>
+        <p className="text-caption text-text-muted truncate">
+          {contact.hasMultipleActivePhones
+            ? "Múltiplos telefones ativos"
+            : (contact.phoneDisplayValue ?? "Sem telefone cadastrado")}
+        </p>
+      </div>
+    </div>
   );
 }
 
-function ContactDetails({ contact }: { contact: ContactListItem }) {
+function ContactStatusBadges({ contact }: { contact: ContactListItem }) {
   return (
-    <div className="flex items-center gap-3">
-      <Avatar name={contact.displayName} size="sm" src={contact.avatarUrl ?? undefined} />
-      <div>
-        <p className="font-medium text-text">{contact.displayName}</p>
-        <p className="mt-0.5 text-caption text-text-muted">
-          {contact.hasMultipleActivePhones
-            ? "Múltiplos telefones ativos"
-            : (contact.phoneDisplayValue ?? "Sem telefone")}
-        </p>
-      </div>
+    <div className="flex flex-wrap items-center gap-1.5">
+      <Badge tone="info">{classificationLabels[contact.classification]}</Badge>
+      {contact.archivedAt ? (
+        <StatusChip status="neutral">Arquivado</StatusChip>
+      ) : contact.operationalStatus === "active" ? (
+        <StatusChip status="success">Ativo</StatusChip>
+      ) : (
+        <StatusChip status="warning">Inativo</StatusChip>
+      )}
+      {contact.isProtected ? <StatusChip status="warning">OWNER-only</StatusChip> : null}
     </div>
   );
 }
@@ -385,6 +455,7 @@ export function ContactsClient({
   const [selectedContact, setSelectedContact] = useState<ContactListItem | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [feedback, setFeedback] = useState("");
+  const [feedbackTone, setFeedbackTone] = useState<FeedbackTone>("success");
   const [feedbackSource, setFeedbackSource] = useState<FeedbackSource | null>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
   const [lifecycleState, lifecycleAction, lifecyclePending] = useActionState(
@@ -496,29 +567,77 @@ export function ContactsClient({
     requestAnimationFrame(() => triggerRef.current?.focus());
   }
 
-  const handleFeedback = useCallback((message: string) => {
+  const handleFeedback = useCallback((message: string, tone: FeedbackTone = "success") => {
     setFeedback(message);
+    setFeedbackTone(tone);
     setFeedbackSource("general");
   }, []);
 
   function handleLifecycleStart() {
     setFeedbackSource("lifecycle");
     setFeedback("");
+    setFeedbackTone("success");
   }
 
   function handleGeneralStart() {
     setFeedbackSource("general");
     setFeedback("");
+    setFeedbackTone("success");
   }
+
+  const handleTogglePrivacy = useCallback(
+    (contact: ContactListItem) => {
+      startTransition(async () => {
+        const res = await setContactTeamVisibilityAction(contact.id, contact.isProtected);
+        if (res.success) {
+          handleFeedback(
+            contact.isProtected
+              ? "Contato agora é visível para a equipe."
+              : "Contato agora é OWNER-only (privado).",
+          );
+          router.refresh();
+        } else {
+          handleFeedback(res.error || "Falha ao alterar privacidade.");
+        }
+      });
+    },
+    [handleFeedback, router],
+  );
+
+  const handleStartConversation = useCallback(
+    (contact: ContactListItem) => {
+      if (!contact.phoneDisplayValue) {
+        handleFeedback("Este contato não possui um telefone cadastrado.");
+        return;
+      }
+
+      setFeedbackSource("conversation");
+      startTransition(async () => {
+        const res = await startIndividualConversationAction(contact.phoneDisplayValue!);
+        if (res.success) {
+          router.push(`/conversas/${res.conversationId}`);
+        } else {
+        handleFeedback(res.error || "Não foi possível iniciar uma conversa.", "error");
+        }
+      });
+    },
+    [handleFeedback, router],
+  );
 
   const displayFeedback =
     feedbackSource === "lifecycle"
       ? (!lifecyclePending && lifecycleState.status === "success"
           ? lifecycleState.message
-          : "")
-      : feedbackSource === "general"
+          : !lifecyclePending && lifecycleState.status === "error"
+            ? lifecycleState.message
+            : "")
+      : feedbackSource === "general" || feedbackSource === "conversation"
       ? feedback
       : "";
+  const feedbackIsError =
+    feedbackSource === "lifecycle"
+      ? lifecycleState.status === "error"
+      : feedbackTone === "error";
 
   useEffect(() => {
     if (displayFeedback) {
@@ -537,7 +656,12 @@ export function ContactsClient({
       </div>
       {displayFeedback ? (
         <div
-          className="flex items-center justify-between rounded-control border border-success-border bg-success-soft px-control-x py-control-y text-body font-medium text-success shadow-xs"
+          className={classNames(
+            "flex items-center justify-between rounded-control border px-control-x py-control-y text-body font-medium shadow-xs",
+            feedbackIsError
+              ? "border-danger-border bg-danger-soft text-danger"
+              : "border-success-border bg-success-soft text-success",
+          )}
           role="status"
         >
           <span>{displayFeedback}</span>
@@ -555,60 +679,80 @@ export function ContactsClient({
         </div>
       ) : null}
 
-      <div className="flex flex-wrap items-end justify-between gap-stack">
-        <div className="grid flex-1 gap-inline sm:grid-cols-2 lg:grid-cols-4">
-          <SearchInput
-            label="Buscar por nome ou telefone"
-            onChange={handleSearchChange}
-            onKeyDown={handleSearchKeyDown}
-            placeholder="Nome ou telefone"
-            value={searchQuery}
-          />
-          <Select
-            aria-label="Filtrar por classificação"
-            onChange={(e) => updateFilterParams({ classification: e.target.value })}
-            value={filters.classification ?? ""}
-          >
-            <option value="">Todas as classificações</option>
-            <option value="lead">Lead</option>
-            <option value="person">Pessoa</option>
-            <option value="client">Cliente</option>
-          </Select>
-          <Select
-            aria-label="Filtrar por status"
-            onChange={(e) => updateFilterParams({ status: e.target.value })}
-            value={filters.status ?? ""}
-          >
-            <option value="">Todos os status</option>
-            <option value="active">Ativos</option>
-            <option value="inactive">Inativos</option>
-          </Select>
-          <Select
-            aria-label="Filtrar por arquivamento"
-            onChange={(e) => updateFilterParams({ archived: e.target.value })}
-            value={filters.archived ? "true" : "false"}
-          >
-            <option value="false">Não arquivados</option>
-            <option value="true">Arquivados</option>
-          </Select>
-          {hasFilters ? (
-            <div className="flex items-center sm:col-span-2 lg:col-span-4">
+      {/* Barra de Filtros e Busca */}
+      <div className="flex flex-col gap-stack md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-1 flex-col gap-inline sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="w-full sm:w-64 md:w-72">
+            <SearchInput
+              label="Buscar por nome ou telefone"
+              onChange={handleSearchChange}
+              onKeyDown={handleSearchKeyDown}
+              placeholder="Buscar por nome ou telefone..."
+              value={searchQuery}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-inline sm:flex sm:items-center">
+            <Select
+              aria-label="Filtrar por classificação"
+              className="w-full sm:w-40"
+              onChange={(e) => updateFilterParams({ classification: e.target.value })}
+              value={filters.classification ?? ""}
+            >
+              <option value="">Todas classificações</option>
+              <option value="lead">Lead</option>
+              <option value="person">Pessoa</option>
+              <option value="client">Cliente</option>
+            </Select>
+
+            <Select
+              aria-label="Filtrar por status"
+              className="w-full sm:w-32"
+              onChange={(e) => updateFilterParams({ status: e.target.value })}
+              value={filters.status ?? ""}
+            >
+              <option value="">Todos status</option>
+              <option value="active">Ativos</option>
+              <option value="inactive">Inativos</option>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-inline">
+            <Select
+              aria-label="Filtrar por arquivamento"
+              className="w-full sm:w-36"
+              onChange={(e) => updateFilterParams({ archived: e.target.value })}
+              value={filters.archived ? "true" : "false"}
+            >
+              <option value="false">Não arquivados</option>
+              <option value="true">Arquivados</option>
+            </Select>
+
+            {hasFilters ? (
               <Button
+                className="shrink-0 text-text-muted hover:text-text"
                 onClick={handleClearFilters}
                 type="button"
                 variant="ghost"
               >
                 Limpar filtros
               </Button>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </div>
-        <Button onClick={(event) => openForm(null, event.currentTarget)}>
-          <Plus aria-hidden="true" size={18} />
-          Novo contato
-        </Button>
+
+        <div className="shrink-0">
+          <Button
+            className="w-full sm:w-auto"
+            onClick={(event) => openForm(null, event.currentTarget)}
+          >
+            <Plus aria-hidden="true" size={18} />
+            <span>Novo contato</span>
+          </Button>
+        </div>
       </div>
 
+      {/* Lista de Contatos */}
       <div className={classNames("relative space-y-stack transition-opacity duration-150", isPending && "opacity-60 pointer-events-none")}>
         {isPending ? (
           <div className="absolute -top-3 left-0 right-0 z-10 h-1 w-full overflow-hidden rounded-full bg-neutral-soft">
@@ -625,47 +769,79 @@ export function ContactsClient({
                 </Button>
               ) : (
                 <Button onClick={(event) => openForm(null, event.currentTarget)}>
-                  Novo contato
+                  <Plus aria-hidden="true" size={16} />
+                  Cadastrar primeiro contato
                 </Button>
               )
             }
             description={
               hasFilters
                 ? "Nenhum contato corresponde à busca ou aos filtros aplicados."
-                : "Cadastre o primeiro contato para começar a organizar sua carteira."
+                : "Cadastre seu primeiro contato para começar a organizar sua carteira de clientes."
             }
             icon={UserRound}
             title={hasFilters ? "Nenhum resultado encontrado" : "Nenhum contato cadastrado"}
           />
         ) : (
           <>
+            {/* Tabela Desktop */}
             <Card className="hidden overflow-x-auto p-0 md:block">
               <table className="w-full border-collapse text-left text-body">
                 <thead className="border-b border-border bg-neutral-soft text-caption font-medium text-text-muted">
                   <tr>
-                    <th className="px-card py-stack">Contato</th>
-                    <th className="px-card py-stack">Classificação</th>
-                    <th className="px-card py-stack">Status</th>
-                    <th className="px-card py-stack text-right">Ações</th>
+                    <th className="px-card py-2.5">Contato</th>
+                    <th className="px-card py-2.5">Classificação / Status</th>
+                    <th className="px-card py-2.5">Ação Principal</th>
+                    <th className="px-card py-2.5 text-right w-14">
+                      <span className="sr-only">Ações</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {contacts.map((contact) => (
-                    <tr key={contact.id}>
-                      <td className="px-card py-stack"><ContactDetails contact={contact} /></td>
-                      <td className="px-card py-stack"><Badge tone="info">{classificationLabels[contact.classification]}</Badge></td>
-                      <td className="px-card py-stack"><div className="flex flex-wrap gap-2"><ContactStatus contact={contact} />{contact.isProtected ? <StatusChip status="warning">OWNER-only</StatusChip> : null}</div></td>
-                      <td className="px-card py-stack">
-                        <ContactActions
+                    <tr className="hover:bg-neutral-soft/40 transition-colors" key={contact.id}>
+                      <td className="px-card py-2.5">
+                        <ContactIdentity contact={contact} />
+                      </td>
+                      <td className="px-card py-2.5">
+                        <ContactStatusBadges contact={contact} />
+                      </td>
+                      <td className="px-card py-2.5">
+                        {contact.conversationId ? (
+                          <Link
+                            aria-label={`Abrir conversa com ${contact.displayName}`}
+                            className="inline-flex items-center gap-1.5 rounded-control px-2.5 py-1.5 text-body font-medium text-primary hover:bg-neutral-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                            href={`/conversas/${contact.conversationId}`}
+                          >
+                            <MessageCircle aria-hidden="true" className="text-success" size={16} />
+                            <span>Abrir conversa</span>
+                          </Link>
+                        ) : (
+                          <Button
+                            aria-label={`Iniciar conversa com ${contact.displayName}`}
+                            className="inline-flex items-center gap-1.5"
+                            disabled={isPending || !contact.phoneDisplayValue}
+                            onClick={() => handleStartConversation(contact)}
+                            title={!contact.phoneDisplayValue ? "Cadastre um telefone para conversar" : undefined}
+                            type="button"
+                            variant="secondary"
+                          >
+                            <MessageCircle aria-hidden="true" size={15} />
+                            <span>Iniciar conversa</span>
+                          </Button>
+                        )}
+                      </td>
+                      <td className="px-card py-2.5 text-right">
+                        <ContactContextMenu
+                          canManagePrivacy={canManagePrivacy}
                           contact={contact}
                           lifecycleAction={lifecycleAction}
-                          lifecycleState={lifecycleState}
                           onEdit={openForm}
                           onFeedback={handleFeedback}
                           onGeneralStart={handleGeneralStart}
                           onLifecycleStart={handleLifecycleStart}
+                          onTogglePrivacy={handleTogglePrivacy}
                         />
-                        {canManagePrivacy ? <button className="mt-2 text-xs text-text-muted underline" onClick={() => startTransition(async () => { await setContactTeamVisibilityAction(contact.id, contact.isProtected); router.refresh(); })} type="button">{contact.isProtected ? "Visível para equipe" : "Tornar OWNER-only"}</button> : null}
                       </td>
                     </tr>
                   ))}
@@ -673,27 +849,55 @@ export function ContactsClient({
               </table>
             </Card>
 
+            {/* Cards Mobile */}
             <div className="space-y-inline md:hidden">
               {contacts.map((contact) => (
-                <Card className="space-y-stack" key={contact.id}>
-                  <div className="flex flex-wrap items-start justify-between gap-inline">
-                    <ContactDetails contact={contact} />
-                    <div className="flex flex-wrap items-center gap-inline">
-                      <Badge tone="info">{classificationLabels[contact.classification]}</Badge>
-                      <ContactStatus contact={contact} />
-                      {contact.isProtected ? <StatusChip status="warning">OWNER-only</StatusChip> : null}
+                <Card className="p-3.5 space-y-3" key={contact.id}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <ContactIdentity contact={contact} />
+                    </div>
+                    <div className="shrink-0 -mr-1.5 -mt-1">
+                      <ContactContextMenu
+                        canManagePrivacy={canManagePrivacy}
+                        contact={contact}
+                        lifecycleAction={lifecycleAction}
+                        onEdit={openForm}
+                        onFeedback={handleFeedback}
+                        onGeneralStart={handleGeneralStart}
+                        onLifecycleStart={handleLifecycleStart}
+                        onTogglePrivacy={handleTogglePrivacy}
+                      />
                     </div>
                   </div>
-                  <ContactActions
-                    contact={contact}
-                    lifecycleAction={lifecycleAction}
-                    lifecycleState={lifecycleState}
-                    onEdit={openForm}
-                    onFeedback={handleFeedback}
-                    onGeneralStart={handleGeneralStart}
-                    onLifecycleStart={handleLifecycleStart}
-                  />
-                  {canManagePrivacy ? <button className="text-xs text-text-muted underline" onClick={() => startTransition(async () => { await setContactTeamVisibilityAction(contact.id, contact.isProtected); router.refresh(); })} type="button">{contact.isProtected ? "Visível para equipe" : "Tornar OWNER-only"}</button> : null}
+
+                  <ContactStatusBadges contact={contact} />
+
+                  <div className="pt-1 border-t border-border">
+                    {contact.conversationId ? (
+                      <Link
+                        aria-label={`Abrir conversa com ${contact.displayName}`}
+                        className="flex w-full items-center justify-center gap-2 rounded-control bg-primary px-control-x py-control-y text-body font-medium text-primary-foreground hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                        href={`/conversas/${contact.conversationId}`}
+                      >
+                        <MessageCircle aria-hidden="true" size={17} />
+                        <span>Abrir conversa</span>
+                      </Link>
+                    ) : (
+                      <Button
+                        aria-label={`Iniciar conversa com ${contact.displayName}`}
+                        className="w-full justify-center"
+                        disabled={isPending || !contact.phoneDisplayValue}
+                        onClick={() => handleStartConversation(contact)}
+                        title={!contact.phoneDisplayValue ? "Cadastre um telefone para conversar" : undefined}
+                        type="button"
+                        variant="secondary"
+                      >
+                        <MessageCircle aria-hidden="true" size={17} />
+                        <span>Iniciar conversa</span>
+                      </Button>
+                    )}
+                  </div>
                 </Card>
               ))}
             </div>
@@ -701,6 +905,7 @@ export function ContactsClient({
         )}
       </div>
 
+      {/* Paginação */}
       {total > 0 ? (
         <nav aria-label="Paginação de contatos" className="flex items-center justify-between gap-stack">
           <p className="text-body text-text-muted">
@@ -727,10 +932,11 @@ export function ContactsClient({
         </nav>
       ) : null}
 
+      {/* Diálogo de Criação/Edição */}
       {isFormOpen ? (
         <ContactFormDialog
-          key={selectedContact?.id ?? "new"}
           contact={selectedContact}
+          key={selectedContact?.id ?? "new"}
           onClose={closeForm}
           onGeneralStart={handleGeneralStart}
           onSuccess={handleFeedback}

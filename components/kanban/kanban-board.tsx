@@ -2,15 +2,16 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import {
   archiveOpportunityAction,
-  moveOpportunityAction,
+  reorderOpportunityAction,
   openOrCreateOpportunityConversationAction,
 } from "@/lib/kanban/actions";
 import type { ContactSelectItem, MemberSelectItem } from "@/lib/kanban/data";
 import { Button } from "@/components/ui";
 import type { ContactClassification, KanbanCard, KanbanStage } from "@/types/kanban";
+import { reorderCards } from "@/lib/kanban/reorder";
 
 import { CreateOpportunityDialog } from "./create-opportunity-dialog";
 import { KanbanColumn } from "./kanban-column";
@@ -69,7 +70,8 @@ export function KanbanBoard({
       target.closest("input") ||
       target.closest("textarea") ||
       target.closest("a") ||
-      target.closest("[role='dialog']")
+      target.closest("[role='dialog']") ||
+      target.closest("[role='menu']")
     ) {
       return;
     }
@@ -123,6 +125,8 @@ export function KanbanBoard({
   }));
   const memberOptions = members.map((m) => ({ id: m.id, name: m.displayName }));
 
+  const totalCards = stages.reduce((acc, s) => acc + s.cards.length, 0);
+
   const handleCardClick = (card: KanbanCard) => {
     setSelectedCard(card);
     setIsDrawerOpen(true);
@@ -174,10 +178,8 @@ export function KanbanBoard({
   };
 
   const handleArchiveOpportunity = (opportunityId: string) => {
-    // Captura snapshot seguro antes da mutação otimista
     snapshotRef.current = stages;
 
-    // Atualização otimista local: remove o card
     setStages((prevStages) =>
       prevStages.map((st) => ({
         ...st,
@@ -194,7 +196,6 @@ export function KanbanBoard({
       try {
         const res = await archiveOpportunityAction(opportunityId);
         if (!res.success) {
-          // Rollback usando snapshot imediatamente anterior
           setStages(snapshotRef.current);
           setNotification({
             type: "error",
@@ -236,15 +237,12 @@ export function KanbanBoard({
     cardId: string,
     fromStageId: string,
     toStageId: string,
+    beforeOpportunityId: string | null = null,
   ) => {
-    if (fromStageId === toStageId) return;
-
-    // Captura snapshot imediatamente anterior à mutação otimista
     snapshotRef.current = stages;
 
     let movedCard: KanbanCard | null = null;
 
-    // 1. Atualização otimista imediata no estado local
     setStages((prevStages) =>
       prevStages
         .map((stage) => {
@@ -262,7 +260,9 @@ export function KanbanBoard({
           if (stage.id === toStageId && movedCard) {
             return {
               ...stage,
-              cards: [movedCard, ...stage.cards],
+              cards: reorderCards(stage.cards, cardId, beforeOpportunityId).map((card) =>
+                card.id === movedCard?.id ? movedCard : card,
+              ),
             };
           }
           return stage;
@@ -272,13 +272,11 @@ export function KanbanBoard({
     setPendingCardIds((prev) => new Set(prev).add(cardId));
     setNotification(null);
 
-    // 2. Executa Server Action em transição
     startTransition(async () => {
       try {
-        const res = await moveOpportunityAction(cardId, fromStageId, toStageId);
+        const res = await reorderOpportunityAction(cardId, fromStageId, toStageId, beforeOpportunityId);
 
         if (!res.success) {
-          // Rollback usando o snapshot imediatamente anterior
           setStages(snapshotRef.current);
 
           if (res.code === "CONFLICT") {
@@ -295,11 +293,6 @@ export function KanbanBoard({
               message: res.error || "Falha ao movimentar a oportunidade.",
             });
           }
-        } else if (res.status === "no_change") {
-          setNotification({
-            type: "info",
-            message: "A oportunidade já estava na etapa selecionada.",
-          });
         }
       } catch (err) {
         console.error("Erro na movimentação do Kanban:", err);
@@ -321,18 +314,22 @@ export function KanbanBoard({
   return (
     <div className="flex flex-col gap-4">
       {/* Barra Superior de Ações */}
-      <div className="flex items-center justify-between gap-4 bg-surface p-card rounded-card border border-border">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-stack rounded-card border border-border bg-surface p-card sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-body font-semibold text-text">
             Pipeline Comercial
           </span>
-          <span className="text-caption text-text-muted">
-            ({stages.reduce((acc, s) => acc + s.cards.length, 0)} oportunidades ativas)
+          <span className="rounded-pill bg-neutral-soft px-2.5 py-0.5 text-caption font-medium text-text-muted border border-border">
+            {totalCards} {totalCards === 1 ? "oportunidade ativa" : "oportunidades ativas"}
           </span>
         </div>
 
-        <Button onClick={() => setIsCreateOpen(true)} variant="primary">
-          <Plus className="h-4 w-4" />
+        <Button
+          className="w-full sm:w-auto shrink-0"
+          onClick={() => setIsCreateOpen(true)}
+          variant="primary"
+        >
+          <Plus aria-hidden="true" size={17} />
           <span>Nova Oportunidade</span>
         </Button>
       </div>
@@ -340,66 +337,67 @@ export function KanbanBoard({
       {/* Região aria-live / Notificações de Status */}
       {notification ? (
         <div
-          role="status"
           aria-live="polite"
           className={`flex items-center justify-between rounded-control p-card text-body font-medium border ${
             notification.type === "warning"
-              ? "bg-warning-soft text-warning border-warning"
+              ? "bg-warning-soft text-warning border-warning-border"
               : notification.type === "error"
-              ? "bg-danger-soft text-danger border-danger"
+              ? "bg-danger-soft text-danger border-danger-border"
               : notification.type === "success"
-              ? "bg-success-soft text-success border-success"
-              : "bg-info-soft text-info border-info"
+              ? "bg-success-soft text-success border-success-border"
+              : "bg-info-soft text-info border-info-border"
           }`}
+          role="status"
         >
           <span>{notification.message}</span>
           <button
-            type="button"
+            aria-label="Fechar notificação"
+            className="flex size-7 items-center justify-center rounded-control text-text-muted hover:bg-black/5 hover:text-text font-bold"
             onClick={() => setNotification(null)}
-            className="text-text-muted hover:text-text font-bold px-1"
+            type="button"
           >
-            ×
+            <X aria-hidden="true" size={16} />
           </button>
         </div>
       ) : null}
 
-      {/* Quadro Kanban (Colunas) */}
+      {/* Quadro Kanban (Colunas) com Snap suave no mobile */}
       <div
-        ref={boardContainerRef}
-        data-testid="kanban-board-container"
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUpOrLeave}
-        onMouseLeave={handleMouseUpOrLeave}
-        className={`flex gap-4 overflow-x-auto pb-4 pt-1 items-start min-h-[calc(100vh-200px)] touch-pan-x ${
+        className={`flex gap-3 sm:gap-4 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-4 pt-1 items-start min-h-[calc(100vh-220px)] touch-pan-x ${
           isGrabbing ? "cursor-grabbing select-none" : "cursor-grab"
         }`}
+        data-testid="kanban-board-container"
+        onMouseDown={handleMouseDown}
+        onMouseLeave={handleMouseUpOrLeave}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUpOrLeave}
+        ref={boardContainerRef}
       >
         {stages.map((stage) => (
           <KanbanColumn
             key={stage.id}
+            onArchiveOpportunity={handleArchiveOpportunity}
+            onCardClick={handleCardClick}
+            onCopyLink={handleCopyLink}
+            onDropCard={handleMoveStage}
+            onMoveStage={handleMoveStage}
+            onOpenConversation={handleOpenConversation}
+            pendingCardIds={pendingCardIds}
             stage={stage}
             stages={stageOptions}
             userRole={userRole}
-            onDropCard={handleMoveStage}
-            onMoveStage={handleMoveStage}
-            onCardClick={handleCardClick}
-            onOpenConversation={handleOpenConversation}
-            onCopyLink={handleCopyLink}
-            onArchiveOpportunity={handleArchiveOpportunity}
-            pendingCardIds={pendingCardIds}
           />
         ))}
       </div>
 
       {/* Modal de Criação */}
       <CreateOpportunityDialog
-        isOpen={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
-        stages={stageOptions}
         contacts={contacts}
+        isOpen={isCreateOpen}
         members={members}
+        onClose={() => setIsCreateOpen(false)}
         onCreated={handleCreatedOpportunity}
+        stages={stageOptions}
       />
 
       {/* Drawer Lateral de Detalhes e Edição */}

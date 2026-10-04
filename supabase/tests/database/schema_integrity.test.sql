@@ -2,7 +2,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions, auth, pg_catalog;
 
-select plan(74);
+select plan(75);
 
 select has_table('public', 'app_users', 'app_users exists');
 select has_table('public', 'workspaces', 'workspaces exists');
@@ -138,8 +138,25 @@ select is(
           and namespace_record.nspname = 'public'
           and procedure_record.proname = 'set_updated_at'
     ),
-    13::bigint,
-    'updated_at trigger is attached to the 13 mutable tables'
+    12::bigint,
+    'set_updated_at remains attached to the 12 standard mutable tables'
+);
+
+select is(
+    (
+        select count(*)
+        from pg_catalog.pg_trigger as trigger_record
+        join pg_catalog.pg_proc as procedure_record
+          on procedure_record.oid = trigger_record.tgfoid
+        join pg_catalog.pg_namespace as namespace_record
+          on namespace_record.oid = procedure_record.pronamespace
+        where not trigger_record.tgisinternal
+          and namespace_record.nspname = 'public'
+          and procedure_record.proname = 'set_opportunity_updated_at'
+          and trigger_record.tgrelid = 'public.opportunities'::regclass
+    ),
+    1::bigint,
+    'opportunities uses the sort_order-aware updated_at trigger'
 );
 
 select ok(

@@ -13,6 +13,10 @@ Documento de planejamento das próximas sprints e evolução do sistema **ImobFl
   - Fluxo atômico de envio e ingestão textual via Evolution API, idempotência, reconciliação e formulário de envio.
 - **Sprint 18 — Módulo de Kanban Comercial Real** (Status: `CONCLUÍDO`)
   - Leitura em lote via RPC `get_kanban_board`, movimentação otimista com controle de concorrência (`move_opportunity_stage`), criação de oportunidades (`create_opportunity`) e auditoria.
+- **Sprint 24 — Refinamento de UX e consolidação funcional** (Status: `IMPLEMENTAÇÃO CONCLUÍDA`)
+  - Menus de viewport, identidade canônica de conversas, feedbacks, acessibilidade e estados de rota.
+  - Reordenação persistente do Kanban com `sort_order`, `reorder_opportunity` e preservação semântica de `updated_at`.
+  - Validação manual concluída; suíte automatizada final depende de ambiente descartável.
 
 ---
 
@@ -48,5 +52,5 @@ Documento de planejamento das próximas sprints e evolução do sistema **ImobFl
 > Os itens abaixo representam possibilidades de expansão e não constituem compromissos do roadmap atual.
 
 - **Suporte a Mídias e Anexos no WhatsApp**: Envio e recepção de fotos, áudios e documentos.
-- **Ações de Won/Lost e Reordenação no Kanban**: Marcação de oportunidades como ganhas/perdidas e ordenação manual customizada dentro da mesma coluna.
+- **Ações comerciais adicionais**: evoluções de Won/Lost e regras comerciais além do fluxo já implementado.
 - **Instagram Direct Integration**: Integração futura com a API do Instagram Direct.

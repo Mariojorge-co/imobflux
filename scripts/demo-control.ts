@@ -33,6 +33,7 @@ function checkTcpPort(host: string, port: number, timeoutMs = 2000): Promise<boo
 
 async function validateLocalEnvironment() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "http://127.0.0.1:54321";
+  const dbPort = Number(process.env.IMOBFLUX_DB_PORT || "54322");
 
   if (!supabaseUrl.includes("127.0.0.1") && !supabaseUrl.includes("localhost")) {
     throw new Error(
@@ -40,11 +41,11 @@ async function validateLocalEnvironment() {
     );
   }
 
-  const isLocalDbPortOpen = await checkTcpPort("127.0.0.1", 54322);
+  const isLocalDbPortOpen = await checkTcpPort("127.0.0.1", dbPort);
 
   if (!isLocalDbPortOpen) {
     throw new Error(
-      "ERRO FAIL-CLOSED: O Supabase local não está em execução na porta 54322. Inicie o ambiente local com 'npx supabase start' antes de operar o Demo Mode."
+      `ERRO FAIL-CLOSED: O Supabase local não está em execução na porta ${dbPort}. Inicie o ambiente local com 'npx supabase start' antes de operar o Demo Mode.`
     );
   }
 }
@@ -63,7 +64,8 @@ function runSqlFile(relativeFilePath: string) {
     PATH: `C:\\Users\\User\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;${process.env.PATH || ""}`,
   };
 
-  const command = `docker exec -i supabase_db_imobflux psql -h 127.0.0.1 -v ON_ERROR_STOP=1 -U postgres -d postgres`;
+  const dbContainer = process.env.IMOBFLUX_DB_CONTAINER || "supabase_db_imobflux";
+  const command = `docker exec -i ${dbContainer} psql -h 127.0.0.1 -v ON_ERROR_STOP=1 -U postgres -d postgres`;
 
   console.log(`[Demo Mode] Executando ${relativeFilePath}...`);
   execSync(command, {

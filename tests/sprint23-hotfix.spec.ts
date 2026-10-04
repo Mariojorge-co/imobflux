@@ -50,6 +50,7 @@ test.describe("Sprint 23 — Hotfix Consolidado & Validações de UX/Bugs", () =
   test("5. E2E: Proteção contra NaN na UI do painel de contexto do cliente", async ({ page }) => {
     await loginAsDemoOwner(page);
     await page.goto("/conversas/d3300003-0000-4000-8000-000000000001");
+    await page.getByRole("button", { name: "Abrir dados do cliente" }).click();
     await expect(page.getByRole("heading", { name: "Identificação" })).toBeVisible();
 
     const pageText = await page.getByRole("main").innerText();

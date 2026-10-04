@@ -580,3 +580,20 @@ stateDiagram-v2
 - **Resultado:** o registro deixa o fluxo ativo sem perda definitiva de dados.
 - **Regra:** exclusão física não é uma permissão de usuário e fica restrita a
   rotinas técnicas futuras.
+
+## 28. Identidade e ordenação operacional
+
+### 28.1 Identidade de conversa individual
+
+O cabeçalho usa, nesta ordem, `contacts.display_name`, identidade externa
+disponível, telefone formatado e, somente como último recurso, uma indicação de
+identidade desconhecida. Conversas arquivadas usam o mesmo read model; grupos
+seguem a regra de assunto do grupo.
+
+### 28.2 Reordenação de oportunidades
+
+O OWNER pode arrastar uma oportunidade dentro da mesma etapa ou para outra
+etapa e escolher sua posição. A operação grava `sort_order` e registra auditoria;
+mudanças de etapa também preservam o histórico de pipeline. Cards que apenas
+foram renumerados não têm seu `updated_at` alterado. A posição permanece após
+recarregar o Kanban.

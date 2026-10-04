@@ -1,11 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Archive, Copy, MessageCircle, X } from "lucide-react";
+import { Archive, Copy, MessageCircle } from "lucide-react";
 import {
   useCallback,
-  useEffect,
-  useRef,
   useState,
   useTransition,
 } from "react";
@@ -14,7 +12,7 @@ import {
   openOrCreateOpportunityConversationAction,
   updateOpportunityAction,
 } from "@/lib/kanban/actions";
-import { Badge, Button, Input, Select } from "@/components/ui";
+import { Badge, Button, Drawer, Input, Select } from "@/components/ui";
 import type {
   ContactClassification,
   KanbanCard,
@@ -61,7 +59,6 @@ export function OpportunityDetailDrawer({
   onUpdateOpportunity,
   onArchiveOpportunity,
 }: OpportunityDetailDrawerProps) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -89,18 +86,6 @@ export function OpportunityDetailDrawer({
     const matchingStage = stages.find((s) => s.cards.some((c) => c.id === card.id));
     setStageId(matchingStage?.id || stages[0]?.id || "");
   }
-
-  // Handle dialog opening / closing
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-
-    if (open && !dialog.open) {
-      dialog.showModal();
-    } else if (!open && dialog.open) {
-      dialog.close();
-    }
-  }, [open]);
 
   const handleOpenConversation = useCallback(() => {
     if (!card) return;
@@ -214,47 +199,29 @@ export function OpportunityDetailDrawer({
   const isOwner = userRole === "owner";
 
   return (
-    <dialog
-      aria-labelledby="drawer-opportunity-title"
-      className="fixed inset-y-0 right-0 z-50 my-0 ml-auto h-full max-h-none w-full max-w-lg overflow-y-auto border-l border-border bg-surface p-0 text-text shadow-2xl backdrop:bg-text/30"
-      onCancel={(e) => {
-        e.preventDefault();
-        onClose();
-      }}
+    <Drawer
       onClose={onClose}
-      ref={dialogRef}
+      open={open}
+      title="Detalhes da Oportunidade"
     >
       <div className="flex h-full flex-col">
-        {/* Cabeçalho do Drawer */}
-        <div className="flex items-center justify-between border-b border-border p-card">
-          <div className="space-y-1">
-            <span className="text-caption font-semibold uppercase tracking-wider text-text-muted">
-              Detalhes da Oportunidade
-            </span>
-            <div className="flex flex-wrap items-center gap-2">
-              {currentStage ? (
-                <Badge tone="neutral">{currentStage.name}</Badge>
-              ) : null}
-              {card.has_linked_conversation ? (
-                <Badge tone="success">Conversa Vinculada</Badge>
-              ) : null}
-            </div>
+        {/* Badges de Estado no topo do conteúdo */}
+        <div className="border-b border-border bg-neutral-soft/40 px-stack py-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {currentStage ? (
+              <Badge tone="neutral">{currentStage.name}</Badge>
+            ) : null}
+            {card.has_linked_conversation ? (
+              <Badge tone="success">Conversa Vinculada</Badge>
+            ) : null}
           </div>
-          <button
-            aria-label="Fechar painel"
-            className="rounded-control p-1 text-text-muted transition-colors hover:bg-neutral-soft hover:text-text"
-            onClick={onClose}
-            type="button"
-          >
-            <X className="h-5 w-5" />
-          </button>
         </div>
 
         {/* Formulário e Conteúdo Principal */}
-        <form className="flex-1 space-y-stack p-card" onSubmit={handleSubmit}>
+        <form className="flex-1 space-y-stack p-stack" onSubmit={handleSubmit}>
           {/* Título */}
           <label className="block space-y-inline" htmlFor="drawer-title">
-            <span className="text-body font-medium">Título da oportunidade</span>
+            <span className="text-body font-medium text-text">Título da oportunidade</span>
             <Input
               id="drawer-title"
               name="title"
@@ -266,7 +233,7 @@ export function OpportunityDetailDrawer({
 
           {/* Etapa do Pipeline */}
           <label className="block space-y-inline" htmlFor="drawer-stage">
-            <span className="text-body font-medium">Etapa no Kanban</span>
+            <span className="text-body font-medium text-text">Etapa no Kanban</span>
             <Select
               id="drawer-stage"
               name="stageId"
@@ -284,7 +251,7 @@ export function OpportunityDetailDrawer({
           {/* Contato Principal */}
           <label className="block space-y-inline" htmlFor="drawer-contact">
             <div className="flex items-center justify-between">
-              <span className="text-body font-medium">Contato principal</span>
+              <span className="text-body font-medium text-text">Contato principal</span>
               {card.contact_classification ? (
                 <span className="text-caption text-text-muted">
                   ({classificationLabels[card.contact_classification] || card.contact_classification})
@@ -313,7 +280,7 @@ export function OpportunityDetailDrawer({
 
           {/* Responsável */}
           <label className="block space-y-inline" htmlFor="drawer-responsible">
-            <span className="text-body font-medium">Responsável</span>
+            <span className="text-body font-medium text-text">Responsável</span>
             <Select
               id="drawer-responsible"
               name="responsibleMemberId"
@@ -331,9 +298,9 @@ export function OpportunityDetailDrawer({
 
           {/* Observações / Descrição */}
           <label className="block space-y-inline" htmlFor="drawer-description">
-            <span className="text-body font-medium">Observações</span>
+            <span className="text-body font-medium text-text">Observações</span>
             <textarea
-              className="w-full rounded-control border border-border bg-surface px-control-x py-control-y text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              className="w-full rounded-control border border-border bg-surface px-control-x py-control-y text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               id="drawer-description"
               name="description"
               onChange={(e) => setDescription(e.target.value)}
@@ -343,7 +310,7 @@ export function OpportunityDetailDrawer({
           </label>
 
           {/* Metadados de Datas */}
-          <div className="grid grid-cols-2 gap-stack rounded-card border border-border bg-neutral-soft p-card text-caption text-text-muted">
+          <div className="grid grid-cols-2 gap-stack rounded-card border border-border bg-neutral-soft/50 p-card text-caption text-text-muted">
             <div>
               <span className="block font-medium text-text">Criação</span>
               {card.created_at ? new Date(card.created_at).toLocaleString("pt-BR") : "-"}
@@ -357,10 +324,10 @@ export function OpportunityDetailDrawer({
           {/* Notificação de Feedback */}
           {feedback ? (
             <div
-              className={`rounded-control px-control-x py-control-y text-body ${
+              className={`rounded-control px-control-x py-control-y text-body font-medium border ${
                 feedback.type === "error"
-                  ? "bg-danger-soft text-danger"
-                  : "bg-success-soft text-success"
+                  ? "bg-danger-soft text-danger border-danger-border"
+                  : "bg-success-soft text-success border-success-border"
               }`}
               role="alert"
             >
@@ -369,16 +336,16 @@ export function OpportunityDetailDrawer({
           ) : null}
 
           {/* Ações Especiais: Abrir Conversa e Copiar Link */}
-          <div className="flex flex-wrap gap-2 pt-2">
+          <div className="flex flex-wrap gap-2 pt-1">
             <Button
-              className="flex-1"
+              className="flex-1 justify-center"
               disabled={isPending}
               onClick={handleOpenConversation}
               type="button"
               variant="primary"
             >
-              <MessageCircle className="h-4 w-4" />
-              Abrir conversa
+              <MessageCircle aria-hidden="true" size={16} />
+              <span>Abrir conversa</span>
             </Button>
 
             <Button
@@ -387,13 +354,13 @@ export function OpportunityDetailDrawer({
               type="button"
               variant="secondary"
             >
-              <Copy className="h-4 w-4" />
-              {copiedLink ? "Link copiado!" : "Copiar link"}
+              <Copy aria-hidden="true" size={16} />
+              <span>{copiedLink ? "Link copiado!" : "Copiar link"}</span>
             </Button>
           </div>
 
           {/* Rodapé de Botões de Salvar / Arquivar */}
-          <div className="mt-auto flex items-center justify-between border-t border-border pt-card">
+          <div className="mt-auto flex items-center justify-between border-t border-border pt-stack">
             {isOwner ? (
               <Button
                 disabled={isPending}
@@ -401,8 +368,8 @@ export function OpportunityDetailDrawer({
                 type="button"
                 variant="danger"
               >
-                <Archive className="h-4 w-4" />
-                Arquivar oportunidade
+                <Archive aria-hidden="true" size={15} />
+                <span>Arquivar</span>
               </Button>
             ) : (
               <div />
@@ -413,12 +380,12 @@ export function OpportunityDetailDrawer({
                 Cancelar
               </Button>
               <Button disabled={isPending} type="submit" variant="primary">
-                {isPending ? "Salvando…" : "Salvar alterações"}
+                {isPending ? "Salvando…" : "Salvar"}
               </Button>
             </div>
           </div>
         </form>
       </div>
-    </dialog>
+    </Drawer>
   );
 }

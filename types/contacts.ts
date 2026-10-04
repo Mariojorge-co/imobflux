@@ -11,6 +11,7 @@ export type ContactListItem = {
   phoneDisplayValue: string | null;
   avatarUrl: string | null;
   isProtected: boolean;
+  conversationId: string | null;
 };
 
 export type ContactListFilters = {

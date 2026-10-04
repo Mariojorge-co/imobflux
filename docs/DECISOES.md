@@ -457,6 +457,25 @@ Data: 30 de julho de 2026.
   arquivamento. Não foi acrescentado índice trigram, coluna de telefone
   principal nem alteração especulativa no modelo.
 
+## Sprint 24 — refinamento funcional e ordenação do Kanban
+
+- Menus contextuais de Contatos e Kanban usam `ViewportMenu`, renderizado fora
+  de ancestrais com overflow, com posicionamento adaptativo, Escape, clique
+  externo e retorno de foco.
+- A identidade de conversa individual segue a precedência nome CRM →
+  identidade externa → telefone formatado. `pushName` nunca substitui nome CRM;
+  grupos continuam usando o assunto próprio.
+- A posição dos cards do Kanban é persistida em `opportunities.sort_order`.
+  A RPC `reorder_opportunity` executa a movimentação/reordenação de forma
+  transacional e auditada, sem aceitar workspace ou membro do cliente.
+- As migrations 30, 31 e 32 são forward-only. A migration 32 separa a
+  renumeração técnica de `sort_order` da atualização semântica de `updated_at`:
+  cards apenas deslocados preservam o timestamp; o card movimentado pode
+  atualizá-lo.
+- A validação manual da Sprint 24 foi concluída. A suíte automatizada final
+  ainda deve ser executada em ambiente descartável, pois o global setup atual
+  reseta o banco local.
+
 ## Padrões Arquiteturais e Decisões de Sistema (ADRs)
 
 ### 1. RPCs de Leitura com `SECURITY INVOKER` e RLS

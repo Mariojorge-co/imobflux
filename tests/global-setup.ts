@@ -1,6 +1,7 @@
 import { execSync } from "child_process";
 
 export default async function globalSetup() {
+  const kongContainer = process.env.IMOBFLUX_KONG_CONTAINER || "supabase_kong_imobflux";
   const env = {
     ...process.env,
     PATH: `C:\\Users\\User\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;${process.env.PATH || ""}`,
@@ -13,7 +14,7 @@ export default async function globalSetup() {
         env,
         stdio: "pipe",
       });
-      execSync("docker exec supabase_kong_imobflux kong reload", {
+      execSync(`docker exec ${kongContainer} kong reload`, {
         env,
         stdio: "pipe",
       });

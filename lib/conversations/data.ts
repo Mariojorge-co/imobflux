@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { resolveConversationIdentity } from "@/lib/conversations/identity";
 
 // ─── Tipos internos ───────────────────────────────────────────────────────────
 
@@ -201,6 +202,11 @@ export async function getConversationsInbox(
   return {
     items: items.map((item) => ({
       ...item,
+      participant_name: resolveConversationIdentity({
+        contactDisplayName: item.participant_name,
+        conversationType: item.conversation_type,
+        phoneDisplayValue: item.participant_phone,
+      }),
       next_cursor_ts: last?.last_activity_at ?? null,
       next_cursor_id: last?.conversation_id ?? null,
     })),
@@ -225,13 +231,74 @@ export async function getConversationById(
   if (found) return found;
 
   const supabase = await createServerSupabaseClient();
-  const { data: conv } = await supabase
+  const { data: conv, error: conversationError } = await supabase
     .from("conversations")
-    .select("id, conversation_type, visibility, operational_status, started_at, archived_at")
+    .select("id, workspace_id, conversation_type, visibility, operational_status, started_at, archived_at, subject")
     .eq("id", conversationId)
     .maybeSingle();
 
+  if (conversationError) {
+    throw new Error("Não foi possível carregar a conversa.");
+  }
   if (!conv) return null;
+
+  let contactId: string | null = null;
+  let contactDisplayName: string | null = null;
+  let externalDisplayName: string | null = null;
+  let phoneDisplayValue: string | null = null;
+  let normalizedPhone: string | null = null;
+
+  if (conv.conversation_type === "individual") {
+    const { data: participant, error: participantError } = await supabase
+      .from("conversation_participants")
+      .select("contact_point_id, external_display_name")
+      .eq("workspace_id", conv.workspace_id)
+      .eq("conversation_id", conv.id)
+      .is("left_at", null)
+      .order("first_seen_at", { ascending: true })
+      .order("id", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (participantError) {
+      throw new Error("Não foi possível carregar a identidade da conversa.");
+    }
+
+    externalDisplayName = participant?.external_display_name ?? null;
+
+    if (participant?.contact_point_id) {
+      const { data: point, error: pointError } = await supabase
+        .from("contact_points")
+        .select("id, contact_id, display_value, normalized_value, external_display_name")
+        .eq("workspace_id", conv.workspace_id)
+        .eq("id", participant.contact_point_id)
+        .maybeSingle();
+
+      if (pointError) {
+        throw new Error("Não foi possível carregar o telefone da conversa.");
+      }
+
+      contactId = point?.contact_id ?? null;
+      phoneDisplayValue = point?.display_value ?? null;
+      normalizedPhone = point?.normalized_value ?? null;
+      externalDisplayName ??= point?.external_display_name ?? null;
+
+      if (contactId) {
+        const { data: contact, error: contactError } = await supabase
+          .from("contacts")
+          .select("display_name")
+          .eq("workspace_id", conv.workspace_id)
+          .eq("id", contactId)
+          .maybeSingle();
+
+        if (contactError) {
+          throw new Error("Não foi possível carregar o contato da conversa.");
+        }
+
+        contactDisplayName = contact?.display_name ?? null;
+      }
+    }
+  }
 
   return {
     conversation_id: conv.id,
@@ -245,9 +312,16 @@ export async function getConversationById(
     last_msg_direction: null,
     last_msg_occurred_at: null,
     last_msg_author_name: null,
-    participant_name: null,
-    participant_phone: null,
-    contact_id: null,
+    participant_name: resolveConversationIdentity({
+      contactDisplayName,
+      conversationType: conv.conversation_type,
+      externalDisplayName,
+      groupSubject: conv.subject,
+      normalizedPhone,
+      phoneDisplayValue,
+    }),
+    participant_phone: phoneDisplayValue,
+    contact_id: contactId,
     is_unread: false,
     next_cursor_ts: null,
     next_cursor_id: null,

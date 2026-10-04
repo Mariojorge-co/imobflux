@@ -1,8 +1,8 @@
 # Schema PostgreSQL do ImobFlux
 
-Status: autenticação local, bootstrap inicial e RLS somente leitura para o
-OWNER individual implementados até a Sprint 13, sem dados de negócio ou
-integração externa.
+Status: schema local executável, RLS do OWNER, operações de Contatos e Kanban
+funcional implementados até a Sprint 24. O ambiente remoto permanece fora do
+escopo desta validação.
 
 ## 1. Objetivo
 
@@ -42,6 +42,9 @@ As migrations são aplicadas em ordem lexical e de dependência:
 | 8 | `20260802000800_grant_service_role_bootstrap_access.sql` | Privilégios mínimos do cliente administrativo isolado |
 | 9 | `20260802000900_enable_owner_rls.sql` | RLS somente leitura para o OWNER individual autenticado |
 | 10 | `20260802001000_add_contact_operations.sql` | Operações transacionais e auditadas do módulo Contatos |
+| 30 | `20260802003000_add_kanban_ordering.sql` | `sort_order`, índice, leitura ordenada e RPC `reorder_opportunity` |
+| 31 | `20260802003100_fix_kanban_reorder_updated_at.sql` | Reordenação sem atualizar semanticamente cards secundários |
+| 32 | `20260802003200_preserve_opportunity_updated_at_on_reorder.sql` | Trigger específico de `opportunities` para ignorar updates somente de `sort_order` |
 
 As migrations são forward-only, não contêm `IF NOT EXISTS` para esconder
 divergências e não incluem dados reais ou seed funcional. A migration corretiva
@@ -128,6 +131,15 @@ explicitamente revogados. `authenticated` continua sem `INSERT`, `UPDATE`,
 coluna e sempre substitui qualquer valor de `updated_at` enviado pelo cliente.
 `statement_timestamp()` representa o início da instrução corrente, portanto uma
 atualização posterior dentro da mesma transação recebe um instante posterior.
+`opportunities` possui adicionalmente `set_opportunity_updated_at()`. Esse
+trigger preserva `updated_at` quando a única alteração é `sort_order`, evitando
+que a renumeração de cards faça oportunidades não movimentadas parecerem
+recentemente editadas. Em qualquer alteração semântica, o timestamp continua
+sendo atualizado com `statement_timestamp()`.
+`reorder_opportunity(uuid, uuid, uuid, uuid)` deriva workspace e membro da
+sessão, exige exatamente um contexto OWNER ativo, bloqueia as oportunidades das
+colunas afetadas e persiste a posição antes do card informado ou no fim. A RPC
+registra auditoria e histórico de etapa quando há mudança de coluna.
 `pipeline_history` e `audit_events` possuem, cada uma, um trigger por linha para
 `UPDATE`/`DELETE` e um trigger por instrução para `TRUNCATE`. Não existe trigger
 de negócio, auditoria automática, criação de OWNER, sincronização ou alteração
@@ -182,6 +194,7 @@ explicitamente declarados para:
 - entrega e idempotência de mensagens;
 - anexos e associações ativas;
 - Kanban, responsável e contato da oportunidade;
+- `(workspace_id, current_stage_id, status, archived_at, sort_order, id)` para o Kanban ordenado;
 - tarefas por prazo, prioridade, responsável e contexto;
 - notas por contexto;
 - auditoria por tempo, alvo, ator e correlação.

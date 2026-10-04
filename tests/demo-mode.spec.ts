@@ -49,7 +49,8 @@ function queryPostgresJson<T>(sqlQuery: string): T[] {
   };
 
   const jsonWrapperQuery = `select json_agg(t) from (${sqlQuery}) t;`;
-  const command = `docker exec -i supabase_db_imobflux psql -h 127.0.0.1 -U postgres -d postgres -t -A -c "${jsonWrapperQuery.replace(/"/g, '\\"')}"`;
+  const dbContainer = process.env.IMOBFLUX_DB_CONTAINER || "supabase_db_imobflux";
+  const command = `docker exec -i ${dbContainer} psql -h 127.0.0.1 -U postgres -d postgres -t -A -c "${jsonWrapperQuery.replace(/"/g, '\\"')}"`;
 
   const rawOutput = execSync(command, { env, encoding: "utf-8" }).trim();
   if (!rawOutput) return [];

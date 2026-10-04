@@ -22,6 +22,8 @@ function localCommandEnvironment() {
 }
 
 const windowsShell = process.env.ComSpec || "C:\\Windows\\System32\\cmd.exe";
+const dbContainer = process.env.IMOBFLUX_DB_CONTAINER || "supabase_db_imobflux";
+const kongContainer = process.env.IMOBFLUX_KONG_CONTAINER || "supabase_kong_imobflux";
 
 export function resetLocalDatabase() {
   let lastError: unknown;
@@ -32,7 +34,7 @@ export function resetLocalDatabase() {
         shell: windowsShell,
         stdio: "pipe",
       });
-      execSync("docker exec supabase_kong_imobflux kong reload", {
+      execSync(`docker exec ${kongContainer} kong reload`, {
         env: localCommandEnvironment(),
         shell: windowsShell,
         stdio: "pipe",
@@ -120,7 +122,7 @@ export async function resetAndLoadDemoMode() {
 
 export function runLocalSql(sql: string) {
   execSync(
-    "docker exec -i supabase_db_imobflux psql -h 127.0.0.1 -v ON_ERROR_STOP=1 -U postgres -d postgres",
+    `docker exec -i ${dbContainer} psql -h 127.0.0.1 -v ON_ERROR_STOP=1 -U postgres -d postgres`,
     {
       env: localCommandEnvironment(),
       input: sql,
@@ -132,7 +134,7 @@ export function runLocalSql(sql: string) {
 
 export function queryLocalSql(sql: string): string {
   return execSync(
-    "docker exec -i supabase_db_imobflux psql -h 127.0.0.1 -t -A -v ON_ERROR_STOP=1 -U postgres -d postgres",
+    `docker exec -i ${dbContainer} psql -h 127.0.0.1 -t -A -v ON_ERROR_STOP=1 -U postgres -d postgres`,
     {
       env: localCommandEnvironment(),
       input: sql,
@@ -143,22 +145,16 @@ export function queryLocalSql(sql: string): string {
 }
 
 export async function loginAsDemoOwner(page: Page) {
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
-    await page.goto("/login");
-    await page.getByLabel("E-mail").fill(demoOwner.email);
-    await page.getByLabel("Senha").fill(demoOwner.password);
-    await page.getByRole("button", { name: "Entrar" }).click();
-    try {
-      await expect(page).toHaveURL(/\/prioridades$/, { timeout: 10_000 });
-      return;
-    } catch (error) {
-      if (attempt === 3) throw error;
-      await page.waitForTimeout(1_000);
-    }
-  }
+  await page.context().clearCookies();
+  await page.goto("/login");
+  await page.getByLabel("E-mail").fill(demoOwner.email);
+  await page.getByLabel("Senha").fill(demoOwner.password);
+  await page.getByRole("button", { name: "Entrar" }).click();
+  await expect(page).toHaveURL(/\/prioridades$/, { timeout: 10_000 });
 }
 
 export async function loginAsDemoAttendant(page: Page) {
+  await page.context().clearCookies();
   await page.goto("/login");
   await page.getByLabel("E-mail").fill(demoAttendant.email);
   await page.getByLabel("Senha").fill(demoAttendant.password);

@@ -293,8 +293,8 @@ test.describe.serial("local authentication flow", () => {
       page.getByRole("status").filter({ hasText: "Contato cadastrado com sucesso." }),
     ).toBeVisible();
     const table = page.getByRole("table");
-    await expect(table.getByText("Contato Playwright")).toBeVisible();
-    await expect(table.getByText("(82) 99999-1234")).toBeVisible();
+    await expect(table.getByText("Contato Playwright", { exact: true }).first()).toBeVisible();
+    await expect(table.getByText("(82) 99999-1234", { exact: true }).first()).toBeVisible();
   });
 
   test("filters contacts by name and normalized phone", async ({ page }) => {
@@ -307,10 +307,10 @@ test.describe.serial("local authentication flow", () => {
     const table = page.getByRole("table");
 
     await page.getByLabel("Buscar por nome ou telefone").fill("Playwright");
-    await expect(table.getByText("Contato Playwright")).toBeVisible();
+    await expect(table.getByText("Contato Playwright", { exact: true }).first()).toBeVisible();
 
     await page.getByLabel("Buscar por nome ou telefone").fill("+55 (82) 99999-1234");
-    await expect(table.getByText("Contato Playwright")).toBeVisible();
+    await expect(table.getByText("Contato Playwright", { exact: true }).first()).toBeVisible();
   });
 
   test("edits the supported contact and preserves its single phone", async ({ page }) => {
@@ -322,7 +322,9 @@ test.describe.serial("local authentication flow", () => {
     await page.goto("/contatos");
     const table = page.getByRole("table");
 
-    await table.getByRole("button", { name: "Editar Contato Playwright" }).click();
+    const contactRow = table.getByRole("row").filter({ hasText: "Contato Playwright" }).first();
+    await contactRow.getByRole("button", { name: /Ações secundárias para Contato Playwright/i }).click();
+    await page.getByRole("menuitem", { name: "Editar contato" }).click();
     const editDialog = page.getByRole("dialog", { name: "Editar contato" });
     await editDialog.getByRole("textbox", { name: "Nome" }).fill("Contato Playwright Atualizado");
     await editDialog.getByLabel("Classificação").selectOption("client");
@@ -332,9 +334,9 @@ test.describe.serial("local authentication flow", () => {
     await expect(
       page.getByRole("status").filter({ hasText: "Contato atualizado com sucesso." }),
     ).toBeVisible();
-    await expect(table.getByText("Contato Playwright Atualizado")).toBeVisible();
-    await expect(table.getByText("(82) 98888-1234")).toBeVisible();
-    await expect(table.getByText("Cliente")).toBeVisible();
+    await expect(table.getByText("Contato Playwright Atualizado", { exact: true }).first()).toBeVisible();
+    await expect(table.getByText("(82) 98888-1234", { exact: true }).first()).toBeVisible();
+    await expect(table.getByText("Cliente", { exact: true }).first()).toBeVisible();
   });
 
   test("inactivates, reactivates, archives, and restores a contact", async ({ page }) => {
@@ -346,18 +348,22 @@ test.describe.serial("local authentication flow", () => {
     await page.goto("/contatos");
     const table = page.getByRole("table");
 
-    await table.getByRole("button", { name: "Inativar" }).click();
+    const lifecycleRow = table.getByRole("row").filter({ hasText: "Contato Playwright Atualizado" }).first();
+    await lifecycleRow.getByRole("button", { name: /Ações secundárias para Contato Playwright Atualizado/i }).click();
+    await page.getByRole("menuitem", { name: "Inativar contato" }).click();
     await expect(
       page.getByRole("status").filter({ hasText: "Contato inativado." }),
     ).toBeVisible();
     await expect(table.getByText("Inativo")).toBeVisible();
 
-    await table.getByRole("button", { name: "Reativar" }).click();
+    await lifecycleRow.getByRole("button", { name: /Ações secundárias para Contato Playwright Atualizado/i }).click();
+    await page.getByRole("menuitem", { name: "Reativar contato" }).click();
     await expect(
       page.getByRole("status").filter({ hasText: "Contato reativado." }),
     ).toBeVisible();
 
-    await table.getByRole("button", { name: "Arquivar" }).click();
+    await lifecycleRow.getByRole("button", { name: /Ações secundárias para Contato Playwright Atualizado/i }).click();
+    await page.getByRole("menuitem", { name: "Arquivar contato" }).click();
     await expect(page.getByRole("heading", { name: "Arquivar contato?" })).toBeVisible();
     await page.getByRole("button", { name: "Arquivar contato" }).click();
     await expect(
@@ -366,8 +372,10 @@ test.describe.serial("local authentication flow", () => {
     await expect(table.getByText("Contato Playwright Atualizado")).not.toBeVisible();
 
     await page.getByLabel("Filtrar por arquivamento").selectOption("true");
-    await expect(table.getByText("Contato Playwright Atualizado")).toBeVisible();
-    await table.getByRole("button", { name: "Restaurar" }).click();
+    await expect(table.getByText("Contato Playwright Atualizado", { exact: true }).first()).toBeVisible();
+    const archivedRow = table.getByRole("row").filter({ hasText: "Contato Playwright Atualizado" }).first();
+    await archivedRow.getByRole("button", { name: /Ações secundárias para Contato Playwright Atualizado/i }).click();
+    await page.getByRole("menuitem", { name: "Restaurar contato" }).click();
     await expect(
       page.getByRole("status").filter({ hasText: "Contato restaurado." }),
     ).toBeVisible();

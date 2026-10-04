@@ -112,6 +112,14 @@ export type MoveOpportunityResult =
       error: string;
     };
 
+export type ReorderOpportunityResult =
+  | { success: true; opportunityId: string; stageId: string; beforeOpportunityId: string | null }
+  | {
+      success: false;
+      code: "CONFLICT" | "UNAUTHORIZED" | "VALIDATION_ERROR" | "INTERNAL_ERROR";
+      error: string;
+    };
+
 export type CreateOpportunityResult =
   | { success: true; opportunityId: string; opportunity?: KanbanCard }
   | { success: false; error: string };

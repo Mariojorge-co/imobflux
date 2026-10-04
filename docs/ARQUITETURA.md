@@ -62,6 +62,15 @@ CRM Corretor/
 - **Data Fetching (`lib/<domain>/data.ts`)**: Funções anotadas com `import "server-only"`. Consumidas exclusivamente por Server Components para buscar dados do banco via `createServerSupabaseClient()`.
 - **Server Actions (`lib/<domain>/actions.ts`)**: Funções anotadas com `"use server"`. Consumidas por Client Components para manipular submissões de formulário, buscas reativas em tempo real ou mutações disparadas pela UI.
 
+### 3.3. Overlays e identidade de conversas
+- `components/ui/viewport-menu.tsx` renderiza menus contextuais via portal em `document.body`, calcula abertura acima/abaixo da âncora e respeita limites da viewport, Escape, clique externo e retorno de foco.
+- A identidade de conversa individual é centralizada em `lib/conversations/identity.ts`: nome CRM, identidade externa e telefone formatado. O nome CRM nunca é sobrescrito por `pushName`; grupos mantêm regra própria.
+
+### 3.4. Ordenação persistente do Kanban
+- A posição dos cards é persistida em `opportunities.sort_order`.
+- `reorder_opportunity` é uma RPC transacional que valida o contexto OWNER, bloqueia as colunas afetadas, renumera posições e registra auditoria/histórico quando aplicável.
+- A migration 32 usa trigger específico para preservar `updated_at` quando o `UPDATE` altera somente `sort_order`. Alterações semânticas continuam atualizando o timestamp.
+
 ---
 
 ## 4. Estratégia de Acesso ao Banco de Dados (RPC vs Query Direta)

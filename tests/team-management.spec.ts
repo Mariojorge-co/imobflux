@@ -58,8 +58,8 @@ test.describe("Gestão de Equipe OWNER × ATTENDANT", () => {
     await expect(page.getByRole("link", { name: "Configurações" })).toHaveCount(0);
 
     await page.goto("/contatos");
-    await expect(page.getByRole("table").getByText("DEMO — Cliente Público")).toBeVisible();
-    await expect(page.getByRole("table").getByText("DEMO — Cliente Liberado Agora")).toBeVisible();
+    await expect(page.getByRole("table").getByText("DEMO — Cliente Público", { exact: true }).first()).toBeVisible();
+    await expect(page.getByRole("table").getByText("DEMO — Cliente Liberado Agora", { exact: true }).first()).toBeVisible();
     await expect(page.getByText("DEMO — Cliente Privado")).toHaveCount(0);
 
     await page.goto("/conversas/d3300003-0000-4000-8000-000000000003");
@@ -86,8 +86,12 @@ test.describe("Gestão de Equipe OWNER × ATTENDANT", () => {
     await expect(attendantPage.getByText("DEMO — Cliente Público").first()).toBeVisible();
 
     await ownerPage.goto("/contatos?q=DEMO%20%E2%80%94%20Cliente%20P%C3%BAblico");
-    await ownerPage.getByRole("button", { name: "Tornar OWNER-only" }).first().click();
-    await expect(ownerPage.getByRole("button", { name: "Visível para equipe" }).first()).toBeVisible();
+    const publicContactRow = ownerPage.getByRole("table").getByRole("row").filter({ hasText: "DEMO — Cliente Público" }).first();
+    await publicContactRow.getByRole("button", { name: /Ações secundárias/i }).click();
+    await ownerPage.getByRole("menuitem", { name: "Tornar OWNER-only" }).click();
+    await publicContactRow.getByRole("button", { name: /Ações secundárias/i }).click();
+    await expect(ownerPage.getByRole("menuitem", { name: "Visível para equipe" })).toBeVisible();
+    await ownerPage.keyboard.press("Escape");
 
     runLocalSql(`
       insert into public.messages (
@@ -134,8 +138,12 @@ test.describe("Gestão de Equipe OWNER × ATTENDANT", () => {
     await expect(attendantRow.getByText("Ativo", { exact: true })).toBeVisible();
 
     await ownerPage.goto("/contatos?q=DEMO%20%E2%80%94%20Cliente%20P%C3%BAblico");
-    await ownerPage.getByRole("button", { name: "Visível para equipe" }).first().click();
-    await expect(ownerPage.getByRole("button", { name: "Tornar OWNER-only" }).first()).toBeVisible();
+    const privateContactRow = ownerPage.getByRole("table").getByRole("row").filter({ hasText: "DEMO — Cliente Público" }).first();
+    await privateContactRow.getByRole("button", { name: /Ações secundárias/i }).click();
+    await ownerPage.getByRole("menuitem", { name: "Visível para equipe" }).click();
+    await privateContactRow.getByRole("button", { name: /Ações secundárias/i }).click();
+    await expect(ownerPage.getByRole("menuitem", { name: "Tornar OWNER-only" })).toBeVisible();
+    await ownerPage.keyboard.press("Escape");
 
     await attendantPage.goto("/prioridades");
     await expect(attendantPage).toHaveURL(/\/prioridades$/);
@@ -146,8 +154,9 @@ test.describe("Gestão de Equipe OWNER × ATTENDANT", () => {
 });
 
 async function findInviteLink(request: APIRequestContext, email: string) {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    const listResponse = await request.get("http://127.0.0.1:54324/api/v1/messages");
+  const inbucketUrl = process.env.IMOBFLUX_INBUCKET_URL || "http://127.0.0.1:54324";
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    const listResponse = await request.get(`${inbucketUrl}/api/v1/messages`);
     if (listResponse.ok()) {
       const list = await listResponse.json() as {
         messages?: Array<{ ID: string; To?: Array<{ Address?: string }> }>;
@@ -156,11 +165,22 @@ async function findInviteLink(request: APIRequestContext, email: string) {
         candidate.To?.some((recipient) => recipient.Address?.toLowerCase() === email.toLowerCase()),
       );
       if (message) {
-        const detailResponse = await request.get(`http://127.0.0.1:54324/api/v1/message/${message.ID}`);
+        const detailResponse = await request.get(`${inbucketUrl}/api/v1/message/${message.ID}`);
         const detail = await detailResponse.json() as { HTML?: string; Text?: string };
         const content = detail.HTML || detail.Text || "";
-        const match = content.match(/https?:\/\/[^"'<\s]+(?:auth\/confirm|auth\/v1\/verify)[^"'<\s]+/i);
-        if (match) return match[0].replaceAll("&amp;", "&");
+        const match = content.match(/https?:\/\/[^"'<\s]+\/auth\/(?:confirm|v1\/verify)\?[^"'<\s]+/i);
+        if (match) {
+          const appOrigin = process.env.IMOBFLUX_APP_ORIGIN || "http://localhost:3000";
+          const inviteUrl = new URL(match[0].replaceAll("&amp;", "&"));
+          if (inviteUrl.pathname === "/auth/v1/verify") {
+            const token = inviteUrl.searchParams.get("token");
+            if (!token) continue;
+            return `${appOrigin}/auth/confirm?token_hash=${encodeURIComponent(token)}&type=invite&next=/convite`;
+          }
+          inviteUrl.protocol = new URL(appOrigin).protocol;
+          inviteUrl.host = new URL(appOrigin).host;
+          return inviteUrl.toString();
+        }
       }
     }
     await new Promise((resolve) => setTimeout(resolve, 250));

@@ -492,8 +492,8 @@ select is(
         where schema_record.nspname in ('public', 'private')
           and function_record.prosecdef
     ),
-    50::bigint,
-    'only the owner context and approved domain operations use SECURITY DEFINER'
+    51::bigint,
+    'only the owner context and approved domain operations use SECURITY DEFINER (including reorder_opportunity)'
 );
 
 select ok(

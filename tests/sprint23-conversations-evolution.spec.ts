@@ -118,6 +118,7 @@ test.describe("Sprint 23 — Conversas 2.0 & Evolução Operacional", () => {
 
     await expect(page.getByRole("button", { name: "Mensagem", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Nota interna" })).toBeVisible();
+    await page.getByRole("button", { name: "Abrir dados do cliente" }).click();
     await expect(page.getByRole("button", { name: "Nova ação" })).toBeVisible();
     await expect(page.getByRole("textbox", { name: /Digitar/i })).toBeVisible();
     await expect(page.getByRole("button", { name: "Marcar como não lida" })).toBeVisible();
@@ -145,6 +146,7 @@ test.describe("Sprint 23 — Conversas 2.0 & Evolução Operacional", () => {
     await page.goto("/conversas/d3300003-0000-4000-8000-000000000001");
 
     // 1. Abre o formulário de ação no painel lateral existente
+    await page.getByRole("button", { name: "Abrir dados do cliente" }).click();
     await page.getByRole("button", { name: "Nova ação" }).click();
 
     // 2. Preenche título da Próxima Ação (task_type = 'task')
@@ -172,6 +174,7 @@ test.describe("Sprint 23 — Conversas 2.0 & Evolução Operacional", () => {
     await page.goto("/conversas/d3300003-0000-4000-8000-000000000001");
 
     // Se houver mais de uma oportunidade, o seletor é renderizado no topo do painel
+    await page.getByRole("button", { name: "Abrir dados do cliente" }).click();
     const oppSelector = page.getByRole("combobox", { name: /Selecionar oportunidade/i });
     await expect(oppSelector).toBeVisible();
     const options = await oppSelector.locator("option").allInnerTexts();
@@ -217,6 +220,7 @@ test.describe("Sprint 23 — Conversas 2.0 & Evolução Operacional", () => {
     await loginAsDemoOwner(page);
     await page.goto("/conversas/d3300003-0000-4000-8000-000000000001");
 
+    await page.getByRole("button", { name: "Abrir dados do cliente" }).click();
     const opportunitySelector = page.getByRole("combobox", {
       name: "Selecionar oportunidade",
     });
@@ -225,9 +229,11 @@ test.describe("Sprint 23 — Conversas 2.0 & Evolução Operacional", () => {
     const content = `Nota exclusiva oportunidade A ${Date.now()}`;
 
     await opportunitySelector.selectOption(opportunityA);
+    await page.getByRole("button", { name: "Fechar painel lateral" }).click();
     await page.getByRole("button", { name: "Nota interna" }).click();
     await page.getByRole("textbox", { name: /Digitar nota interna/i }).fill(content);
     await page.getByRole("button", { name: "Salvar nota interna" }).click();
+    await page.getByRole("button", { name: "Abrir dados do cliente" }).click();
 
     const noteCard = page.getByRole("article").filter({ hasText: content });
     await expect(noteCard).toBeVisible();
@@ -241,6 +247,7 @@ test.describe("Sprint 23 — Conversas 2.0 & Evolução Operacional", () => {
     await expect(noteCard).toBeVisible();
 
     await page.reload();
+    await page.getByRole("button", { name: "Abrir dados do cliente" }).click();
     await page.getByRole("combobox", { name: "Selecionar oportunidade" }).selectOption(opportunityA);
     await expect(page.getByRole("article").filter({ hasText: content })).toBeVisible();
 
