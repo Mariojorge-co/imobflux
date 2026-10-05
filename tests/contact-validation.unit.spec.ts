@@ -39,12 +39,29 @@ test("normalizes +55 with eleven national digits", () => {
   });
 });
 
-test("rejects an explicit +1 international prefix", () => {
-  expect(normalizeBrazilianPhone("+1 212 555 0199")).toBeNull();
+test("accepts an explicit +1 international prefix", () => {
+  expect(normalizeBrazilianPhone("+1 212 555 0199")).toEqual({
+    displayValue: "+1 212 555 0199",
+    normalizedValue: "+12125550199",
+  });
 });
 
-test("rejects another explicit international prefix", () => {
-  expect(normalizeBrazilianPhone("+44 20 7946 0958")).toBeNull();
+test("accepts another explicit international prefix in E.164 form", () => {
+  expect(normalizeBrazilianPhone("+44 20 7946 0958")).toEqual({
+    displayValue: "+44 20 7946 0958",
+    normalizedValue: "+442079460958",
+  });
+});
+
+test("accepts an international E.164 number with formatting", () => {
+  expect(normalizeBrazilianPhone("+1 (212) 555-0199")).toEqual({
+    displayValue: "+1 (212) 555-0199",
+    normalizedValue: "+12125550199",
+  });
+});
+
+test("rejects international numbers outside the E.164 digit limit", () => {
+  expect(normalizeBrazilianPhone("+1234567890123456")).toBeNull();
 });
 
 test("rejects invalid phone sizes", () => {

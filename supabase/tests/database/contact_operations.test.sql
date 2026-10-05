@@ -2,7 +2,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions, auth, pg_catalog;
 
-select plan(41);
+select plan(43);
 
 create temporary table contact_operation_functions (
     function_name text primary key,
@@ -473,6 +473,22 @@ select is(
     (select count(*) from public.contacts where display_name = 'Telefone Inválido'),
     0::bigint,
     'invalid phone failure rolls back without a contact'
+);
+
+create temporary table international_contact on commit drop as
+select public.create_contact('International Contact', 'lead', '+12125550199', '+1 (212) 555-0199') as id;
+
+select is(
+    (select normalized_value from public.contact_points where contact_id = (select id from international_contact)),
+    '+12125550199'::text,
+    'an explicit international E.164 phone is stored canonically'
+);
+
+select throws_ok(
+    $test$ select public.create_contact('Telefone Longo', 'lead', '+1234567890123456', '+1234567890123456') $test$,
+    '22023',
+    'contact_phone_invalid',
+    'an international phone longer than E.164 is rejected'
 );
 
 select throws_ok(

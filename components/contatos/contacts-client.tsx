@@ -171,11 +171,12 @@ function ContactFormDialog({
             defaultValue={contact?.phoneDisplayValue ?? ""}
             id="contact-phone"
             inputMode="tel"
+            maxLength={25}
             name="phone"
             placeholder="(82) 99999-9999"
           />
           <span className="block text-caption text-text-muted">
-            Opcional. Use um telefone brasileiro com DDD.
+            Opcional. Brasil com DDD ou número internacional (+).
           </span>
         </label>
 

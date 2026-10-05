@@ -46,7 +46,7 @@ function validationErrorMessage(error: string) {
     classification: "Selecione uma classificação válida.",
     forbidden_field: invalidOperationMessage,
     name: "Informe o nome do contato.",
-    phone: "Informe um telefone brasileiro válido com DDD.",
+    phone: "Informe um telefone válido (Brasil com DDD ou formato internacional).",
   } as const;
 
   return messages[error as keyof typeof messages] ?? invalidOperationMessage;

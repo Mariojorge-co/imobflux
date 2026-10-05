@@ -1,37 +1,50 @@
-export type NormalizedBrazilianPhone = {
+export type NormalizedPhone = {
   displayValue: string;
   normalizedValue: string;
 };
 
-/** Normalizes the Brazilian phone formats accepted by the first Contacts MVP. */
+/** Backwards-compatible name for callers that only handled Brazilian numbers. */
+export type NormalizedBrazilianPhone = NormalizedPhone;
+
+/**
+ * Normalizes a manually entered phone to an E.164 identity.
+ *
+ * Numbers without an explicit international prefix use Brazil (+55) as the
+ * default and therefore must contain a Brazilian DDD plus 8 or 9 digits.
+ * Explicit international numbers may contain formatting punctuation and must
+ * contain 8–15 digits after the leading plus, as required by E.164.
+ */
 export function normalizeBrazilianPhone(
   value: string,
-): NormalizedBrazilianPhone | null {
+): NormalizedPhone | null {
   const displayValue = value.trim();
 
   if (!displayValue) {
     return null;
   }
 
-  const digits = displayValue.replace(/\D/g, "");
   const hasExplicitInternationalPrefix = displayValue.startsWith("+");
-  const nationalNumber = hasExplicitInternationalPrefix
-    ? (digits.length === 12 || digits.length === 13) &&
-        digits.startsWith("55") &&
-        (digits.length - 2 === 10 || digits.length - 2 === 11)
-      ? digits.slice(2)
-      : null
-    : (digits.length === 10 || digits.length === 11) && digits
-      ? digits
-      : null;
+  const digits = displayValue.replace(/[\s().-]/g, "");
 
-  if (!nationalNumber) {
+  if (hasExplicitInternationalPrefix) {
+    const internationalDigits = digits.slice(1);
+    if (!/^[1-9][0-9]{7,14}$/.test(internationalDigits)) {
+      return null;
+    }
+
+    return {
+      displayValue,
+      normalizedValue: `+${internationalDigits}`,
+    };
+  }
+
+  if (!/^[0-9]+$/.test(digits) || ![10, 11].includes(digits.length)) {
     return null;
   }
 
   return {
     displayValue,
-    normalizedValue: `+55${nationalNumber}`,
+    normalizedValue: `+55${digits}`,
   };
 }
 
