@@ -2,7 +2,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions, auth, pg_catalog;
 
-select plan(60);
+select plan(61);
 
 create temporary table domain_tables (
     table_name text primary key
@@ -305,6 +305,30 @@ select is(
     ),
     0::bigint,
     'service_role receives no additional domain privilege'
+);
+
+select is(
+    (
+        select count(*)
+        from domain_tables
+        where pg_catalog.has_table_privilege(
+            'anon',
+            pg_catalog.format('public.%I', table_name),
+            'maintain'
+        )
+        or pg_catalog.has_table_privilege(
+            'authenticated',
+            pg_catalog.format('public.%I', table_name),
+            'maintain'
+        )
+        or pg_catalog.has_table_privilege(
+            'service_role',
+            pg_catalog.format('public.%I', table_name),
+            'maintain'
+        )
+    ),
+    0::bigint,
+    'anon, authenticated and service_role have no MAINTAIN privilege on domain tables'
 );
 
 select has_schema('private', 'private authorization schema exists');

@@ -156,7 +156,7 @@ select is(
             'select'
         )
     ),
-    array['app_users', 'opportunity_financials', 'pipeline_stages', 'workspace_members', 'workspaces']::text[],
+    array['app_users', 'pipeline_stages', 'workspace_members', 'workspaces']::text[],
     'service_role has SELECT on authorized tables'
 );
 
@@ -173,7 +173,6 @@ select is(
     array[
         'app_users',
         'audit_events',
-        'opportunity_financials',
         'pipeline_stages',
         'workspace_members',
         'workspaces'
@@ -191,8 +190,8 @@ select is(
             'update'
         )
     ),
-    1::bigint,
-    'service_role has UPDATE on opportunity_financials'
+    0::bigint,
+    'service_role has no UPDATE on domain tables'
 );
 
 select is(
@@ -219,8 +218,8 @@ select is(
             'truncate'
         )
     ),
-    1::bigint,
-    'service_role has TRUNCATE on opportunity_financials'
+    0::bigint,
+    'service_role has no TRUNCATE on domain tables'
 );
 
 select is(
@@ -233,8 +232,8 @@ select is(
             'trigger'
         )
     ),
-    1::bigint,
-    'service_role has TRIGGER on opportunity_financials'
+    0::bigint,
+    'service_role has no TRIGGER on domain tables'
 );
 
 select is(
@@ -247,8 +246,8 @@ select is(
             'references'
         )
     ),
-    1::bigint,
-    'service_role has REFERENCES on opportunity_financials'
+    0::bigint,
+    'service_role has no REFERENCES on domain tables'
 );
 
 select is(
@@ -454,8 +453,8 @@ select is(
             'insert'
         )
     ),
-    1::bigint,
-    'authenticated has INSERT on opportunity_financials'
+    0::bigint,
+    'authenticated has no direct INSERT on domain tables'
 );
 
 select is(
@@ -468,8 +467,8 @@ select is(
             'update'
         )
     ),
-    1::bigint,
-    'authenticated has UPDATE on opportunity_financials'
+    0::bigint,
+    'authenticated has no direct UPDATE on domain tables'
 );
 
 select is(
