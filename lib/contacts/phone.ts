@@ -28,6 +28,17 @@ export function normalizeBrazilianPhone(
 
   if (hasExplicitInternationalPrefix) {
     const internationalDigits = digits.slice(1);
+    if (internationalDigits.startsWith("55")) {
+      if (!/^55[0-9]{10,11}$/.test(internationalDigits)) {
+        return null;
+      }
+
+      return {
+        displayValue,
+        normalizedValue: `+${internationalDigits}`,
+      };
+    }
+
     if (!/^[1-9][0-9]{7,14}$/.test(internationalDigits)) {
       return null;
     }
