@@ -84,8 +84,10 @@ test("rejects an empty contact name and invalid classification", () => {
   );
 });
 
-test("rejects invalid Brazilian phones before the RPC", () => {
-  expect(validateContactForm(contactForm({ phone: "+551234" }))).toBe("phone");
+test("classifies invalid Brazilian and international phones before the RPC", () => {
+  expect(validateContactForm(contactForm({ phone: "+551234" }))).toBe("phone_brazil_invalid");
+  expect(validateContactForm(contactForm({ phone: "+1 2" }))).toBe("phone_international_invalid");
+  expect(validateContactForm(contactForm({ phone: "8299929292900000000000000" }))).toBe("phone_too_long");
 });
 
 test("rejects privacy and authorization fields submitted by the client", () => {

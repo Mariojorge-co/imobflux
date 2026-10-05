@@ -1,4 +1,5 @@
 import {
+  getPhoneValidationError,
   normalizeBrazilianPhone,
   type NormalizedBrazilianPhone,
 } from "@/lib/contacts/phone";
@@ -24,7 +25,9 @@ export type ContactValidationError =
   | "classification"
   | "forbidden_field"
   | "name"
-  | "phone";
+  | "phone_brazil_invalid"
+  | "phone_international_invalid"
+  | "phone_too_long";
 
 function readText(formData: FormData, field: string) {
   const value = formData.get(field);
@@ -66,7 +69,12 @@ export function validateContactForm(
   const phone = phoneValue ? normalizeBrazilianPhone(phoneValue) : null;
 
   if (phoneValue && !phone) {
-    return "phone";
+    const phoneError = getPhoneValidationError(phoneValue);
+    return phoneError === "too_long"
+      ? "phone_too_long"
+      : phoneError === "international_invalid"
+        ? "phone_international_invalid"
+        : "phone_brazil_invalid";
   }
 
   return {

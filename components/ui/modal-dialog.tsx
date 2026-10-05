@@ -21,6 +21,7 @@ export function ModalDialog({
 }: ModalDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const pointerStartedInsideRef = useRef(false);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -46,8 +47,17 @@ export function ModalDialog({
         event.preventDefault();
         onOpenChange(false);
       }}
+      onPointerDown={(event) => {
+        pointerStartedInsideRef.current = event.target !== event.currentTarget;
+      }}
       onClick={(event) => {
-        if (event.target === event.currentTarget) onOpenChange(false);
+        if (
+          event.target === event.currentTarget &&
+          !pointerStartedInsideRef.current
+        ) {
+          onOpenChange(false);
+        }
+        pointerStartedInsideRef.current = false;
       }}
       ref={dialogRef}
     >

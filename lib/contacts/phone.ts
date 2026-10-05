@@ -6,6 +6,11 @@ export type NormalizedPhone = {
 /** Backwards-compatible name for callers that only handled Brazilian numbers. */
 export type NormalizedBrazilianPhone = NormalizedPhone;
 
+export type PhoneValidationError =
+  | "brazil_invalid"
+  | "international_invalid"
+  | "too_long";
+
 /**
  * Normalizes a manually entered phone to an E.164 identity.
  *
@@ -61,4 +66,19 @@ export function normalizeBrazilianPhone(
 
 export function looksLikePhoneSearch(value: string) {
   return /^[+\d\s().-]+$/.test(value.trim());
+}
+
+export function getPhoneValidationError(value: string): PhoneValidationError {
+  const trimmed = value.trim();
+  const digits = trimmed.replace(/\D/g, "");
+
+  if (digits.length > 15) {
+    return "too_long";
+  }
+
+  if (trimmed.startsWith("+")) {
+    return digits.startsWith("55") ? "brazil_invalid" : "international_invalid";
+  }
+
+  return "brazil_invalid";
 }

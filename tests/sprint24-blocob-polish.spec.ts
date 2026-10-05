@@ -92,6 +92,28 @@ test.describe.serial("Sprint 24 Bloco B — Contatos e Kanban Visual & Responsiv
     await expect(dialog).not.toBeVisible();
   });
 
+  test("Contatos: selecionar telefone para fora do modal não fecha o diálogo", async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await loginAsDemoOwner(page);
+
+    await page.goto("/contatos");
+    await page.getByRole("button", { name: /novo contato/i }).click();
+    const dialog = page.getByRole("dialog", { name: "Novo contato" });
+    const phoneInput = dialog.getByLabel("Telefone principal");
+    const box = await phoneInput.boundingBox();
+
+    expect(box).not.toBeNull();
+    if (!box) return;
+
+    await page.mouse.move(box.x + box.width - 8, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x - 80, box.y + box.height / 2);
+    await page.mouse.up();
+
+    await expect(dialog).toBeVisible();
+    await expect(phoneInput).toBeVisible();
+  });
+
   test("Kanban: Modal de nova oportunidade abre e fecha com acessibilidade", async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
     await loginAsDemoOwner(page);
