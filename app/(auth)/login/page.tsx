@@ -43,6 +43,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         </p>
       ) : null}
       <LoginForm />
+      <p className="text-center text-caption text-text-muted"><Link className="underline-offset-4 hover:underline" href="/redefinir-senha">Esqueci minha senha</Link></p>
       {setupOpen ? (
         <p className="text-center text-caption text-text-muted">
           Primeira utilização?{" "}

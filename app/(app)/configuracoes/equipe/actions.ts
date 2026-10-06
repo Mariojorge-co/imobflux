@@ -37,6 +37,13 @@ async function invitationRedirectUrl() {
   return `${origin}/convite`;
 }
 
+async function recoveryRedirectUrl(next = "/redefinir-senha") {
+  const requestHeaders = await headers();
+  const origin = requestHeaders.get("origin");
+  if (!origin) throw new Error("invalid_origin");
+  return `${origin}/auth/confirm?type=recovery&next=${encodeURIComponent(next)}`;
+}
+
 export async function inviteMemberAction(formData: FormData): Promise<TeamActionResult> {
   try {
     await assertTrustedServerActionOrigin();
@@ -120,6 +127,14 @@ export async function resendInviteAction(memberId: string): Promise<TeamActionRe
   }
 
   const admin = createAdminSupabaseClient();
+  if (invitation.auth_user_id) {
+    const recovery = await supabase.auth.resetPasswordForEmail(invitation.email, { redirectTo: await recoveryRedirectUrl("/convite") });
+    if (recovery.error) return { message: "Não foi possível solicitar o novo acesso.", status: "error" };
+    const marked = await supabase.rpc("mark_team_invitation_resent", { p_member_id: memberId });
+    if (marked.error) return { message: "O e-mail foi solicitado, mas o convite não pôde ser atualizado.", status: "warning" };
+    revalidatePath("/configuracoes/equipe");
+    return { message: "Novo acesso solicitado ao serviço de e-mail.", status: "success" };
+  }
   const invited = await admin.auth.admin.inviteUserByEmail(invitation.email, {
     data: { display_name: invitation.display_name },
     redirectTo: await invitationRedirectUrl(),

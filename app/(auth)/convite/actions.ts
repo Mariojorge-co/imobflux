@@ -3,11 +3,19 @@
 import { redirect } from "next/navigation";
 import { assertTrustedServerActionOrigin } from "@/lib/auth/security";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getPendingInvitationForUser } from "@/lib/auth/invitation";
 
 export type InvitationActionState = {
   message: string;
   status: "error" | "idle";
 };
+
+export async function continueInvitationAction() {
+  await assertTrustedServerActionOrigin();
+  const supabase = await createServerSupabaseClient();
+  await supabase.auth.signOut({ scope: "local" });
+  redirect("/auth/confirm?resume=1");
+}
 
 export async function acceptInvitationAction(
   _previous: InvitationActionState,
@@ -35,6 +43,10 @@ export async function acceptInvitationAction(
   const user = await supabase.auth.getUser();
   if (user.error || !user.data.user) {
     return { message: "O convite não é mais válido. Solicite um novo convite.", status: "error" };
+  }
+  if (!user.data.user.email || !(await getPendingInvitationForUser(user.data.user.id, user.data.user.email))) {
+    await supabase.auth.signOut({ scope: "local" });
+    return { message: "Este convite não é válido para a conta atual.", status: "error" };
   }
 
   const passwordUpdate = await supabase.auth.updateUser({ password });
