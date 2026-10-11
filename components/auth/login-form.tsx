@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { loginAction } from "@/app/(auth)/login/actions";
 import { Button, Input } from "@/components/ui";
+import { PasswordInput } from "@/components/auth/password-input";
 import { initialAuthActionState } from "@/lib/auth/validation";
 
 export function LoginForm() {
@@ -29,12 +30,11 @@ export function LoginForm() {
         <label className="text-body font-medium text-text" htmlFor="password">
           Senha
         </label>
-        <Input
+        <PasswordInput
           autoComplete="current-password"
           id="password"
           name="password"
           required
-          type="password"
         />
       </div>
       {state.message ? (

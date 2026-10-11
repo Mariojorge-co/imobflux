@@ -347,4 +347,44 @@ test.describe("Evolution API Webhook Route Handler & Parser Complete Unit Tests"
     const res = await POST(req);
     expect(res.status).toBe(400);
   });
+
+  // 12. Falha fechado: sem EVOLUTION_WEBHOOK_SECRET nenhuma requisição é aceita
+  for (const incoming of [undefined, "", "qualquer-valor"]) {
+    test(`12. sem EVOLUTION_WEBHOOK_SECRET configurado rejeita (header ${incoming === undefined ? "ausente" : JSON.stringify(incoming)})`, async () => {
+      delete process.env.EVOLUTION_WEBHOOK_SECRET;
+      const req = createMockRequest({
+        headers: incoming === undefined ? {} : { "x-evolution-secret": incoming },
+        body: { event: "messages.upsert", instance: "inst-1", data: {} },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(401);
+      expect(rpcCalls).toHaveLength(0);
+    });
+  }
+
+  test("12b. secret configurado vazio também rejeita", async () => {
+    process.env.EVOLUTION_WEBHOOK_SECRET = "";
+    const req = createMockRequest({
+      headers: { "x-evolution-secret": "" },
+      body: { event: "messages.upsert", instance: "inst-1", data: {} },
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(401);
+    expect(rpcCalls).toHaveLength(0);
+  });
+
+  // 13. Comparação em tempo constante sem exceção por tamanhos diferentes
+  test("13. validateWebhookSecret compara sem lançar exceção para tamanhos diferentes", () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { validateWebhookSecret } = require("@/lib/conversations/webhook");
+    expect(validateWebhookSecret("secret_token_123", "secret_token_123")).toBe(true);
+    expect(validateWebhookSecret("curto", "secret_token_123")).toBe(false);
+    expect(validateWebhookSecret("secret_token_123_mais_longo", "secret_token_123")).toBe(false);
+    expect(validateWebhookSecret("secret_token_124", "secret_token_123")).toBe(false);
+    expect(validateWebhookSecret(null, "secret_token_123")).toBe(false);
+    expect(validateWebhookSecret("secret_token_123", undefined)).toBe(false);
+    expect(validateWebhookSecret("", "")).toBe(false);
+  });
 });

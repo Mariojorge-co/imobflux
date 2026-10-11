@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { setupAction } from "@/app/(auth)/setup/actions";
 import { Button, Input } from "@/components/ui";
+import { PasswordInput } from "@/components/auth/password-input";
 import { initialAuthActionState } from "@/lib/auth/validation";
 
 export function SetupForm() {
@@ -46,12 +47,11 @@ export function SetupForm() {
         <label className="text-body font-medium text-text" htmlFor="password">
           Senha
         </label>
-        <Input
+        <PasswordInput
           autoComplete="new-password"
           id="password"
           name="password"
           required
-          type="password"
         />
       </div>
       <div className="space-y-1.5">

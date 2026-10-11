@@ -4,7 +4,8 @@ import { useActionState } from "react";
 import {
   acceptInvitationAction,
 } from "@/app/(auth)/convite/actions";
-import { Button, Input } from "@/components/ui";
+import { Button } from "@/components/ui";
+import { PasswordInput } from "@/components/auth/password-input";
 
 export function InvitationPasswordForm({ passwordDefined = false }: { passwordDefined?: boolean }) {
   const [state, action, pending] = useActionState(
@@ -19,13 +20,13 @@ export function InvitationPasswordForm({ passwordDefined = false }: { passwordDe
         <label className="text-body font-medium text-text" htmlFor="password">
           Crie sua senha
         </label>
-        <Input autoComplete="new-password" id="password" minLength={8} name="password" required type="password" />
+        <PasswordInput autoComplete="new-password" id="password" minLength={8} name="password" required />
       </div>
       <div className="space-y-1.5">
         <label className="text-body font-medium text-text" htmlFor="passwordConfirmation">
           Confirme sua senha
         </label>
-        <Input autoComplete="new-password" id="passwordConfirmation" minLength={8} name="passwordConfirmation" required type="password" />
+        <PasswordInput autoComplete="new-password" id="passwordConfirmation" minLength={8} name="passwordConfirmation" required />
       </div>
       </>}
       {state.message ? <p aria-live="polite" className="text-body text-danger" role="status">{state.message}</p> : null}

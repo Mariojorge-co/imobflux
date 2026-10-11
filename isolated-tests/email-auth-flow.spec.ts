@@ -171,6 +171,26 @@ test("recuperação geral de convidado conduz ao aceite em vez de deixar víncul
   } finally { await context.close(); }
 });
 
+test("botão de exibir senha alterna o campo e volta a ocultar ao enviar", async ({ page }) => {
+  await page.goto("/login");
+  const field = page.getByLabel("Senha", { exact: true });
+  const toggle = page.getByRole("button", { name: "Mostrar caracteres", exact: true });
+  await field.fill("valor-visivel-123");
+  await expect(field).toHaveAttribute("type", "password");
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  await toggle.click();
+  await expect(field).toHaveAttribute("type", "text");
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await toggle.click();
+  await expect(field).toHaveAttribute("type", "password");
+  await toggle.click();
+  await page.getByLabel("E-mail").fill("inexistente@example.test");
+  await page.getByRole("button", { name: "Entrar", exact: true }).click();
+  await expect(page.getByRole("status")).toBeVisible();
+  await expect(page.getByLabel("Senha", { exact: true })).toHaveAttribute("type", "password");
+  await expect(page.getByRole("button", { name: "Mostrar caracteres", exact: true })).toHaveAttribute("aria-pressed", "false");
+});
+
 test("link reutilizado ou inválido não oferece alteração de senha", async ({ page, browser, request }) => {
   await login(page, ownerEmail); const email = staffEmail(); await invite(page, email); const link = await emailLink(request, email);
   const context = await browser.newContext();

@@ -2,7 +2,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions, auth, pg_catalog;
 
-select plan(76);
+select plan(80);
 
 insert into auth.users (id, email)
 values
@@ -134,7 +134,9 @@ values
   ('a2400009-0000-4000-8000-000000000002', 'a2400001-0000-4000-8000-000000000001', 'a2400004-0000-4000-8000-000000000001', 'a2400007-0000-4000-8000-000000000001', 'privacy-public-after', 'incoming', 'whatsapp', 'a2400006-0000-4000-8000-000000000001', 'Pública após o corte', 'received', now() - interval '30 minutes', now() - interval '30 minutes', now(), now() - interval '30 minutes'),
   ('a2400009-0000-4000-8000-000000000003', 'a2400001-0000-4000-8000-000000000001', 'a2400004-0000-4000-8000-000000000001', 'a2400007-0000-4000-8000-000000000002', 'privacy-private', 'incoming', 'whatsapp', 'a2400006-0000-4000-8000-000000000002', 'Mensagem privada', 'received', now() - interval '20 minutes', now() - interval '20 minutes', now(), now() - interval '20 minutes'),
   ('a2400009-0000-4000-8000-000000000004', 'a2400001-0000-4000-8000-000000000001', 'a2400004-0000-4000-8000-000000000001', 'a2400007-0000-4000-8000-000000000003', 'privacy-group-before', 'incoming', 'whatsapp', 'a2400006-0000-4000-8000-000000000002', 'Grupo antes do corte', 'received', now() - interval '90 minutes', now() - interval '90 minutes', now(), now() - interval '90 minutes'),
-  ('a2400009-0000-4000-8000-000000000005', 'a2400001-0000-4000-8000-000000000001', 'a2400004-0000-4000-8000-000000000001', 'a2400007-0000-4000-8000-000000000003', 'privacy-group-after', 'incoming', 'whatsapp', 'a2400006-0000-4000-8000-000000000002', 'Grupo após o corte', 'received', now() - interval '15 minutes', now() - interval '15 minutes', now(), now() - interval '15 minutes');
+  ('a2400009-0000-4000-8000-000000000005', 'a2400001-0000-4000-8000-000000000001', 'a2400004-0000-4000-8000-000000000001', 'a2400007-0000-4000-8000-000000000003', 'privacy-group-after', 'incoming', 'whatsapp', 'a2400006-0000-4000-8000-000000000002', 'Grupo após o corte', 'received', now() - interval '15 minutes', now() - interval '15 minutes', now(), now() - interval '15 minutes'),
+  -- Controle positivo: mensagem do mesmo grupo liberado sem remetente protegido.
+  ('a2400009-0000-4000-8000-0000000000a6', 'a2400001-0000-4000-8000-000000000001', 'a2400004-0000-4000-8000-000000000001', 'a2400007-0000-4000-8000-000000000003', 'privacy-group-unprotected', 'incoming', 'whatsapp', 'a2400006-0000-4000-8000-000000000001', 'Grupo de contato não protegido', 'received', now() - interval '10 minutes', now() - interval '10 minutes', now(), now() - interval '10 minutes');
 
 insert into public.conversation_assignments (
   id, workspace_id, conversation_id, member_id, assigned_by_member_id, assigned_at
@@ -162,7 +164,8 @@ set local "request.jwt.claim.sub" = 'a2400000-0000-4000-8000-000000000001';
 select is((select member_role from private.active_member_context()), 'owner', 'OWNER has an active member context');
 select is((select count(*) from public.contacts), 2::bigint, 'OWNER sees public and private contacts');
 select is((select count(*) from public.conversations), 4::bigint, 'OWNER sees individual and group conversations regardless of privacy');
-select is((select count(*) from public.messages), 5::bigint, 'OWNER sees messages before and after visibility cutoffs');
+select is((select count(*) from public.messages), 6::bigint, 'OWNER sees messages before and after visibility cutoffs');
+select is((select count(*) from public.conversation_participants where contact_point_id = 'a2400006-0000-4000-8000-000000000002'), 2::bigint, 'OWNER sees the protected contact participant rows');
 select is((select count(*) from public.opportunities), 3::bigint, 'OWNER sees historical and private opportunities');
 
 set local "request.jwt.claim.sub" = 'a2400000-0000-4000-8000-000000000002';
@@ -177,11 +180,14 @@ select results_eq(
 );
 select results_eq(
   'select text_content from public.messages order by text_content',
-  array['Grupo após o corte', 'Pública após o corte'],
-  'ATTENDANT sees only messages in the current authorized epochs'
+  array['Grupo de contato não protegido', 'Pública após o corte'],
+  'ATTENDANT sees only messages in the current authorized epochs and never a protected contact message, even in a released group'
 );
+select is((select count(*) from public.messages where text_content in ('Grupo antes do corte', 'Grupo após o corte')), 0::bigint, 'protected contact group messages stay hidden from ATTENDANT in a released group');
 select is((select count(*) from public.contact_points where id = 'a2400006-0000-4000-8000-000000000002'), 0::bigint, 'group access does not expose the private contact point');
-select is((select count(*) from public.conversation_participants where conversation_id = 'a2400007-0000-4000-8000-000000000003'), 1::bigint, 'released group exposes its scoped participant representation');
+select is((select count(*) from public.conversation_participants where conversation_id = 'a2400007-0000-4000-8000-000000000003'), 0::bigint, 'released group does not expose the protected contact participant');
+select is(jsonb_array_length(public.get_conversation_messages('a2400007-0000-4000-8000-000000000003')->'messages'), 1, 'group message read model omits protected contact messages for ATTENDANT');
+select is((select count(*) from public.conversation_participants where contact_point_id = 'a2400006-0000-4000-8000-000000000001' and conversation_id = 'a2400007-0000-4000-8000-000000000001'), 1::bigint, 'unprotected participant rows remain visible to ATTENDANT');
 select results_eq('select title from public.opportunities order by title', array['Operação atual'], 'historical and private opportunities remain hidden');
 select is((public.get_conversations_inbox()->'counts'->>'all')::int, 2, 'Tudo counts authorized non-archived individual and group conversations');
 select is((public.get_conversations_inbox()->'counts'->>'groups')::int, 1, 'group count includes only authorized non-archived groups');

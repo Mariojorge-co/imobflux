@@ -1,3 +1,5 @@
+import { createHash, timingSafeEqual } from "node:crypto";
+
 export type WebhookParseResult =
   | { status: "invalid_secret"; error: string }
   | { status: "malformed"; error: string }
@@ -42,17 +44,23 @@ interface EvolutionPayload {
   data?: EvolutionPayloadData;
 }
 
+function secretDigest(value: string) {
+  return createHash("sha256").update(value, "utf8").digest();
+}
+
 /**
  * Valida o secret do webhook enviado no header X-Evolution-Secret.
+ * Falha fechado: sem secret configurado no servidor, toda requisição é rejeitada.
+ * Compara digests SHA-256 (mesmo tamanho) em tempo constante.
  */
 export function validateWebhookSecret(
   incomingSecret: string | null,
   expectedSecret: string | undefined,
 ): boolean {
-  if (!expectedSecret) {
-    return true; // Se não configurado no servidor, não bloqueia por secret
+  if (!expectedSecret || !incomingSecret) {
+    return false;
   }
-  return incomingSecret === expectedSecret;
+  return timingSafeEqual(secretDigest(incomingSecret), secretDigest(expectedSecret));
 }
 
 /**
