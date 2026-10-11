@@ -6,6 +6,8 @@ import { requireOwnerAccess } from "@/lib/auth/dal";
 import { assertTrustedServerActionOrigin } from "@/lib/auth/security";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createEmailSupabaseClient } from "@/lib/supabase/email";
+import { logAuthFailure } from "@/lib/auth/email-flow";
 
 export type TeamActionResult = {
   message: string;
@@ -34,14 +36,28 @@ async function invitationRedirectUrl() {
   const requestHeaders = await headers();
   const origin = requestHeaders.get("origin");
   if (!origin) throw new Error("invalid_origin");
-  return `${origin}/convite`;
+  return `${origin}/auth/confirm?next=/convite`;
 }
 
 async function recoveryRedirectUrl(next = "/redefinir-senha") {
   const requestHeaders = await headers();
   const origin = requestHeaders.get("origin");
   if (!origin) throw new Error("invalid_origin");
-  return `${origin}/auth/confirm?type=recovery&next=${encodeURIComponent(next)}`;
+  return `${origin}/auth/confirm?next=${encodeURIComponent(next)}`;
+}
+
+async function sendAuthInvitation(admin: ReturnType<typeof createAdminSupabaseClient>, email: string, displayName: string) {
+  try {
+    const result = await admin.auth.admin.inviteUserByEmail(email, {
+      data: { display_name: displayName },
+      redirectTo: await invitationRedirectUrl(),
+    });
+    if (result.error) logAuthFailure("team_invitation_send", result.error);
+    return result;
+  } catch {
+    logAuthFailure("team_invitation_send");
+    return null;
+  }
 }
 
 export async function inviteMemberAction(formData: FormData): Promise<TeamActionResult> {
@@ -73,12 +89,9 @@ export async function inviteMemberAction(formData: FormData): Promise<TeamAction
 
   const invitation = prepared.data as { member_id: string };
   const admin = createAdminSupabaseClient();
-  const invited = await admin.auth.admin.inviteUserByEmail(email, {
-    data: { display_name: displayName },
-    redirectTo: await invitationRedirectUrl(),
-  });
+  const invited = await sendAuthInvitation(admin, email, displayName);
 
-  if (invited.error || !invited.data.user) {
+  if (!invited || invited.error || !invited.data.user) {
     revalidatePath("/configuracoes/equipe");
     return {
       message: "Convite criado, mas a entrega do e-mail não foi confirmada. Você poderá reenviar pela lista.",
@@ -128,18 +141,24 @@ export async function resendInviteAction(memberId: string): Promise<TeamActionRe
 
   const admin = createAdminSupabaseClient();
   if (invitation.auth_user_id) {
-    const recovery = await supabase.auth.resetPasswordForEmail(invitation.email, { redirectTo: await recoveryRedirectUrl("/convite") });
-    if (recovery.error) return { message: "Não foi possível solicitar o novo acesso.", status: "error" };
+    let recovery;
+    try {
+      recovery = await createEmailSupabaseClient().auth.resetPasswordForEmail(invitation.email, { redirectTo: await recoveryRedirectUrl("/convite") });
+    } catch {
+      logAuthFailure("team_invitation_resend");
+      return { message: "Não foi possível solicitar o novo acesso agora. Tente novamente mais tarde.", status: "error" };
+    }
+    if (recovery.error) {
+      logAuthFailure("team_invitation_resend", recovery.error);
+      return { message: recovery.error.status === 429 ? "O serviço de e-mail limitou novas solicitações. Aguarde antes de reenviar." : "Não foi possível solicitar o novo acesso agora. Tente novamente mais tarde.", status: "error" };
+    }
     const marked = await supabase.rpc("mark_team_invitation_resent", { p_member_id: memberId });
     if (marked.error) return { message: "O e-mail foi solicitado, mas o convite não pôde ser atualizado.", status: "warning" };
     revalidatePath("/configuracoes/equipe");
     return { message: "Novo acesso solicitado ao serviço de e-mail.", status: "success" };
   }
-  const invited = await admin.auth.admin.inviteUserByEmail(invitation.email, {
-    data: { display_name: invitation.display_name },
-    redirectTo: await invitationRedirectUrl(),
-  });
-  if (invited.error || !invited.data.user) {
+  const invited = await sendAuthInvitation(admin, invitation.email, invitation.display_name);
+  if (!invited || invited.error || !invited.data.user) {
     return { message: "Não foi possível confirmar a entrega do novo convite.", status: "error" };
   }
 

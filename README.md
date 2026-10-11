@@ -54,6 +54,47 @@ npm run build
 npm run test:auth
 ```
 
+**Atenção:** `test:auth` usa um global setup que reseta o Supabase local.
+Não execute esse comando contra um banco persistido usado para trabalho ou revisão.
+Os testes unitários não iniciam servidor, não carregam `.env` e não acessam banco:
+
+```bash
+npx playwright test --config playwright.unit.config.ts
+```
+
+### Convites e recuperação de senha
+
+Os templates de `supabase/templates/invite.html` e `recovery.html` fornecem
+links diretos para `/auth/confirm` com `token_hash`. O template de recuperação
+preserva o destino fornecido pela aplicação. Configure ambos no Supabase remoto
+somente em uma etapa autorizada; migrations e deploy não publicam esses templates.
+O SMTP padrão não é adequado para uso real e o painel pode exigir SMTP próprio
+para editar os templates. A alteração de código sozinha não conclui esse setup.
+
+Links legados via PKCE não são convertidos silenciosamente em sessão.
+Sessões conflitantes exigem outra janela ou logout explícito antes da confirmação.
+A autorização para definir senha tem validade de 15 minutos e é vinculada à
+identidade e à sessão confirmadas, com assinatura server-side usando
+`SUPABASE_ADMIN_KEY` e finalidade separada. Não há nova variável de produção;
+rotacionar essa chave invalida contextos temporários existentes.
+
+A suíte `playwright.auth-isolated.config.ts` não usa o global setup nem reseta
+bancos. Ela exige uma **cópia descartável** com `project_id` começando por
+`imobflux-auth-disposable`, API em loopback:56321, caixa de e-mail local:56324,
+Site URL/Redirect URLs em `http://localhost:3100` e todas as migrations aplicadas
+em um banco novo. Forneça somente no processo dessa cópia as chaves locais e
+`IMOBFLUX_AUTH_TEST_DISPOSABLE=1`; não copie `.env` do projeto principal.
+O servidor em 3100 é iniciado pela suíte sem reutilizar outro servidor.
+
+```bash
+# Somente na cópia descartável preparada conforme os requisitos acima:
+npx playwright test --config playwright.auth-isolated.config.ts
+```
+
+A suíte envia e-mails exclusivamente à caixa local e recusa um banco com
+workspace existente. No ambiente descartável, configure o intervalo mínimo de
+envio para os cenários de reenvio; os erros 429 são cobertos em testes unitários.
+
 ## Estrutura
 
 ```text

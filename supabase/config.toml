@@ -2,7 +2,7 @@ project_id = "imobflux"
 
 [auth]
 site_url = "http://localhost:3000"
-additional_redirect_urls = ["http://127.0.0.1:3000/convite", "http://localhost:3000/convite"]
+additional_redirect_urls = ["http://127.0.0.1:3000/convite", "http://localhost:3000/convite", "http://127.0.0.1:3000/auth/confirm", "http://localhost:3000/auth/confirm"]
 
 [auth.email]
 otp_expiry = 3600
@@ -10,6 +10,10 @@ otp_expiry = 3600
 [auth.email.template.invite]
 subject = "Convite para a equipe ImobFlux"
 content_path = "./supabase/templates/invite.html"
+
+[auth.email.template.recovery]
+subject = "Recuperar acesso ao ImobFlux"
+content_path = "./supabase/templates/recovery.html"
 
 [db.seed]
 enabled = false

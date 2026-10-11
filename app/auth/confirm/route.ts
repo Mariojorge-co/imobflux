@@ -1,56 +1,46 @@
-import type { EmailOtpType } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-const PENDING_TOKEN_COOKIE = "imobflux_pending_auth_token";
-const PENDING_TYPE_COOKIE = "imobflux_pending_auth_type";
+import {
+  authFlowDestination, clearConfirmedFlow, clearPendingFlow, storePendingFlow, verifyEmailToken,
+} from "@/lib/auth/confirmed-flow";
+import { logAuthFailure } from "@/lib/auth/email-flow";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  let tokenHash = url.searchParams.get("token_hash");
-  let type = url.searchParams.get("type") as EmailOtpType | null;
-  const resume = url.searchParams.get("resume") === "1";
-  const nextPath = url.searchParams.get("next") === "/redefinir-senha" ? "/redefinir-senha" : "/convite";
-  const destination = new URL(nextPath, url.origin);
-
-  if ((!resume && !tokenHash) || (!resume && type !== "invite" && type !== "recovery")) {
-    destination.searchParams.set("error", "invalid");
-    return NextResponse.redirect(destination);
+  const next = authFlowDestination(url.searchParams.get("next"));
+  const tokenHash = url.searchParams.get("token_hash");
+  const type = url.searchParams.get("type");
+  function destination(error?: string) {
+    const target = new URL(next, url.origin);
+    if (error) target.searchParams.set("error", error);
+    const response = NextResponse.redirect(target);
+    response.headers.set("Cache-Control", "no-store");
+    response.headers.set("Referrer-Policy", "no-referrer");
+    return response;
   }
-
-  const supabase = await createServerSupabaseClient();
-  const cookieStore = await cookies();
-  const current = await supabase.auth.getUser();
-  if (current.data.user) {
-    if (!resume && tokenHash && type) {
-      cookieStore.set(PENDING_TOKEN_COOKIE, tokenHash, { httpOnly: true, maxAge: 600, path: "/", sameSite: "lax", secure: process.env.NODE_ENV === "production" });
-      cookieStore.set(PENDING_TYPE_COOKIE, type, { httpOnly: true, maxAge: 600, path: "/", sameSite: "lax", secure: process.env.NODE_ENV === "production" });
+  await clearConfirmedFlow();
+  if (!tokenHash || !/^[A-Za-z0-9_-]{20,512}$/.test(tokenHash) || (type !== "invite" && type !== "recovery")) {
+    await clearPendingFlow();
+    // Default PKCE emails cannot safely be completed across devices.
+    return destination(url.searchParams.has("code") ? "technical" : "invalid");
+  }
+  try {
+    const supabase = await createServerSupabaseClient();
+    const current = await supabase.auth.getUser();
+    if (current.error && current.error.name !== "AuthSessionMissingError") {
+      logAuthFailure("confirm_current_session", current.error);
+      return destination("technical");
     }
-    const conflict = new URL(nextPath, url.origin);
-    conflict.searchParams.set("error", "session_conflict");
-    conflict.searchParams.set("flow", type ?? cookieStore.get(PENDING_TYPE_COOKIE)?.value ?? "invite");
-    return NextResponse.redirect(conflict);
+    if (current.data.user) {
+      // Resumed by continueEmailFlow after an explicit sign-out, never via this route.
+      await storePendingFlow({ tokenHash, type, next });
+      return destination("session_conflict");
+    }
+    await clearPendingFlow();
+    const error = await verifyEmailToken(supabase, { tokenHash, type, next });
+    return destination(error ?? undefined);
+  } catch {
+    logAuthFailure("confirm_token");
+    return destination("technical");
   }
-  if (resume) {
-    tokenHash = cookieStore.get(PENDING_TOKEN_COOKIE)?.value ?? null;
-    type = (cookieStore.get(PENDING_TYPE_COOKIE)?.value ?? null) as EmailOtpType | null;
-    cookieStore.delete(PENDING_TOKEN_COOKIE);
-    cookieStore.delete(PENDING_TYPE_COOKIE);
-  }
-  if (!tokenHash || (type !== "invite" && type !== "recovery")) {
-    destination.searchParams.set("error", "invalid");
-    return NextResponse.redirect(destination);
-  }
-  const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
-
-  if (error) {
-    destination.searchParams.set(
-      "error",
-      error.code === "otp_expired" ? "expired" : "invalid",
-    );
-  } else if (type === "recovery" && nextPath === "/convite") {
-    destination.searchParams.set("flow", "recovery");
-  }
-
-  return NextResponse.redirect(destination);
 }
