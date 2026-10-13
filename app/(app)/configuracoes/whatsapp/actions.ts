@@ -7,6 +7,7 @@ import { assertTrustedServerActionOrigin } from "@/lib/auth/security";
 import * as evolution from "@/lib/whatsapp/evolution-instance";
 import type { EvolutionFailure, EvolutionQr } from "@/lib/whatsapp/evolution-instance";
 import { instanceNameForWorkspace, resolveWebhookUrl, type InstanceState } from "@/lib/whatsapp/channel";
+import { resolveHistoryImport, type HistoryImportView } from "@/lib/whatsapp/history-status";
 
 export type WhatsappActionErrorCode =
   | "FORBIDDEN"
@@ -178,5 +179,42 @@ export async function disconnectWhatsappAction(): Promise<WhatsappActionResult> 
   } catch (error) {
     console.error("Erro em disconnectWhatsappAction:", error);
     return fail("EVOLUTION_UNREACHABLE");
+  }
+}
+
+export type HistoryImportActionResult =
+  | { ok: true; view: HistoryImportView; startedAt: string | null }
+  | { ok: false };
+
+/** Estado da importação de histórico da conexão ativa (somente OWNER; leitura pela RLS). */
+export async function getHistoryImportStatusAction(): Promise<HistoryImportActionResult> {
+  const access = await dalModule.getOptionalActiveAccess();
+  if (!access || access.role !== "owner") return { ok: false };
+  try {
+    const supabase = await serverModule.createServerSupabaseClient();
+    const { data, error } = await supabase
+      .from("channel_connections")
+      .select("history_import_status, history_import_started_at, history_import_finished_at, history_imported_count, history_import_error")
+      .eq("provider", "whatsapp")
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(1);
+    if (error) return { ok: false };
+    const row = data?.[0];
+    if (!row) return { ok: true, view: { state: "none" }, startedAt: null };
+    return {
+      ok: true,
+      startedAt: row.history_import_started_at,
+      view: resolveHistoryImport({
+        status: row.history_import_status,
+        startedAt: row.history_import_started_at,
+        finishedAt: row.history_import_finished_at,
+        importedCount: row.history_imported_count,
+        error: row.history_import_error,
+      }),
+    };
+  } catch (error) {
+    console.error("Erro em getHistoryImportStatusAction:", error);
+    return { ok: false };
   }
 }

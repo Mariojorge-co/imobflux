@@ -1,21 +1,35 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, X } from "lucide-react";
+import { Columns3, MessageCircle, Plus, X } from "lucide-react";
+import { describeSlaFor } from "@/lib/conversations/sla-display";
 import {
   archiveOpportunityAction,
   reorderOpportunityAction,
   openOrCreateOpportunityConversationAction,
 } from "@/lib/kanban/actions";
 import type { ContactSelectItem, MemberSelectItem } from "@/lib/kanban/data";
-import { Button } from "@/components/ui";
+import { Button, EmptyState } from "@/components/ui";
 import type { ContactClassification, KanbanCard, KanbanStage } from "@/types/kanban";
 import { reorderCards } from "@/lib/kanban/reorder";
 
 import { CreateOpportunityDialog } from "./create-opportunity-dialog";
 import { KanbanColumn } from "./kanban-column";
 import { OpportunityDetailDrawer } from "./opportunity-detail-drawer";
+
+const MOBILE_QUERY = "(max-width: 767px)";
+
+function subscribeMobile(onChange: () => void) {
+  const media = window.matchMedia(MOBILE_QUERY);
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
+}
+
+function getIsMobile() {
+  return window.matchMedia(MOBILE_QUERY).matches;
+}
 
 interface KanbanBoardProps {
   initialStages: KanbanStage[];
@@ -48,6 +62,9 @@ export function KanbanBoard({
     message: string;
   } | null>(null);
 
+  const isMobile = useSyncExternalStore(subscribeMobile, getIsMobile, () => false);
+  const [activeStageId, setActiveStageId] = useState<string | null>(null);
+  const totalCardsPresent = initialStages.some((s) => s.cards.length > 0) || stages.some((s) => s.cards.length > 0);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedCard, setSelectedCard] = useState<KanbanCard | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -115,7 +132,7 @@ export function KanbanBoard({
     return () => {
       container.removeEventListener("wheel", handleWheel);
     };
-  }, []);
+  }, [totalCardsPresent]);
 
   const stageOptions = stages.map((s) => ({ id: s.id, name: s.name }));
   const contactOptions = contacts.map((c) => ({
@@ -126,6 +143,7 @@ export function KanbanBoard({
   const memberOptions = members.map((m) => ({ id: m.id, name: m.displayName }));
 
   const totalCards = stages.reduce((acc, s) => acc + s.cards.length, 0);
+  const activeStage = stages.find((s) => s.id === activeStageId) ?? stages[0];
 
   const handleCardClick = (card: KanbanCard) => {
     setSelectedCard(card);
@@ -361,9 +379,75 @@ export function KanbanBoard({
         </div>
       ) : null}
 
-      {/* Quadro Kanban (Colunas) com Snap suave no mobile */}
+      {totalCards === 0 ? (
+        <EmptyState
+          action={
+            <div className="flex flex-col items-center gap-2 sm:flex-row">
+              <Button onClick={() => setIsCreateOpen(true)} variant="primary">
+                <Plus aria-hidden="true" size={17} />
+                <span>Criar primeira oportunidade</span>
+              </Button>
+              {userRole === "owner" ? (
+                <Link
+                  className="inline-flex min-h-11 items-center gap-1.5 rounded-control border border-border px-3 text-body font-medium text-text hover:bg-neutral-soft"
+                  href="/configuracoes/whatsapp"
+                >
+                  <MessageCircle aria-hidden="true" size={16} />
+                  Conectar WhatsApp
+                </Link>
+              ) : null}
+            </div>
+          }
+          data-testid="kanban-empty-state"
+          description="Cada oportunidade é um cliente em negociação, e o quadro mostra em que etapa ele está. Crie a primeira ou conecte o WhatsApp para as conversas virarem oportunidades."
+          icon={Columns3}
+          title="Nenhuma oportunidade ainda"
+        />
+      ) : null}
+
+      {/* Celular: escolha da etapa (uma coluna por vez, sem rolagem lateral) */}
+      {isMobile && totalCards > 0 ? (
+        <div
+          aria-label="Etapas do funil"
+          className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1"
+          data-testid="kanban-stage-tabs"
+          role="tablist"
+        >
+          {stages.map((stage) => {
+            const urgent = stage.cards.filter(
+              (card) => card.last_msg_at && describeSlaFor(card.last_msg_direction, card.last_msg_at)?.urgent,
+            ).length;
+            const selected = stage.id === activeStage?.id;
+            return (
+              <button
+                aria-selected={selected}
+                className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-pill border px-3 text-caption font-medium ${
+                  selected
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-surface text-text-muted"
+                }`}
+                key={stage.id}
+                onClick={() => setActiveStageId(stage.id)}
+                role="tab"
+                type="button"
+              >
+                <span>{stage.name}</span>
+                <span className="rounded-pill bg-black/10 px-1.5">{stage.total_count}</span>
+                {urgent > 0 ? (
+                  <span className="rounded-pill bg-rose-600 px-1.5 text-white" title={`${urgent} com cliente esperando há muito tempo`}>
+                    {urgent}!
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {/* Quadro Kanban (Colunas): desktop com rolagem lateral; celular mostra só a etapa escolhida */}
+      {totalCards > 0 ? (
       <div
-        className={`flex gap-3 sm:gap-4 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-4 pt-1 items-start min-h-[calc(100vh-220px)] touch-pan-x ${
+        className={`flex gap-3 sm:gap-4 ${isMobile ? "" : "overflow-x-auto snap-x snap-mandatory scroll-smooth"} pb-4 pt-1 items-start min-h-[calc(100vh-220px)] touch-pan-x ${
           isGrabbing ? "cursor-grabbing select-none" : "cursor-grab"
         }`}
         data-testid="kanban-board-container"
@@ -373,8 +457,9 @@ export function KanbanBoard({
         onMouseUp={handleMouseUpOrLeave}
         ref={boardContainerRef}
       >
-        {stages.map((stage) => (
+        {(isMobile && activeStage ? [activeStage] : stages).map((stage) => (
           <KanbanColumn
+            fullWidth={isMobile}
             key={stage.id}
             onArchiveOpportunity={handleArchiveOpportunity}
             onCardClick={handleCardClick}
@@ -389,6 +474,7 @@ export function KanbanBoard({
           />
         ))}
       </div>
+      ) : null}
 
       {/* Modal de Criação */}
       <CreateOpportunityDialog

@@ -124,7 +124,8 @@ export async function setInstanceWebhook(
     byEvents: false,
     base64: config.base64 ?? false,
     headers: { "x-evolution-secret": config.secret },
-    events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"],
+    // MESSAGES_SET traz o histórico recente que o WhatsApp envia uma única vez, no pareamento.
+    events: ["MESSAGES_UPSERT", "MESSAGES_SET", "CONNECTION_UPDATE"],
   };
   const path = `/webhook/set/${encodeURIComponent(name)}`;
   let result = await evolutionRequest("POST", path, { webhook }, options);

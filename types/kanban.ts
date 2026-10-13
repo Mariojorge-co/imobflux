@@ -34,6 +34,8 @@ export interface KanbanCard {
   responsible_name: string | null;
   has_linked_conversation?: boolean;
   linked_conversation_id?: string | null;
+  last_msg_direction?: string | null;
+  last_msg_at?: string | null;
 }
 
 export interface KanbanStage {

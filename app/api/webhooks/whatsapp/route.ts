@@ -5,6 +5,7 @@ import {
   validateWebhookSecret,
 } from "@/lib/conversations/webhook";
 
+import { importHistoryBatch } from "@/lib/conversations/history-import";
 import { scheduleMediaDownload, storeAttachmentMedia } from "@/lib/conversations/media-download";
 
 // O download da mídia roda depois da resposta (after); dá tempo suficiente para arquivos grandes.
@@ -57,6 +58,18 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Erro interno no processamento do webhook" }, { status: 500 });
       }
       return NextResponse.json(syncResult ?? { status: "success" }, { status: 200 });
+    }
+
+    if (result.status === "history") {
+      try {
+        const summary = await importHistoryBatch(createAdminSupabaseClient(), result);
+        return NextResponse.json({ status: "history_imported", received: result.received, skipped: result.skipped, ...summary }, { status: 200 });
+      } catch (historyError) {
+        // 500: a Evolution tenta de novo (a importação é idempotente) e o erro já ficou registrado
+        // na conexão para o OWNER ver.
+        console.error("Erro ao importar lote de histórico do WhatsApp:", historyError);
+        return NextResponse.json({ error: "Erro interno no processamento do webhook" }, { status: 500 });
+      }
     }
 
     if (result.status === "ignored") {

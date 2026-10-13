@@ -12,11 +12,40 @@ export type WebhookMedia = {
   inlineBase64: string | null;
 };
 
+/** Uma mensagem de histórico pronta para a RPC de importação (mídia vira só o rótulo em texto). */
+export type HistoryMessageItem = {
+  external_message_id: string;
+  remote_jid: string;
+  sender_jid: string | null;
+  from_me: boolean;
+  push_name: string | null;
+  text_content: string;
+  occurred_at: string;
+};
+
+/** Janela de importação: mensagens mais antigas que isso não entram. */
+export const HISTORY_WINDOW_DAYS = 15;
+/** Tamanho de cada chamada ao banco (a RPC aceita até 1000). */
+export const HISTORY_CHUNK_SIZE = 500;
+
+export type WebhookHistoryResult = {
+  status: "history";
+  instance: string;
+  items: HistoryMessageItem[];
+  /** Total de mensagens recebidas no lote (antes de qualquer filtro). */
+  received: number;
+  /** Fora da janela de 15 dias, sem texto reconhecido, sem data ou de transmissão/canal. */
+  skipped: number;
+  isLatest: boolean;
+  progress: number | null;
+};
+
 export type WebhookParseResult =
   | { status: "invalid_secret"; error: string }
   | { status: "malformed"; error: string }
-  | { status: "ignored"; reason: "unhandled_event" | "group_sender_missing" | "non_text_message_ignored" }
+  | { status: "ignored"; reason: "unhandled_event" | "group_sender_missing" | "non_text_message_ignored" | "missing_timestamp" }
   | { status: "connection"; instance: string; state: "open" | "close" | null }
+  | WebhookHistoryResult
   | {
       status: "valid";
       instance: string;
@@ -195,11 +224,23 @@ export function parseEvolutionWebhookPayload(body: unknown): WebhookParseResult 
     return { status: "connection", instance: payload.instance, state: state === "open" || state === "close" ? state : null };
   }
 
+  if (payload.event === "messages.set") {
+    return parseHistoryPayload(payload.instance, body as Record<string, unknown>, payload.data);
+  }
+
   if (payload.event !== "messages.upsert") {
     return { status: "ignored", reason: "unhandled_event" };
   }
 
-  const data = payload.data;
+  return parseMessageData(payload.instance, payload.data, { requireTimestamp: false });
+}
+
+/** Interpreta uma mensagem no formato da Evolution (ao vivo ou item do histórico). */
+function parseMessageData(
+  instance: string,
+  data: EvolutionPayloadData,
+  options: { requireTimestamp: boolean },
+): WebhookParseResult {
   const key = data.key ?? {};
   const remoteJid = key.remoteJid;
 
@@ -247,13 +288,15 @@ export function parseEvolutionWebhookPayload(body: unknown): WebhookParseResult 
     const tsNum = Number(tsRaw);
     const ms = tsNum > 1e11 ? tsNum : tsNum * 1000;
     occurredAt = new Date(ms).toISOString();
+  } else if (options.requireTimestamp) {
+    return { status: "ignored", reason: "missing_timestamp" };
   } else {
     occurredAt = new Date().toISOString();
   }
 
   return {
     status: "valid",
-    instance: payload.instance,
+    instance,
     remoteJid,
     conversationType,
     senderJid,
@@ -267,5 +310,66 @@ export function parseEvolutionWebhookPayload(body: unknown): WebhookParseResult 
     textContent,
     media: extracted ? { ...extracted.media, inlineBase64: extracted.media.inlineBase64 ?? cleanString(data.base64) } : null,
     occurredAt,
+  };
+}
+
+/**
+ * Lote de histórico (evento messages.set da Evolution): `data` é a lista de mensagens e
+ * isLatest/progress vêm no nível do corpo. Só as mensagens dos últimos 15 dias entram.
+ */
+function parseHistoryPayload(
+  instance: string,
+  body: Record<string, unknown>,
+  data: unknown,
+  now: Date = new Date(),
+): WebhookParseResult {
+  if (!Array.isArray(data)) {
+    return { status: "malformed", error: "Lote de histórico malformado" };
+  }
+
+  const cutoff = now.getTime() - HISTORY_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+  const items: HistoryMessageItem[] = [];
+  let skipped = 0;
+
+  for (const entry of data) {
+    if (!entry || typeof entry !== "object") {
+      skipped += 1;
+      continue;
+    }
+    const remoteJid = (entry as EvolutionPayloadData).key?.remoteJid;
+    if (typeof remoteJid !== "string" || /^status@broadcast$|@broadcast$|@newsletter$/.test(remoteJid)) {
+      skipped += 1;
+      continue;
+    }
+    const parsed = parseMessageData(instance, entry as EvolutionPayloadData, { requireTimestamp: true });
+    if (parsed.status !== "valid" || !parsed.externalMessageId) {
+      skipped += 1;
+      continue;
+    }
+    const occurred = new Date(parsed.occurredAt).getTime();
+    if (Number.isNaN(occurred) || occurred < cutoff || occurred > now.getTime() + 5 * 60 * 1000) {
+      skipped += 1;
+      continue;
+    }
+    items.push({
+      external_message_id: parsed.externalMessageId,
+      remote_jid: parsed.remoteJid,
+      sender_jid: parsed.senderJid,
+      from_me: parsed.fromMe,
+      push_name: parsed.fromMe ? null : parsed.pushName,
+      text_content: parsed.textContent,
+      occurred_at: parsed.occurredAt,
+    });
+  }
+
+  const progress = typeof body.progress === "number" && Number.isFinite(body.progress) ? body.progress : null;
+  return {
+    status: "history",
+    instance,
+    items,
+    received: data.length,
+    skipped,
+    isLatest: body.isLatest === true,
+    progress,
   };
 }

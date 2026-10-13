@@ -15,6 +15,8 @@ interface KanbanColumnProps {
   onCopyLink?: (card: KanbanCardType) => void;
   onArchiveOpportunity?: (cardId: string) => void;
   pendingCardIds: Set<string>;
+  /** Celular: a coluna da etapa escolhida ocupa a largura toda (sem rolagem lateral). */
+  fullWidth?: boolean;
 }
 
 export function KanbanColumn({
@@ -28,6 +30,7 @@ export function KanbanColumn({
   onCopyLink,
   onArchiveOpportunity,
   pendingCardIds,
+  fullWidth = false,
 }: KanbanColumnProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [insertionBeforeId, setInsertionBeforeId] = useState<string | null>(null);
@@ -76,7 +79,7 @@ export function KanbanColumn({
   return (
     <div
       aria-label={`Coluna ${stage.name}`}
-      className={`flex w-[82vw] max-w-[320px] sm:w-72 md:w-80 shrink-0 snap-start flex-col rounded-card border bg-neutral-soft/40 p-3 transition-colors ${
+      className={`flex ${fullWidth ? "w-full" : "w-[82vw] max-w-[320px] sm:w-72 md:w-80"} shrink-0 snap-start flex-col rounded-card border bg-neutral-soft/40 p-3 transition-colors ${
         isDragOver
           ? "border-primary bg-primary/5 ring-2 ring-primary/20"
           : "border-border"

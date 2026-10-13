@@ -15,6 +15,7 @@ import {
 import { formatRelativeTime } from "@/lib/date";
 import type { KanbanCard as KanbanCardType } from "@/types/kanban";
 import { ViewportMenu } from "@/components/ui";
+import { SlaBadge } from "@/components/conversations/sla-badge";
 
 interface KanbanCardProps {
   card: KanbanCardType;
@@ -123,7 +124,7 @@ export function KanbanCard({
           aria-expanded={showKebabMenu}
           aria-haspopup="true"
           aria-label={`Ações da oportunidade ${card.title}`}
-          className="flex size-7 items-center justify-center rounded-control text-text-muted hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          className="flex size-11 items-center justify-center rounded-control sm:size-7 text-text-muted hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           disabled={isPending}
           id={`kanban-actions-${card.id}`}
           onClick={(e) => {
@@ -204,7 +205,7 @@ export function KanbanCard({
 
       {/* Título da Oportunidade */}
       <button
-        className="block w-full pr-7 text-left text-body font-semibold text-text line-clamp-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+        className="block w-full pr-12 text-left sm:pr-7 text-body font-semibold text-text line-clamp-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
         disabled={isPending}
         onClick={(event) => {
           event.stopPropagation();
@@ -260,7 +261,12 @@ export function KanbanCard({
 
       {/* Rodapé do Card: Data e Ação Acessível de Mover */}
       <div className="mt-2 flex items-center justify-between text-caption text-text-muted pt-1 border-t border-border/50">
-        <span>{formatRelativeTime(card.updated_at)}</span>
+        <span className="flex min-w-0 items-center gap-1.5">
+          {card.last_msg_at ? (
+            <SlaBadge direction={card.last_msg_direction} lastActivityAt={card.last_msg_at} />
+          ) : null}
+          <span className="truncate">{formatRelativeTime(card.updated_at)}</span>
+        </span>
 
         {/* Alternativa Acessível de Movimentação */}
         {availableTargetStages.length > 0 ? (
@@ -268,7 +274,7 @@ export function KanbanCard({
             {!showMoveSelect ? (
               <button
                 aria-label={`Mover oportunidade ${card.title} para outra etapa`}
-                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-caption font-medium text-primary hover:bg-neutral-soft hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                className="inline-flex min-h-11 items-center gap-1 rounded px-2 text-caption font-medium text-primary sm:min-h-0 sm:px-1.5 sm:py-0.5 hover:bg-neutral-soft hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
                 disabled={isPending}
                 onClick={(e) => {
                   e.stopPropagation();

@@ -12,6 +12,8 @@ import {
 } from "@/app/(app)/configuracoes/whatsapp/actions";
 import { formatConnectedPhone } from "@/lib/whatsapp/channel";
 import type { EvolutionQr } from "@/lib/whatsapp/evolution-instance";
+import type { HistoryImportView } from "@/lib/whatsapp/history-status";
+import { HistoryImportNotice } from "@/components/whatsapp/history-import-notice";
 
 export type InitialWhatsappChannel = {
   status: "configured" | "active" | "paused" | "disconnected" | "replaced";
@@ -31,7 +33,7 @@ function formatSince(value: string | null): string | null {
   return date.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-export function WhatsappConnection({ configured, initial }: { configured: boolean; initial: InitialWhatsappChannel }) {
+export function WhatsappConnection({ configured, initial, initialHistory = null }: { configured: boolean; initial: InitialWhatsappChannel; initialHistory?: HistoryImportView | null }) {
   const router = useRouter();
   const [view, setView] = useState<View>(initial?.status === "active" ? "connected" : "disconnected");
   const [phone, setPhone] = useState<string | null>(initial?.phone ?? null);
@@ -192,6 +194,7 @@ export function WhatsappConnection({ configured, initial }: { configured: boolea
             As mensagens deste número chegam ao ImobFlux e você responde por aqui. O WhatsApp no celular continua
             funcionando normalmente.
           </p>
+          <HistoryImportNotice initial={initialHistory} />
           <div>
             <Button onClick={() => setConfirmOpen(true)} variant="secondary">Desconectar</Button>
           </div>

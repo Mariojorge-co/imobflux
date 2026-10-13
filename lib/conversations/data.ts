@@ -74,6 +74,8 @@ export type ConversationMessage = {
   text_content: string | null;
   occurred_at: string;
   has_attachments: boolean;
+  /** Mensagem importada do histórico do WhatsApp (anterior à conexão): não conta para o SLA. */
+  is_history?: boolean;
   attachments?: ConversationMessageAttachment[];
   internal_author_name?: string | null;
   sender_display_name?: string | null;

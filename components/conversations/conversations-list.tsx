@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Archive, MessageCircle, Plus } from "lucide-react";
+import { Archive, MessageCircle, Plus, TriangleAlert } from "lucide-react";
 import { Avatar, Button, EmptyState, Input, ModalDialog, SearchInput } from "@/components/ui";
 import {
   refreshConversationsInboxAction,
@@ -24,16 +25,28 @@ import {
   type ConversationClientUpdate,
 } from "@/lib/conversations/client-events";
 
+/** Orientação mostrada quando o workspace ainda não tem nenhuma conversa. */
+export type ConversationsEmptyHint = {
+  title: string;
+  description: string;
+  cta?: { href: string; label: string };
+};
+
 type ConversationsListProps = {
   initialItems: ConversationListItem[];
   initialCounts: ConversationInboxCounts;
   selectedId?: string;
+  emptyHint?: ConversationsEmptyHint;
+  /** Aviso (só para o OWNER) quando a importação de histórico do WhatsApp não foi concluída. */
+  historyWarning?: string | null;
 };
 
 export function ConversationsList({
   initialItems,
   initialCounts,
   selectedId,
+  emptyHint,
+  historyWarning = null,
 }: ConversationsListProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -271,6 +284,17 @@ export function ConversationsList({
 
   return (
     <div className="flex h-full flex-col border-r border-border bg-surface">
+      {historyWarning ? (
+        <Link
+          className="flex items-start gap-2 border-b border-warning-border bg-warning-soft px-3 py-2 text-caption text-warning hover:underline"
+          data-testid="history-warning-banner"
+          href="/configuracoes/whatsapp"
+          role="alert"
+        >
+          <TriangleAlert aria-hidden="true" className="mt-0.5 shrink-0" size={14} />
+          <span>{historyWarning} Ver detalhes</span>
+        </Link>
+      ) : null}
       {/* Cabeçalho da coluna esquerda (desktop) */}
       <div className="border-b border-border p-3">
         <div className="mb-2.5 flex items-center justify-between gap-2">
@@ -384,14 +408,27 @@ export function ConversationsList({
           />
         )}
 
-        {!isPending && items.length === 0 && (
-          <EmptyState
-            className="m-3 border-0 py-section"
-            description={search ? "Tente outro nome ou telefone." : "As conversas autorizadas aparecerão aqui."}
-            icon={MessageCircle}
-            title={search ? "Nenhuma conversa encontrada" : "Nenhuma conversa disponível"}
-          />
-        )}
+        {!isPending && items.length === 0 && (() => {
+          const guided = emptyHint && !search && view === "all" && counts.all === 0;
+          return (
+            <EmptyState
+              action={guided && emptyHint.cta ? (
+                <Link
+                  className="inline-flex min-h-11 items-center gap-1.5 rounded-control bg-primary px-4 text-body font-medium text-primary-foreground hover:opacity-90"
+                  href={emptyHint.cta.href}
+                >
+                  <MessageCircle aria-hidden="true" size={16} />
+                  {emptyHint.cta.label}
+                </Link>
+              ) : undefined}
+              className="m-3 border-0 py-section"
+              data-testid={guided ? "conversations-empty-guided" : undefined}
+              description={guided ? emptyHint.description : search ? "Tente outro nome ou telefone." : "As conversas autorizadas aparecerão aqui."}
+              icon={MessageCircle}
+              title={guided ? emptyHint.title : search ? "Nenhuma conversa encontrada" : "Nenhuma conversa disponível"}
+            />
+          );
+        })()}
 
         {items.map((conv) => (
           <ConversationCard
@@ -430,7 +467,7 @@ type ConversationCardProps = {
   onClick: () => void;
 };
 
-import { calculateSLA } from "@/lib/conversations/sla";
+import { SlaBadge } from "@/components/conversations/sla-badge";
 
 function ConversationCard({ item, isSelected, onClick }: ConversationCardProps) {
   const displayName = item.participant_name ?? "Participante desconhecido";
@@ -439,29 +476,6 @@ function ConversationCard({ item, isSelected, onClick }: ConversationCardProps) 
     : "Sem mensagens";
   const timeLabel = formatRelativeTime(item.last_activity_at);
   const isGroup = item.conversation_type === "group";
-  const sla = calculateSLA(item.last_msg_direction, item.last_activity_at);
-
-  const getSLABadgeClass = () => {
-    if (!sla) return "";
-    if (sla.type === "team_waiting") {
-      switch (sla.level) {
-        case "normal": return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400";
-        case "attention": return "bg-amber-500/15 text-amber-700 dark:text-amber-400";
-        case "priority": return "bg-orange-500/15 text-orange-700 dark:text-orange-400";
-        case "critical":
-        case "critical_grave": return "bg-rose-500/15 text-rose-700 dark:text-rose-400 font-bold";
-        default: return "bg-neutral-soft text-text-muted";
-      }
-    } else {
-      switch (sla.level) {
-        case "recent":
-        case "waiting_client": return "bg-slate-500/15 text-slate-700 dark:text-slate-400";
-        case "attention":
-        case "followup_candidate": return "bg-purple-500/15 text-purple-700 dark:text-purple-400";
-        default: return "bg-neutral-soft text-text-muted";
-      }
-    }
-  };
 
   return (
     <button
@@ -493,18 +507,14 @@ function ConversationCard({ item, isSelected, onClick }: ConversationCardProps) 
         </div>
         <p className="mt-0.5 truncate text-caption text-text-muted">{snippet}</p>
 
-      {sla && (
         <div className="mt-1 flex min-w-0 items-center gap-1">
-          <span
-            className={[
-              "max-w-full truncate rounded-pill px-2 py-0.5 text-caption font-medium tracking-tight",
-              getSLABadgeClass(),
-            ].join(" ")}
-          >
-            {sla.badgeText}
-          </span>
+          <SlaBadge
+            className="max-w-full"
+            direction={item.last_msg_direction}
+            lastActivityAt={item.last_activity_at}
+            variant="full"
+          />
         </div>
-        )}
       </div>
     </button>
   );

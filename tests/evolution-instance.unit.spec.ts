@@ -113,7 +113,7 @@ test.describe("webhook e logout", () => {
         byEvents: false,
         base64: false,
         headers: { "x-evolution-secret": "s3cret" },
-        events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"],
+        events: ["MESSAGES_UPSERT", "MESSAGES_SET", "CONNECTION_UPDATE"],
       },
     });
   });

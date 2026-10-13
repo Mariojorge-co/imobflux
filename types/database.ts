@@ -189,6 +189,11 @@ export type Database = {
       }
       channel_connections: {
         Row: {
+          history_import_error: string | null
+          history_import_finished_at: string | null
+          history_import_started_at: string | null
+          history_import_status: string | null
+          history_imported_count: number
           activated_at: string | null
           created_at: string
           credential_reference: string | null
@@ -204,6 +209,11 @@ export type Database = {
           workspace_id: string
         }
         Insert: {
+          history_import_error?: string | null
+          history_import_finished_at?: string | null
+          history_import_started_at?: string | null
+          history_import_status?: string | null
+          history_imported_count?: number
           activated_at?: string | null
           created_at?: string
           credential_reference?: string | null
@@ -219,6 +229,11 @@ export type Database = {
           workspace_id: string
         }
         Update: {
+          history_import_error?: string | null
+          history_import_finished_at?: string | null
+          history_import_started_at?: string | null
+          history_import_status?: string | null
+          history_imported_count?: number
           activated_at?: string | null
           created_at?: string
           credential_reference?: string | null
@@ -712,6 +727,7 @@ export type Database = {
       }
       messages: {
         Row: {
+          is_history: boolean
           channel_connection_id: string
           client_idempotency_key: string | null
           conversation_id: string
@@ -731,6 +747,7 @@ export type Database = {
           workspace_id: string
         }
         Insert: {
+          is_history?: boolean
           channel_connection_id: string
           client_idempotency_key?: string | null
           conversation_id: string
@@ -750,6 +767,7 @@ export type Database = {
           workspace_id: string
         }
         Update: {
+          is_history?: boolean
           channel_connection_id?: string
           client_idempotency_key?: string | null
           conversation_id?: string
@@ -1616,6 +1634,20 @@ export type Database = {
       }
       confirm_whatsapp_channel_state: {
         Args: { p_instance_name: string; p_phone?: string; p_state: string }
+        Returns: Json
+      }
+      ingest_whatsapp_history_batch: {
+        Args: { p_external_account_id: string; p_messages: Json }
+        Returns: Json
+      }
+      record_whatsapp_history_progress: {
+        Args: {
+          p_error?: string
+          p_external_account_id: string
+          p_imported: number
+          p_is_latest: boolean
+          p_progress?: number
+        }
         Returns: Json
       }
       sync_whatsapp_channel_state: {

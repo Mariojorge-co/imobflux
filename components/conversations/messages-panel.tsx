@@ -16,7 +16,7 @@ import {
 } from "@/lib/conversations/actions";
 import { MessageForm } from "@/components/conversations/message-form";
 import { Button, Drawer, Input, ModalDialog } from "@/components/ui";
-import { calculateSLA } from "@/lib/conversations/sla";
+import { SlaBadge } from "@/components/conversations/sla-badge";
 import { resolveOpportunityTargets } from "@/lib/conversations/opportunity-targets";
 import { AttachmentView } from "@/components/conversations/attachment-view";
 import type {
@@ -109,11 +109,6 @@ export function MessagesPanel({
   const selectedContext = selectedContextBase && optimisticNotesForContext.length > 0
     ? appendNotesToContext(selectedContextBase, optimisticNotesForContext)
     : selectedContextBase;
-
-  const sla = calculateSLA(
-    liveConversation.last_msg_direction,
-    liveConversation.last_activity_at,
-  );
 
   useEffect(() => {
     if (!shouldAutoReadRef.current) return;
@@ -440,35 +435,17 @@ export function MessagesPanel({
                 <p className="truncate text-sm font-semibold text-text">
                   {isGroup ? `👥 ${displayName}` : displayName}
                 </p>
-                {sla && (
-                  <span
-                    className={[
-                      "hidden rounded-pill px-2 py-0.5 text-caption font-medium sm:inline-block",
-                      sla.type === "team_waiting"
-                        ? "bg-rose-500/15 text-rose-700 dark:text-rose-400"
-                        : "bg-slate-500/15 text-slate-700 dark:text-slate-400",
-                    ].join(" ")}
-                  >
-                    {sla.badgeText}
-                  </span>
-                )}
               </div>
               <div className="flex min-w-0 items-center gap-2">
                 {displayPhone && (
                   <p className="truncate text-caption text-text-muted">{displayPhone}</p>
                 )}
-                {sla && (
-                  <span
-                    className={[
-                      "inline-block max-w-full truncate rounded-pill px-2 py-0.5 text-caption font-medium sm:hidden",
-                      sla.type === "team_waiting"
-                        ? "bg-rose-500/15 text-rose-700 dark:text-rose-400"
-                        : "bg-slate-500/15 text-slate-700 dark:text-slate-400",
-                    ].join(" ")}
-                  >
-                    {sla.badgeText}
-                  </span>
-                )}
+                <SlaBadge
+                  className="max-w-full truncate"
+                  direction={liveConversation.last_msg_direction}
+                  lastActivityAt={liveConversation.last_activity_at}
+                  variant="full"
+                />
               </div>
             </div>
           </div>
@@ -597,6 +574,12 @@ export function MessagesPanel({
                 >
                   {showDateSeparator && (
                     <DateSeparator dateString={msg.occurred_at} />
+                  )}
+                  {msg.is_history && !messages[idx - 1]?.is_history && (
+                    <HistoryDivider kind="start" />
+                  )}
+                  {!msg.is_history && messages[idx - 1]?.is_history && (
+                    <HistoryDivider kind="end" />
                   )}
                   <MessageBubble isOutgoing={isOutgoing} message={msg} />
                 </div>
@@ -727,6 +710,24 @@ function DateSeparator({ dateString }: { dateString: string }) {
   );
 }
 
+function HistoryDivider({ kind }: { kind: "start" | "end" }) {
+  return (
+    <div
+      className="my-2 flex items-center gap-2 text-caption text-text-muted"
+      data-testid={kind === "start" ? "history-divider-start" : "history-divider-end"}
+      role="separator"
+    >
+      <div className="h-px flex-1 border-t border-dashed border-border-strong" />
+      <span className="rounded-pill border border-dashed border-border-strong px-2.5 py-0.5">
+        {kind === "start"
+          ? "Histórico importado do WhatsApp (não conta no tempo de resposta)"
+          : "Mensagens ao vivo a partir daqui"}
+      </span>
+      <div className="h-px flex-1 border-t border-dashed border-border-strong" />
+    </div>
+  );
+}
+
 type MessageBubbleProps = {
   message: ConversationMessage;
   isOutgoing: boolean;
@@ -751,7 +752,9 @@ function MessageBubble({ message, isOutgoing }: MessageBubbleProps) {
           isOutgoing
             ? "rounded-br-sm bg-primary text-primary-foreground"
             : "rounded-bl-sm bg-surface text-text shadow-sm ring-1 ring-border",
+          message.is_history ? "border border-dashed border-border-strong opacity-80" : "",
         ].join(" ")}
+        data-history={message.is_history ? "true" : undefined}
       >
         {/* Identificação de autor interno no CRM (somente visível internamente) */}
         {isOutgoing && message.internal_author_name && (

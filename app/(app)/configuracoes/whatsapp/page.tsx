@@ -18,6 +18,7 @@ export default async function WhatsappSettingsPage() {
       />
       <WhatsappConnection
         configured={isEvolutionConfigured()}
+        initialHistory={channel?.historyImport ?? null}
         initial={channel ? { status: channel.status, phone: channel.phone, activatedAt: channel.activatedAt } : null}
       />
     </PageContainer>
