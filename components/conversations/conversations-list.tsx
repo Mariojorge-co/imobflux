@@ -20,6 +20,7 @@ import type {
 } from "@/lib/conversations/data";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { formatRelativeTime } from "@/lib/date";
+import { formatAssigneeNames } from "@/lib/conversations/assignment";
 import {
   CONVERSATION_CLIENT_UPDATE_EVENT,
   type ConversationClientUpdate,
@@ -316,6 +317,7 @@ export function ConversationsList({
             ["all", `Tudo (${counts.all})`],
             ["unread", `Não lidas (${counts.unread})`],
             ["groups", `Grupos (${counts.groups})`],
+            ["mine", `Minhas (${counts.mine ?? 0})`],
           ] as Array<[ConversationInboxView, string]>).map(([key, label]) => (
             <button
               aria-pressed={view === key}
@@ -476,6 +478,7 @@ function ConversationCard({ item, isSelected, onClick }: ConversationCardProps) 
     : "Sem mensagens";
   const timeLabel = formatRelativeTime(item.last_activity_at);
   const isGroup = item.conversation_type === "group";
+  const assigneeNames = formatAssigneeNames(item.assignees);
 
   return (
     <button
@@ -506,6 +509,11 @@ function ConversationCard({ item, isSelected, onClick }: ConversationCardProps) 
           <span className="shrink-0 text-caption text-text-muted">{timeLabel}</span>
         </div>
         <p className="mt-0.5 truncate text-caption text-text-muted">{snippet}</p>
+        {assigneeNames ? (
+          <p className="mt-0.5 truncate text-caption text-text-muted" data-testid="conversation-assignees" title={`Responsáveis: ${assigneeNames}`}>
+            {item.assigned_to_me ? "Você" : "Resp."}{item.assigned_to_me && item.assignees && item.assignees.length > 1 ? ` e mais ${item.assignees.length - 1}` : item.assigned_to_me ? "" : `: ${assigneeNames}`}
+          </p>
+        ) : null}
 
         <div className="mt-1 flex min-w-0 items-center gap-1">
           <SlaBadge

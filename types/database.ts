@@ -1640,6 +1640,26 @@ export type Database = {
         Args: { p_member_id: string }
         Returns: Json
       }
+      assign_conversation: {
+        Args: { p_conversation_id: string; p_member_id: string }
+        Returns: Json
+      }
+      unassign_conversation: {
+        Args: { p_conversation_id: string; p_member_id: string }
+        Returns: Json
+      }
+      reassign_conversation: {
+        Args: { p_conversation_id: string; p_from_member_id: string; p_to_member_id: string }
+        Returns: Json
+      }
+      get_conversation_assignees: {
+        Args: { p_conversation_id: string }
+        Returns: Json
+      }
+      get_member_directory: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       ingest_whatsapp_history_batch: {
         Args: { p_external_account_id: string; p_messages: Json }
         Returns: Json

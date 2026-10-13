@@ -516,7 +516,7 @@ select is(
         where schema_record.nspname in ('public', 'private')
           and function_record.prosecdef
     ),
-    62::bigint,
+    69::bigint,
     'only the owner context and approved domain operations use SECURITY DEFINER (including reorder_opportunity, private.is_protected_contact_point and attach_whatsapp_media)'
 );
 

@@ -7,6 +7,8 @@ import {
   getConversationContext,
   getConversationOpportunityContexts,
   getConversationPipelineStages,
+  getConversationAssignees,
+  getMemberDirectory,
 } from "@/lib/conversations/data";
 import { ConversationsList } from "@/components/conversations/conversations-list";
 import { MessagesPanel } from "@/components/conversations/messages-panel";
@@ -42,9 +44,11 @@ export default async function ConversationDetailPage({
     redirect("/conversas?reason=access_changed");
   }
 
-  const [opportunityContexts, pipelineStages] = await Promise.all([
+  const [opportunityContexts, pipelineStages, assignees, members] = await Promise.all([
     getConversationOpportunityContexts(context, conversationId),
     getConversationPipelineStages(conversationId),
+    getConversationAssignees(conversationId),
+    getMemberDirectory(),
   ]);
 
   // Se a conversa for aberta estando marcada como não lida, marcar automaticamente como lida (auto-read)
@@ -79,6 +83,8 @@ export default async function ConversationDetailPage({
           stages={pipelineStages}
           showBackButton={true}
           canManagePrivacy={access.role === "owner"}
+          assignees={assignees}
+          members={members}
         />
       </div>
     </div>

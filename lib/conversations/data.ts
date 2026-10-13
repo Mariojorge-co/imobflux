@@ -2,6 +2,7 @@ import "server-only";
 
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { resolveConversationIdentity } from "@/lib/conversations/identity";
+import type { ConversationAssignee, DirectoryMember } from "@/lib/conversations/assignment";
 
 // ─── Tipos internos ───────────────────────────────────────────────────────────
 
@@ -29,16 +30,20 @@ export type ConversationListItem = {
   is_unread?: boolean;
   archived_at?: string | null;
   avatar_url?: string | null;
+  /** Responsáveis atuais (atribuição indica responsabilidade, não acesso). */
+  assignees?: ConversationAssignee[];
+  assigned_to_me?: boolean;
   /** Cursores do próximo lote — retornados pela RPC */
   next_cursor_ts: string | null;
   next_cursor_id: string | null;
 };
 
-export type ConversationInboxView = "all" | "unread" | "groups" | "archived";
+export type ConversationInboxView = "all" | "unread" | "groups" | "mine" | "archived";
 export type ConversationInboxCounts = {
   all: number;
   unread: number;
   groups: number;
+  mine?: number;
   archived: number;
   archived_unread: number;
 };
@@ -227,10 +232,27 @@ export async function getConversationsInbox(
       all: 0,
       unread: 0,
       groups: 0,
+      mine: 0,
       archived: 0,
       archived_unread: 0,
     },
   };
+}
+
+/** Responsáveis atuais de uma conversa (só para quem tem acesso a ela). */
+export async function getConversationAssignees(conversationId: string): Promise<ConversationAssignee[]> {
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase.rpc("get_conversation_assignees", { p_conversation_id: conversationId });
+  if (error || !Array.isArray(data)) return [];
+  return data as unknown as ConversationAssignee[];
+}
+
+/** Membros ativos do workspace para escolher responsável (qualquer membro ativo pode ler). */
+export async function getMemberDirectory(): Promise<DirectoryMember[]> {
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase.rpc("get_member_directory");
+  if (error || !Array.isArray(data)) return [];
+  return data as unknown as DirectoryMember[];
 }
 
 /**

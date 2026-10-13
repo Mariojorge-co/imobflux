@@ -26,6 +26,7 @@ import * as serverModule from "@/lib/supabase/server";
 import * as adminModule from "@/lib/supabase/admin";
 import * as gatewayModule from "@/lib/supabase/gateway";
 import { classifyGatewayOutcome } from "@/lib/conversations/gateway-outcome";
+import { assignmentErrorMessage } from "@/lib/conversations/assignment";
 import * as mediaModule from "@/lib/conversations/media-download";
 import { isDownloadInProgress } from "@/lib/conversations/media-types";
 
@@ -830,4 +831,54 @@ export async function updateQualificationAction(input: {
     console.error("Erro em updateQualificationAction:", err);
     return { success: false, error: "Falha ao atualizar dados de qualificação." };
   }
+}
+
+// ─── Atribuição de conversa (fluxos 18 e 19) ───────────────────────────────────────────────────
+
+export type AssignmentActionResult = { success: true; status: string } | { success: false; error: string };
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function runAssignmentRpc(
+  conversationId: string,
+  ids: string[],
+  call: (supabase: Awaited<ReturnType<typeof serverModule.createServerSupabaseClient>>) => PromiseLike<{ data: unknown; error: { message?: string } | null }>,
+): Promise<AssignmentActionResult> {
+  if (![conversationId, ...ids].every((id) => typeof id === "string" && UUID_PATTERN.test(id))) {
+    return { success: false, error: "Dados inválidos." };
+  }
+  try {
+    const supabase = await serverModule.createServerSupabaseClient();
+    const { data, error } = await call(supabase);
+    if (error) return { success: false, error: assignmentErrorMessage(error.message) };
+    revalidatePath("/conversas");
+    revalidatePath(`/conversas/${conversationId}`);
+    return { success: true, status: (data as { status?: string } | null)?.status ?? "success" };
+  } catch (error) {
+    console.error("Erro ao alterar responsável da conversa:", error);
+    return { success: false, error: assignmentErrorMessage(null) };
+  }
+}
+
+export async function assignConversationAction(conversationId: string, memberId: string): Promise<AssignmentActionResult> {
+  return runAssignmentRpc(conversationId, [memberId], (supabase) =>
+    supabase.rpc("assign_conversation", { p_conversation_id: conversationId, p_member_id: memberId }));
+}
+
+export async function unassignConversationAction(conversationId: string, memberId: string): Promise<AssignmentActionResult> {
+  return runAssignmentRpc(conversationId, [memberId], (supabase) =>
+    supabase.rpc("unassign_conversation", { p_conversation_id: conversationId, p_member_id: memberId }));
+}
+
+export async function reassignConversationAction(
+  conversationId: string,
+  fromMemberId: string,
+  toMemberId: string,
+): Promise<AssignmentActionResult> {
+  return runAssignmentRpc(conversationId, [fromMemberId, toMemberId], (supabase) =>
+    supabase.rpc("reassign_conversation", {
+      p_conversation_id: conversationId,
+      p_from_member_id: fromMemberId,
+      p_to_member_id: toMemberId,
+    }));
 }

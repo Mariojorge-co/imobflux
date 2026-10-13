@@ -29,6 +29,8 @@ import type {
 } from "@/lib/conversations/data";
 import { moveOpportunityAction } from "@/lib/kanban/actions";
 import { ClientContextPanel } from "@/components/conversations/client-context-panel";
+import { AssigneesBar } from "@/components/conversations/assignees-bar";
+import type { ConversationAssignee, DirectoryMember } from "@/lib/conversations/assignment";
 import { emitConversationClientUpdate } from "@/lib/conversations/client-events";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
@@ -44,6 +46,8 @@ type MessagesPanelProps = {
   /** Se verdadeiro, renderiza o botão "Voltar" (mobile). */
   showBackButton?: boolean;
   canManagePrivacy?: boolean;
+  assignees?: ConversationAssignee[];
+  members?: DirectoryMember[];
 };
 
 export function MessagesPanel({
@@ -57,6 +61,8 @@ export function MessagesPanel({
   stages = [],
   showBackButton = false,
   canManagePrivacy = false,
+  assignees = [],
+  members = [],
 }: MessagesPanelProps) {
   const [, startTransition] = useTransition();
   const [messages, setMessages] = useState<ConversationMessage[]>(initialMessages);
@@ -529,6 +535,16 @@ export function MessagesPanel({
             </button>
           </div>
         </div>
+
+        {members.length > 0 ? (
+          <AssigneesBar
+            assignees={assignees}
+            conversationId={conversation.conversation_id}
+            key={conversation.conversation_id}
+            members={members}
+            visibility={liveConversation.visibility}
+          />
+        ) : null}
 
         {/* Histórico de Mensagens */}
         <div
