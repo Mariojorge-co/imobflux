@@ -1610,6 +1610,18 @@ export type Database = {
         Args: { p_conversation_id: string; p_opportunity_id: string }
         Returns: Json
       }
+      register_whatsapp_channel: {
+        Args: { p_instance_name: string }
+        Returns: Json
+      }
+      confirm_whatsapp_channel_state: {
+        Args: { p_instance_name: string; p_phone?: string; p_state: string }
+        Returns: Json
+      }
+      sync_whatsapp_channel_state: {
+        Args: { p_instance_name: string; p_phone?: string; p_state: string }
+        Returns: Json
+      }
       get_attachment_download_context: {
         Args: { p_attachment_id: string }
         Returns: Json

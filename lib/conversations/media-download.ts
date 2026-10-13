@@ -106,6 +106,11 @@ export async function fetchEvolutionMedia(
       },
     );
     if (response.status === 404) return { ok: false, code: "NOT_FOUND" };
+    if (response.status === 400) {
+      // A Evolution v2.3.7 responde 400 "Message not found" quando já não tem a mensagem.
+      const text = await response.text().catch(() => "");
+      return { ok: false, code: /not found/i.test(text) ? "NOT_FOUND" : "HTTP_ERROR" };
+    }
     if (!response.ok) return { ok: false, code: "HTTP_ERROR" };
 
     let body: unknown;

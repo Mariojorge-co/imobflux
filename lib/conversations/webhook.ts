@@ -16,6 +16,7 @@ export type WebhookParseResult =
   | { status: "invalid_secret"; error: string }
   | { status: "malformed"; error: string }
   | { status: "ignored"; reason: "unhandled_event" | "group_sender_missing" | "non_text_message_ignored" }
+  | { status: "connection"; instance: string; state: "open" | "close" | null }
   | {
       status: "valid";
       instance: string;
@@ -63,6 +64,7 @@ interface EvolutionMessageContent {
 }
 
 interface EvolutionPayloadData {
+  state?: unknown;
   key?: EvolutionPayloadKey;
   pushName?: string;
   subject?: string;
@@ -185,6 +187,12 @@ export function parseEvolutionWebhookPayload(body: unknown): WebhookParseResult 
     typeof payload.data !== "object"
   ) {
     return { status: "malformed", error: "Estrutura de payload malformada" };
+  }
+
+  // Mudança de conexão do WhatsApp (ex.: aparelho desconectado). Só "open"/"close" interessam.
+  if (payload.event === "connection.update") {
+    const state = typeof payload.data.state === "string" ? payload.data.state.toLowerCase() : null;
+    return { status: "connection", instance: payload.instance, state: state === "open" || state === "close" ? state : null };
   }
 
   if (payload.event !== "messages.upsert") {

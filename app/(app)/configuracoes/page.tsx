@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Users } from "lucide-react";
+import { Smartphone, Users } from "lucide-react";
 import {
   Card,
   PageContainer,
@@ -13,7 +13,18 @@ export default async function ConfiguracoesPage() {
   return (
     <PageContainer>
       <PageHeader title="Configurações" />
-      <section aria-label="Áreas de Configurações">
+      <section aria-label="Áreas de Configurações" className="space-y-stack">
+        <Link className="block max-w-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" href="/configuracoes/whatsapp">
+          <Card className="flex items-center gap-stack transition-colors hover:bg-neutral-soft">
+            <span className="flex size-11 items-center justify-center rounded-control bg-neutral-soft text-text">
+              <Smartphone aria-hidden="true" size={20} />
+            </span>
+            <span>
+              <span className="block font-semibold text-text">WhatsApp</span>
+              <span className="text-body text-text-muted">Conecte o número da imobiliária lendo um QR code.</span>
+            </span>
+          </Card>
+        </Link>
         <Link className="block max-w-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" href="/configuracoes/equipe">
           <Card className="flex items-center gap-stack transition-colors hover:bg-neutral-soft">
             <span className="flex size-11 items-center justify-center rounded-control bg-neutral-soft text-text">

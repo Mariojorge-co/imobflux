@@ -79,6 +79,9 @@ test.describe("fetchEvolutionMedia", () => {
       media.fetchEvolutionMedia(source, { env, fetchImpl: fetchImpl as typeof fetch, timeoutMs: 50 });
 
     expect(await run(async () => jsonResponse({}, 404))).toEqual({ ok: false, code: "NOT_FOUND" });
+    // Contrato real da Evolution v2.3.7: mensagem que ela já não tem responde 400 "Message not found".
+    expect(await run(async () => jsonResponse({ status: 400, error: "Bad Request", response: { message: ["Message not found"] } }, 400))).toEqual({ ok: false, code: "NOT_FOUND" });
+    expect(await run(async () => jsonResponse({ error: "Bad Request" }, 400))).toEqual({ ok: false, code: "HTTP_ERROR" });
     expect(await run(async () => jsonResponse({}, 500))).toEqual({ ok: false, code: "HTTP_ERROR" });
     expect(await run(async () => new Response("não é json", { status: 200 }))).toEqual({ ok: false, code: "INVALID_RESPONSE" });
     expect(await run(async () => jsonResponse({ base64: 42 }))).toEqual({ ok: false, code: "INVALID_RESPONSE" });

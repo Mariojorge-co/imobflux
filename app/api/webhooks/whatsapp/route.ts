@@ -44,6 +44,21 @@ export async function POST(request: Request) {
       );
     }
 
+    if (result.status === "connection") {
+      if (!result.state) {
+        return NextResponse.json({ status: "ignored", reason: "unhandled_connection_state" }, { status: 200 });
+      }
+      const { data: syncResult, error: syncError } = await createAdminSupabaseClient().rpc("sync_whatsapp_channel_state", {
+        p_instance_name: result.instance,
+        p_state: result.state,
+      });
+      if (syncError) {
+        console.error("Erro ao sincronizar o estado da conexão do WhatsApp via RPC:", syncError);
+        return NextResponse.json({ error: "Erro interno no processamento do webhook" }, { status: 500 });
+      }
+      return NextResponse.json(syncResult ?? { status: "success" }, { status: 200 });
+    }
+
     if (result.status === "ignored") {
       return NextResponse.json(
         { status: "ignored", reason: result.reason },

@@ -143,7 +143,7 @@ test.describe("Evolution API Webhook Route Handler & Parser Complete Unit Tests"
   test("4. evento desconhecido retorna HTTP 200 sem chamar RPC", async () => {
     const req = createMockRequest({
       headers: { "x-evolution-secret": "secret_token_123" },
-      body: { event: "connection.update", instance: "inst-1", data: {} },
+      body: { event: "presence.update", instance: "inst-1", data: {} },
     });
 
     const res = await POST(req);
@@ -381,6 +381,50 @@ test.describe("Evolution API Webhook Route Handler & Parser Complete Unit Tests"
     expect(res.status).toBe(200);
     expect((await res.json()).status).toBe("success");
     await expect(scheduledDownloads[0]()).resolves.toEqual({ status: "failed", code: "NETWORK_ERROR" });
+  });
+
+  function connectionRequest(state: unknown, instance = "imobflux-8ad043dd3b0f") {
+    return createMockRequest({
+      headers: { "x-evolution-secret": "secret_token_123" },
+      body: { event: "connection.update", instance, data: { instance, state, statusReason: 401 } },
+    });
+  }
+
+  test("14. connection.update 'close' (aparelho desconectado) sincroniza a conexão no banco", async () => {
+    rpcMockResult = { data: { status: "success", changed: true, connection_status: "disconnected" }, error: null };
+    const res = await POST(connectionRequest("close"));
+    expect(res.status).toBe(200);
+    expect(rpcCalls).toEqual([{ fnName: "sync_whatsapp_channel_state", args: { p_instance_name: "imobflux-8ad043dd3b0f", p_state: "close" } }]);
+    expect(await res.json()).toMatchObject({ status: "success", connection_status: "disconnected" });
+  });
+
+  test("14b. connection.update 'open' também é sincronizado; 'connecting' e estados desconhecidos são ignorados", async () => {
+    await POST(connectionRequest("OPEN"));
+    expect(rpcCalls.map((call) => call.args.p_state)).toEqual(["open"]);
+
+    rpcCalls = [];
+    for (const state of ["connecting", "refused", "", null, 5]) {
+      const res = await POST(connectionRequest(state));
+      expect(res.status).toBe(200);
+      expect((await res.json()).status).toBe("ignored");
+    }
+    expect(rpcCalls).toHaveLength(0);
+  });
+
+  test("14c. instância desconhecida é ignorada pelo banco com 200; falha do banco responde 500 sem detalhes", async () => {
+    rpcMockResult = { data: { status: "ignored", reason: "unknown_instance" }, error: null };
+    expect((await POST(connectionRequest("close", "outra-instancia"))).status).toBe(200);
+
+    rpcMockResult = { data: null, error: { message: "detalhe interno do banco" } };
+    const failed = await POST(connectionRequest("close"));
+    expect(failed.status).toBe(500);
+    expect(await failed.text()).not.toContain("detalhe interno");
+  });
+
+  test("14d. connection.update exige o segredo do webhook", async () => {
+    const req = createMockRequest({ headers: {}, body: { event: "connection.update", instance: "x", data: { state: "close" } } });
+    expect((await POST(req)).status).toBe(401);
+    expect(rpcCalls).toHaveLength(0);
   });
 
   test("6i. texto continua com uma única RPC (sem anexo)", async () => {
