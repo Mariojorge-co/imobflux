@@ -55,6 +55,15 @@ export type GetConversationsListParams = {
   view?: ConversationInboxView;
 };
 
+/** Metadados de um anexo de mensagem (o arquivo pode ainda não estar disponível no CRM). */
+export type ConversationMessageAttachment = {
+  id: string;
+  file_name: string;
+  mime_type: string;
+  size_bytes: number;
+  status: string; // 'pending' | 'available' | 'unavailable' | 'archived'
+};
+
 /** Uma mensagem individual para exibição no painel de histórico. */
 export type ConversationMessage = {
   id: string;
@@ -64,6 +73,7 @@ export type ConversationMessage = {
   text_content: string | null;
   occurred_at: string;
   has_attachments: boolean;
+  attachments?: ConversationMessageAttachment[];
   internal_author_name?: string | null;
   sender_display_name?: string | null;
 };

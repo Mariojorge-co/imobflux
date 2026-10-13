@@ -1,5 +1,15 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 
+export type WebhookMediaKind = "image" | "document" | "audio" | "video" | "sticker";
+
+/** Metadados de uma mensagem de mídia (o binário ainda não é baixado). */
+export type WebhookMedia = {
+  kind: WebhookMediaKind;
+  mimeType: string | null;
+  fileName: string | null;
+  sizeBytes: number | null;
+};
+
 export type WebhookParseResult =
   | { status: "invalid_secret"; error: string }
   | { status: "malformed"; error: string }
@@ -14,7 +24,9 @@ export type WebhookParseResult =
       fromMe: boolean;
       externalMessageId: string | null;
       pushName: string | null;
+      /** Texto ou legenda; em mídia sem legenda, um rótulo legível ("📄 Documento: x.pdf"). */
       textContent: string;
+      media: WebhookMedia | null;
       occurredAt: string;
     };
 
@@ -25,16 +37,33 @@ interface EvolutionPayloadKey {
   id?: string;
 }
 
+type EvolutionMediaMessage = {
+  mimetype?: unknown;
+  fileName?: unknown;
+  title?: unknown;
+  caption?: unknown;
+  fileLength?: unknown;
+  ptt?: unknown;
+};
+
+interface EvolutionMessageContent {
+  conversation?: string;
+  extendedTextMessage?: {
+    text?: string;
+  };
+  imageMessage?: EvolutionMediaMessage;
+  documentMessage?: EvolutionMediaMessage;
+  documentWithCaptionMessage?: { message?: { documentMessage?: EvolutionMediaMessage } };
+  audioMessage?: EvolutionMediaMessage;
+  videoMessage?: EvolutionMediaMessage;
+  stickerMessage?: EvolutionMediaMessage;
+}
+
 interface EvolutionPayloadData {
   key?: EvolutionPayloadKey;
   pushName?: string;
   subject?: string;
-  message?: {
-    conversation?: string;
-    extendedTextMessage?: {
-      text?: string;
-    };
-  };
+  message?: EvolutionMessageContent;
   messageTimestamp?: number | string;
 }
 
@@ -61,6 +90,73 @@ export function validateWebhookSecret(
     return false;
   }
   return timingSafeEqual(secretDigest(incomingSecret), secretDigest(expectedSecret));
+}
+
+function cleanString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
+}
+
+/** fileLength vem como número, texto numérico ou objeto Long ({ low, high }). */
+function parseFileLength(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) return Math.floor(value);
+  if (typeof value === "string" && /^\d+$/.test(value.trim())) {
+    const parsed = Number(value.trim());
+    return parsed > 0 && Number.isSafeInteger(parsed) ? parsed : null;
+  }
+  if (value && typeof value === "object") {
+    const { low, high } = value as { low?: unknown; high?: unknown };
+    if (typeof low === "number" && (high === undefined || high === 0)) {
+      return low > 0 ? low : null;
+    }
+  }
+  return null;
+}
+
+const MEDIA_LABELS: Record<WebhookMediaKind, string> = {
+  image: "📷 Imagem",
+  document: "📄 Documento",
+  audio: "🎧 Áudio",
+  video: "🎬 Vídeo",
+  sticker: "Figurinha",
+};
+
+/**
+ * Extrai o tipo de mídia suportado (imagem, documento/PDF, áudio, vídeo, figurinha) e
+ * seus metadados. Retorna null para mensagens sem mídia reconhecida.
+ */
+export function extractWebhookMedia(
+  message: EvolutionMessageContent | undefined,
+): { media: WebhookMedia; caption: string | null; label: string } | null {
+  if (!message) return null;
+
+  const candidates: Array<[WebhookMediaKind, EvolutionMediaMessage | undefined]> = [
+    ["image", message.imageMessage],
+    ["document", message.documentMessage ?? message.documentWithCaptionMessage?.message?.documentMessage],
+    ["audio", message.audioMessage],
+    ["video", message.videoMessage],
+    ["sticker", message.stickerMessage],
+  ];
+  const found = candidates.find(([, content]) => content && typeof content === "object");
+  if (!found) return null;
+
+  const [kind, content] = found as [WebhookMediaKind, EvolutionMediaMessage];
+  const fileName = cleanString(content.fileName) ?? cleanString(content.title);
+  const caption = cleanString(content.caption);
+
+  let label = MEDIA_LABELS[kind];
+  if (kind === "audio" && content.ptt === true) label = "🎤 Mensagem de voz";
+  if (kind === "document" && fileName) label = `${label}: ${fileName}`;
+
+  return {
+    media: {
+      kind,
+      mimeType: cleanString(content.mimetype),
+      fileName,
+      sizeBytes: parseFileLength(content.fileLength),
+    },
+    caption,
+    label,
+  };
 }
 
 /**
@@ -113,9 +209,14 @@ export function parseEvolutionWebhookPayload(body: unknown): WebhookParseResult 
     data.message?.extendedTextMessage?.text ??
     null;
 
-  if (typeof rawText !== "string" || rawText.trim() === "") {
+  const hasText = typeof rawText === "string" && rawText.trim() !== "";
+  const extracted = hasText ? null : extractWebhookMedia(data.message);
+
+  // Mensagens que não são texto nem mídia reconhecida (reações, enquetes, etc.) seguem ignoradas.
+  if (!hasText && !extracted) {
     return { status: "ignored", reason: "non_text_message_ignored" };
   }
+  const textContent = extracted ? (extracted.caption ?? extracted.label) : (rawText as string);
 
   const fromMe = Boolean(key.fromMe);
   const externalMessageId = key.id ?? null;
@@ -150,7 +251,8 @@ export function parseEvolutionWebhookPayload(body: unknown): WebhookParseResult 
     fromMe,
     externalMessageId,
     pushName,
-    textContent: rawText,
+    textContent,
+    media: extracted?.media ?? null,
     occurredAt,
   };
 }

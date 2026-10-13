@@ -17,6 +17,8 @@ import {
 import { MessageForm } from "@/components/conversations/message-form";
 import { Button, Drawer, Input, ModalDialog } from "@/components/ui";
 import { calculateSLA } from "@/lib/conversations/sla";
+import { resolveOpportunityTargets } from "@/lib/conversations/opportunity-targets";
+import { describeAttachment } from "@/lib/conversations/attachment-label";
 import type {
   ConversationContextData,
   ConversationListItem,
@@ -384,16 +386,19 @@ export function MessagesPanel({
     e.preventDefault();
     if (!oppTitle.trim()) return;
 
-    setIsCreatingOpp(true);
     setOppError(null);
+    const targets = resolveOpportunityTargets(stages, context?.contact?.id);
+    if (!targets.ok) {
+      setOppError(targets.error);
+      return;
+    }
 
-    const defaultStageId = "41000000-0000-4000-8000-000000000001";
-    const contactId = context?.contact?.id || "51000000-0000-4000-8000-000000000001";
+    setIsCreatingOpp(true);
 
     const res = await createOpportunityFromConversationAction({
       conversationId: conversation.conversation_id,
-      contactId,
-      stageId: defaultStageId,
+      contactId: targets.contactId,
+      stageId: targets.stageId,
       title: oppTitle.trim(),
     });
 
@@ -755,20 +760,27 @@ function MessageBubble({ message, isOutgoing }: MessageBubbleProps) {
           </p>
         )}
 
-        {message.has_attachments && (
-          <div
-            aria-label="Esta mensagem contém um anexo indisponível"
-            className={[
-              "mb-1.5 flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs",
-              isOutgoing
-                ? "bg-white/10 text-primary-foreground/70"
-                : "bg-neutral-soft text-text-muted",
-            ].join(" ")}
-          >
-            <Paperclip aria-hidden="true" size={12} strokeWidth={1.8} />
-            <span>Anexo indisponível</span>
-          </div>
-        )}
+        {message.has_attachments && (message.attachments?.length ? message.attachments : [null]).map((attachment, index) => {
+          const description = attachment ? describeAttachment(attachment) : null;
+          return (
+            <div
+              aria-label={description ? `Anexo: ${description.title}. ${description.hint ?? ""}`.trim() : "Esta mensagem contém um anexo indisponível"}
+              className={[
+                "mb-1.5 flex items-start gap-1.5 rounded-lg px-2.5 py-1.5 text-xs",
+                isOutgoing
+                  ? "bg-white/10 text-primary-foreground/70"
+                  : "bg-neutral-soft text-text-muted",
+              ].join(" ")}
+              key={attachment?.id ?? `attachment-${index}`}
+            >
+              <Paperclip aria-hidden="true" className="mt-0.5 shrink-0" size={12} strokeWidth={1.8} />
+              <span className="min-w-0">
+                <span className="block break-words font-medium">{description?.title ?? "Anexo indisponível"}</span>
+                {description?.hint ? <span className="block">{description.hint}</span> : null}
+              </span>
+            </div>
+          );
+        })}
 
         {message.text_content && (
           <p className="whitespace-pre-wrap break-words text-sm">

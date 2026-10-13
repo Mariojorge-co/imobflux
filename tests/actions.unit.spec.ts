@@ -352,6 +352,64 @@ test.describe("Server Action sendMessageAction Unit Tests", () => {
     });
     expect(revalidatedPaths).toContain(`/conversas/${VALID_CONVERSATION_ID}`);
   });
+
+  test.describe("12. status 'enviada' só com aceite real do gateway", () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    const originalDemo = process.env.NEXT_PUBLIC_DEMO_MODE;
+    test.afterEach(() => {
+      Object.assign(process.env, { NODE_ENV: originalNodeEnv });
+      if (originalDemo === undefined) delete process.env.NEXT_PUBLIC_DEMO_MODE;
+      else process.env.NEXT_PUBLIC_DEMO_MODE = originalDemo;
+    });
+
+    const notConfigured = { success: false, error: "Configuração da Evolution API ausente no ambiente", code: "MISSING_ENV_CONFIG" };
+
+    test("produção sem WhatsApp configurado: falha, grava 'failed' e nunca 'sent'", async () => {
+      Object.assign(process.env, { NODE_ENV: "production" });
+      gatewayResult = notConfigured;
+
+      const res = await sendMessageAction(VALID_CONVERSATION_ID, "Olá", VALID_IDEMPOTENCY_KEY);
+
+      expect(res).toEqual({
+        success: false,
+        error: "O WhatsApp ainda não está conectado ao ImobFlux. A mensagem não foi enviada.",
+        code: "GATEWAY_NOT_CONFIGURED",
+      });
+      expect(reconcileCalls.map((call) => call.args.p_target_status)).toEqual(["failed"]);
+    });
+
+    test("produção ignora NEXT_PUBLIC_DEMO_MODE=true (não existe contorno em produção)", async () => {
+      Object.assign(process.env, { NODE_ENV: "production", NEXT_PUBLIC_DEMO_MODE: "true" });
+      gatewayResult = notConfigured;
+
+      const res = await sendMessageAction(VALID_CONVERSATION_ID, "Olá", VALID_IDEMPOTENCY_KEY);
+
+      expect(res.success).toBe(false);
+      expect(reconcileCalls.map((call) => call.args.p_target_status)).toEqual(["failed"]);
+    });
+
+    test("desenvolvimento: falha REAL do gateway (HTTP/timeout) continua falha", async () => {
+      Object.assign(process.env, { NODE_ENV: "development" });
+      for (const code of ["HTTP_500", "TIMEOUT", "NETWORK_ERROR"]) {
+        reconcileCalls = [];
+        gatewayResult = { success: false, error: "falha real", code };
+        const res = await sendMessageAction(VALID_CONVERSATION_ID, "Olá", VALID_IDEMPOTENCY_KEY);
+        expect(res.success).toBe(false);
+        expect(reconcileCalls.map((call) => call.args.p_target_status)).toEqual(["failed"]);
+      }
+    });
+
+    test("desenvolvimento sem WhatsApp configurado mantém o contorno local (sem gateway)", async () => {
+      Object.assign(process.env, { NODE_ENV: "development" });
+      gatewayResult = notConfigured;
+
+      const res = await sendMessageAction(VALID_CONVERSATION_ID, "Olá", VALID_IDEMPOTENCY_KEY);
+
+      expect(res.success).toBe(true);
+      expect(reconcileCalls.map((call) => call.args.p_target_status)).toEqual(["sent"]);
+      expect(reconcileCalls[0].args.p_external_message_id).toBeUndefined();
+    });
+  });
 });
 
 const revalidateCalls: unknown[] = [];

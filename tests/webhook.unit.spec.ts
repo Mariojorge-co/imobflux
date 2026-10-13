@@ -166,8 +166,8 @@ test.describe("Evolution API Webhook Route Handler & Parser Complete Unit Tests"
     expect(rpcCalls[0].fnName).toBe("ingest_whatsapp_group_text_message");
   });
 
-  // 6. Mensagem não textual (imagem/mídia) retorna 200 sem chamar RPC
-  test("6. mensagem não textual (imagem) retorna HTTP 200 sem chamar RPC", async () => {
+  // 6. Mensagem sem texto e sem mídia reconhecida (ex.: reação) segue ignorada
+  test("6. mensagem sem texto e sem mídia reconhecida retorna HTTP 200 sem chamar RPC", async () => {
     const req = createMockRequest({
       headers: { "x-evolution-secret": "secret_token_123" },
       body: {
@@ -177,11 +177,11 @@ test.describe("Evolution API Webhook Route Handler & Parser Complete Unit Tests"
           key: {
             remoteJid: "5582988880000@s.whatsapp.net",
             fromMe: false,
-            id: "msg-img-1",
+            id: "msg-react-1",
           },
           pushName: "João",
           messageTimestamp: 1700000000,
-          message: { imageMessage: { caption: "Foto da casa" } },
+          message: { reactionMessage: { text: "👍" } },
         },
       },
     });
@@ -192,6 +192,112 @@ test.describe("Evolution API Webhook Route Handler & Parser Complete Unit Tests"
     expect(json.status).toBe("ignored");
     expect(json.reason).toBe("non_text_message_ignored");
     expect(rpcCalls.length).toBe(0);
+  });
+
+  // 6b. Mídia (imagem, PDF, áudio) agora é ingerida e registra o anexo
+  function mediaRequest(message: Record<string, unknown>, overrides: { jid?: string; participant?: string; fromMe?: boolean } = {}) {
+    return createMockRequest({
+      headers: { "x-evolution-secret": "secret_token_123" },
+      body: {
+        event: "messages.upsert",
+        instance: "inst-1",
+        data: {
+          key: {
+            remoteJid: overrides.jid ?? "5582988880000@s.whatsapp.net",
+            fromMe: overrides.fromMe ?? false,
+            id: "msg-media-1",
+            ...(overrides.participant ? { participant: overrides.participant } : {}),
+          },
+          pushName: "Cliente",
+          messageTimestamp: 1700000000,
+          message,
+        },
+      },
+    });
+  }
+
+  test("6b. imagem com legenda: ingere a legenda como texto e registra o anexo", async () => {
+    const res = await POST(mediaRequest({ imageMessage: { caption: "Foto da casa", mimetype: "image/jpeg", fileLength: "245760" } }));
+    expect(res.status).toBe(200);
+    expect(rpcCalls.map((call) => call.fnName)).toEqual(["ingest_whatsapp_text_message", "attach_whatsapp_media"]);
+    expect(rpcCalls[0].args.p_text_content).toBe("Foto da casa");
+    expect(rpcCalls[1].args).toEqual({
+      p_message_id: "msg-uuid-123",
+      p_media_kind: "image",
+      p_file_name: "",
+      p_mime_type: "image/jpeg",
+      p_size_bytes: 245760,
+    });
+  });
+
+  test("6c. PDF sem legenda: texto legível com o nome do arquivo e anexo com mime e tamanho", async () => {
+    const res = await POST(mediaRequest({ documentMessage: { mimetype: "application/pdf", fileName: "holerite.pdf", fileLength: 120000 } }));
+    expect(res.status).toBe(200);
+    expect(rpcCalls[0].args.p_text_content).toBe("📄 Documento: holerite.pdf");
+    expect(rpcCalls[1]).toEqual({
+      fnName: "attach_whatsapp_media",
+      args: { p_message_id: "msg-uuid-123", p_media_kind: "document", p_file_name: "holerite.pdf", p_mime_type: "application/pdf", p_size_bytes: 120000 },
+    });
+  });
+
+  test("6d. documento com legenda (documentWithCaptionMessage) é reconhecido", async () => {
+    await POST(mediaRequest({ documentWithCaptionMessage: { message: { documentMessage: { mimetype: "application/pdf", fileName: "rg.pdf", caption: "Segue meu RG" } } } }));
+    expect(rpcCalls[0].args.p_text_content).toBe("Segue meu RG");
+    expect(rpcCalls[1].args).toMatchObject({ p_media_kind: "document", p_file_name: "rg.pdf" });
+  });
+
+  test("6e. áudio e mensagem de voz: ingere com rótulo e registra o anexo", async () => {
+    await POST(mediaRequest({ audioMessage: { mimetype: "audio/ogg; codecs=opus", ptt: true, fileLength: { low: 9000, high: 0 } } }));
+    expect(rpcCalls[0].args.p_text_content).toBe("🎤 Mensagem de voz");
+    expect(rpcCalls[1].args).toMatchObject({ p_media_kind: "audio", p_size_bytes: 9000 });
+
+    rpcCalls = [];
+    await POST(mediaRequest({ audioMessage: { mimetype: "audio/mpeg" } }));
+    expect(rpcCalls[0].args.p_text_content).toBe("🎧 Áudio");
+    expect(rpcCalls[1].args.p_size_bytes).toBeUndefined();
+  });
+
+  test("6f. mídia em grupo usa a RPC de grupo e depois registra o anexo", async () => {
+    await POST(mediaRequest({ imageMessage: { mimetype: "image/png" } }, { jid: "120363041999999999@g.us", participant: "5582988880000@s.whatsapp.net" }));
+    expect(rpcCalls.map((call) => call.fnName)).toEqual(["ingest_whatsapp_group_text_message", "attach_whatsapp_media"]);
+    expect(rpcCalls[0].args.p_text_content).toBe("📷 Imagem");
+  });
+
+  test("6g. reentrega (duplicate) ainda garante o anexo; ignored/erro de ingestão não registra anexo", async () => {
+    rpcMockResult = { data: { status: "duplicate", message_id: "msg-uuid-123" }, error: null };
+    await POST(mediaRequest({ imageMessage: { mimetype: "image/png" } }));
+    expect(rpcCalls.map((call) => call.fnName)).toEqual(["ingest_whatsapp_text_message", "attach_whatsapp_media"]);
+
+    rpcCalls = [];
+    rpcMockResult = { data: { status: "ignored", reason: "invalid_phone" }, error: null };
+    await POST(mediaRequest({ imageMessage: { mimetype: "image/png" } }));
+    expect(rpcCalls.map((call) => call.fnName)).toEqual(["ingest_whatsapp_text_message"]);
+
+    rpcCalls = [];
+    rpcMockResult = { data: null, error: { message: "boom" } };
+    const failed = await POST(mediaRequest({ imageMessage: { mimetype: "image/png" } }));
+    expect(failed.status).toBe(500);
+    expect(rpcCalls.map((call) => call.fnName)).toEqual(["ingest_whatsapp_text_message"]);
+  });
+
+  test("6h. falha ao registrar o anexo retorna 500 (provedor pode reenviar) sem vazar detalhes", async () => {
+    adminModule.createAdminSupabaseClient = () => ({
+      rpc: async (fnName: string, args: Record<string, unknown>) => {
+        rpcCalls.push({ fnName, args });
+        return fnName === "attach_whatsapp_media"
+          ? { data: null, error: { message: "detalhe interno do banco" } }
+          : rpcMockResult;
+      },
+    });
+    const res = await POST(mediaRequest({ imageMessage: { mimetype: "image/png" } }));
+    expect(res.status).toBe(500);
+    expect(await res.text()).not.toContain("detalhe interno");
+  });
+
+  test("6i. texto continua com uma única RPC (sem anexo)", async () => {
+    const res = await POST(mediaRequest({ conversation: "só texto" }));
+    expect(res.status).toBe(200);
+    expect(rpcCalls.map((call) => call.fnName)).toEqual(["ingest_whatsapp_text_message"]);
   });
 
   // 7. Payload textual válido chama RPC ingest_whatsapp_text_message com argumentos esperados

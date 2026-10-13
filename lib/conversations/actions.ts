@@ -25,6 +25,7 @@ import {
 import * as serverModule from "@/lib/supabase/server";
 import * as adminModule from "@/lib/supabase/admin";
 import * as gatewayModule from "@/lib/supabase/gateway";
+import { classifyGatewayOutcome } from "@/lib/conversations/gateway-outcome";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -394,15 +395,11 @@ export async function sendMessageAction(
 
     const admin = adminModule.createAdminSupabaseClient();
 
-    // Se o envio externo foi bem sucedido OU se estamos no Demo Mode / ambiente local sem gateway configurado
-    const isDemoOrLocalMode =
-      process.env.NEXT_PUBLIC_DEMO_MODE === "true" ||
-      process.env.NODE_ENV === "development" ||
-      (!gatewayResult.success &&
-        (gatewayResult.code === "GATEWAY_NOT_CONFIGURED" ||
-          gatewayResult.code === "MISSING_EVOLUTION_API_KEY"));
+    // Só o aceite real do gateway conta como envio. O único contorno (dev/demo, nunca em
+    // produção) vale para "WhatsApp não configurado"; falhas reais nunca viram "enviada".
+    const outcome = classifyGatewayOutcome(gatewayResult);
 
-    if (gatewayResult.success || isDemoOrLocalMode) {
+    if (outcome.deliver) {
       const { error: reconcileError } = await admin.rpc(
         "reconcile_outgoing_text_message",
         {
@@ -445,8 +442,8 @@ export async function sendMessageAction(
       revalidatePath(`/conversas/${conversationId}`);
       return {
         success: false,
-        error: "Falha ao enviar mensagem via WhatsApp",
-        code: "GATEWAY_ERROR",
+        error: outcome.error,
+        code: outcome.code,
       };
     }
   } catch (error) {

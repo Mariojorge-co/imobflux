@@ -36,19 +36,10 @@ type ClientContextPanelProps = {
   onContactUpdated?: (displayName: string, registrationStatus: string) => void;
 };
 
-const STAGES_FALLBACK = [
-  { id: "41000000-0000-4000-8000-000000000001", name: "Em atendimento" },
-  { id: "41000000-0000-4000-8000-000000000002", name: "Simulação / Análise" },
-  { id: "41000000-0000-4000-8000-000000000003", name: "Documentação" },
-  { id: "41000000-0000-4000-8000-000000000004", name: "Aprovado / Escolhendo imóvel" },
-  { id: "41000000-0000-4000-8000-000000000005", name: "Negociação" },
-  { id: "41000000-0000-4000-8000-000000000006", name: "Contrato" },
-];
-
 export function ClientContextPanel({
   conversationId,
   context,
-  stages = STAGES_FALLBACK,
+  stages = [],
   opportunities = [],
   selectedOpportunityId,
   onOpportunityChange,

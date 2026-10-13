@@ -85,6 +85,26 @@ export async function POST(request: Request) {
       );
     }
 
+    // Mídia: registra os metadados do anexo na mensagem recém-ingerida (idempotente, então
+    // também cobre reentregas). Falha aqui retorna 500 para o provedor poder reenviar.
+    const ingested = rpcResult as { status?: string; message_id?: string } | null;
+    if (result.media && ingested?.message_id && (ingested.status === "success" || ingested.status === "duplicate")) {
+      const { error: attachError } = await supabase.rpc("attach_whatsapp_media", {
+        p_message_id: ingested.message_id,
+        p_media_kind: result.media.kind,
+        p_file_name: result.media.fileName ?? "",
+        p_mime_type: result.media.mimeType ?? "",
+        p_size_bytes: result.media.sizeBytes ?? undefined,
+      });
+      if (attachError) {
+        console.error("Erro ao registrar anexo de mídia do WhatsApp via RPC:", attachError);
+        return NextResponse.json(
+          { error: "Erro interno no processamento do webhook" },
+          { status: 500 },
+        );
+      }
+    }
+
     return NextResponse.json(rpcResult ?? { status: "success" }, {
       status: 200,
     });

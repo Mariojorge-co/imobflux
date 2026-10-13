@@ -1415,6 +1415,16 @@ export type Database = {
         Returns: undefined
       }
       archive_opportunity: { Args: { p_opportunity_id: string }; Returns: Json }
+      attach_whatsapp_media: {
+        Args: {
+          p_file_name: string
+          p_media_kind: string
+          p_message_id: string
+          p_mime_type: string
+          p_size_bytes?: number
+        }
+        Returns: Json
+      }
       bootstrap_initial_workspace: {
         Args: {
           p_auth_user_id: string
