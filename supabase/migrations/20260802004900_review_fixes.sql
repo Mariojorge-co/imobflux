@@ -11,6 +11,7 @@
 --   B2  assign_conversation, reassign_conversation, create_work_task e reassign_work_task leem o membro com
 --       FOR SHARE: uma remoção concorrente (FOR UPDATE) espera, e a atribuição nunca "ressuscita" um removido.
 --   B3  complete_work_task é idempotente em tarefa já concluída (status already_completed, sem novo evento).
+--   B4  upsert_work_task só edita tarefa pendente (task_not_pending), como update_work_task.
 
 -- ─── A1: reconvidar quem foi removido ───────────────────────────────────────────────────────────
 create or replace function public.prepare_team_invitation(
@@ -537,6 +538,104 @@ begin
     );
 
     return pg_catalog.jsonb_build_object('success', true, 'status', 'completed', 'task_id', v_task.id);
+end;
+$function$;
+
+-- ─── B4: upsert_work_task só edita tarefa pendente ───────────────────────────────────────────────
+create or replace function public.upsert_work_task(
+    p_task_type text,
+    p_title text,
+    p_due_at timestamptz,
+    p_contact_id uuid default null,
+    p_opportunity_id uuid default null,
+    p_conversation_id uuid default null,
+    p_task_id uuid default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $function$
+declare
+    v_context record;
+    v_task_id uuid;
+    v_now timestamptz := pg_catalog.statement_timestamp();
+begin
+    select * into v_context from private.active_member_context() limit 1;
+    if v_context.member_id is null then
+        raise exception 'resource_not_available' using errcode = '42501';
+    end if;
+    if nullif(btrim(p_title), '') is null or p_task_type not in ('task', 'follow_up') then
+        raise exception 'invalid_task' using errcode = '22023';
+    end if;
+
+    if p_task_id is not null then
+        if not private.can_access_work_task(p_task_id) then
+            raise exception 'resource_not_available' using errcode = '42501';
+        end if;
+        -- Só tarefa pendente é editável (igual a update_work_task).
+        if not exists (
+            select 1 from public.work_tasks as task
+            where task.id = p_task_id and task.workspace_id = v_context.workspace_id and task.status = 'pending'
+        ) then
+            raise exception 'task_not_pending' using errcode = '55000';
+        end if;
+        update public.work_tasks set title = btrim(p_title), due_at = coalesce(p_due_at, due_at),
+            task_type = p_task_type, updated_at = statement_timestamp()
+        where id = p_task_id and workspace_id = v_context.workspace_id
+        returning id into v_task_id;
+
+        if v_task_id is not null then
+            insert into public.audit_events (
+                workspace_id, actor_type, actor_member_id, action, target_type,
+                target_id, result, metadata, occurred_at, recorded_at
+            ) values (
+                v_context.workspace_id, 'member', v_context.member_id, 'task.updated', 'task', v_task_id, 'success',
+                pg_catalog.jsonb_build_object('fields', pg_catalog.jsonb_build_array('title', 'due_at', 'task_type')),
+                v_now, v_now
+            );
+        end if;
+    else
+        if num_nonnulls(p_contact_id, p_opportunity_id, p_conversation_id) < 1
+           or (p_contact_id is not null and not private.can_access_contact(p_contact_id))
+           or (p_opportunity_id is not null and not private.can_access_opportunity(p_opportunity_id))
+           or (p_conversation_id is not null and not private.can_access_conversation(p_conversation_id)) then
+            raise exception 'resource_not_available' using errcode = '42501';
+        end if;
+        if p_contact_id is not null and p_opportunity_id is not null and not exists (
+            select 1 from public.opportunities where id = p_opportunity_id
+              and contact_id = p_contact_id and workspace_id = v_context.workspace_id
+        ) then raise exception 'resource_not_available' using errcode = '42501'; end if;
+        if p_contact_id is not null and p_conversation_id is not null and not exists (
+            select 1 from public.conversation_participants as participant
+            join public.contact_points as point on point.id = participant.contact_point_id
+            where participant.conversation_id = p_conversation_id
+              and point.contact_id = p_contact_id and participant.left_at is null
+        ) then
+            raise exception 'resource_not_available' using errcode = '42501';
+        end if;
+        insert into public.work_tasks (
+            workspace_id, task_type, title, status, priority, due_at,
+            contact_id, opportunity_id, conversation_id, created_by_member_id
+        ) values (
+            v_context.workspace_id, p_task_type, btrim(p_title), 'pending', 'normal',
+            coalesce(p_due_at, statement_timestamp() + interval '1 day'),
+            p_contact_id, p_opportunity_id, p_conversation_id, v_context.member_id
+        ) returning id into v_task_id;
+
+        insert into public.audit_events (
+            workspace_id, actor_type, actor_member_id, action, target_type,
+            target_id, result, metadata, occurred_at, recorded_at
+        ) values (
+            v_context.workspace_id, 'member', v_context.member_id, 'task.created', 'task', v_task_id, 'success',
+            pg_catalog.jsonb_strip_nulls(pg_catalog.jsonb_build_object(
+                'task_type', p_task_type, 'priority', 'normal',
+                'contact_id', p_contact_id, 'opportunity_id', p_opportunity_id, 'conversation_id', p_conversation_id
+            )),
+            v_now, v_now
+        );
+    end if;
+    return jsonb_build_object('success', true, 'task_id', v_task_id);
 end;
 $function$;
 
