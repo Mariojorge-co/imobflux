@@ -20,7 +20,8 @@ export default async function AuditoriaPage({ searchParams }: PageProps) {
   await requireOwnerAccess();
   const filters = parseAuditFilters(await searchParams);
   const [page, team] = await Promise.all([getAuditPage(filters), getTeamNames()]);
-  const names = new Map(team.map((member) => [member.id, member.name]));
+  // Nomes vêm da própria consulta (inclui quem foi removido); a lista de equipe só alimenta o filtro "Pessoa".
+  const names = new Map(Object.entries(page.memberNames));
   const views = page.events.map((event) => describeAuditEvent(event, names));
   const last = page.events.at(-1);
   const hasFilters = Boolean(filters.category || filters.actor || filters.from || filters.to);

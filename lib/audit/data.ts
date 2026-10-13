@@ -7,6 +7,8 @@ import { dayAfterIso, dayStartIso, type AuditFilters } from "@/lib/audit/query";
 export type AuditPage = {
   events: AuditEventRow[];
   hasMore: boolean;
+  /** id do membro -> nome, de todos os citados nos eventos (inclui removidos); só do próprio workspace. */
+  memberNames: Record<string, string>;
 };
 
 export type TeamNameEntry = { id: string; name: string };
@@ -24,8 +26,8 @@ export async function getAuditPage(filters: AuditFilters, limit = 50): Promise<A
     p_limit: limit,
   });
   if (error) throw new Error("Não foi possível carregar a auditoria.");
-  const result = data as unknown as { events?: AuditEventRow[]; has_more?: boolean } | null;
-  return { events: result?.events ?? [], hasMore: Boolean(result?.has_more) };
+  const result = data as unknown as { events?: AuditEventRow[]; has_more?: boolean; member_names?: Record<string, string> } | null;
+  return { events: result?.events ?? [], hasMore: Boolean(result?.has_more), memberNames: result?.member_names ?? {} };
 }
 
 /** Nomes dos membros (para o filtro "pessoa" e para traduzir ids dentro dos eventos). */

@@ -1,6 +1,13 @@
+import "./helpers/server-only";
+
 import { expect, test } from "@playwright/test";
 import { AUDIT_CATEGORIES, categoryOf, describeAuditEvent, type AuditEventRow } from "../lib/audit/labels";
 import { auditQueryString, dayAfterIso, dayStartIso, parseAuditFilters } from "../lib/audit/query";
+
+/* eslint-disable @typescript-eslint/no-require-imports */
+const serverModule = require("@/lib/supabase/server");
+const auditData = require("@/lib/audit/data") as typeof import("@/lib/audit/data");
+/* eslint-enable @typescript-eslint/no-require-imports */
 
 const ID = "11111111-1111-4111-8111-111111111111";
 const ANA = "22222222-2222-4222-8222-222222222222";
@@ -99,5 +106,37 @@ test.describe("Auditoria: filtros da URL", () => {
     expect(auditQueryString(filters)).toBe("?categoria=team&de=2026-10-01");
     expect(auditQueryString(filters, { ts: "2026-10-12T15:30:00.000Z", id: ID })).toContain("cursor_id=" + ID);
     expect(auditQueryString(parseAuditFilters({}))).toBe("");
+  });
+});
+
+const NO_FILTERS = { category: null, actor: null, from: null, to: null, cursorTs: null, cursorId: null };
+
+test.describe("Auditoria: nomes de membros removidos", () => {
+  test("a página traz o mapa de nomes da consulta (inclui removidos) e o detalhe usa esses nomes", async () => {
+    const REMOVED = "44444444-4444-4444-8444-444444444444";
+    serverModule.createServerSupabaseClient = async () => ({
+      rpc: async () => ({
+        data: {
+          events: [event("conversation.assigned", { metadata: { member_id: REMOVED } })],
+          has_more: false,
+          member_names: { [REMOVED]: "Ana (removida)" },
+        },
+        error: null,
+      }),
+    });
+    const page = await auditData.getAuditPage(NO_FILTERS);
+    expect(page.memberNames).toEqual({ [REMOVED]: "Ana (removida)" });
+    const view = describeAuditEvent(page.events[0], new Map(Object.entries(page.memberNames)));
+    expect(view.detail).toBe("Responsável: Ana (removida)");
+    expect(view.detail).not.toContain("outro membro");
+  });
+
+  test("resposta sem mapa de nomes (banco antigo) não quebra: cai em 'outro membro'", async () => {
+    serverModule.createServerSupabaseClient = async () => ({
+      rpc: async () => ({ data: { events: [event("conversation.assigned", { metadata: { member_id: ANA } })], has_more: false }, error: null }),
+    });
+    const page = await auditData.getAuditPage(NO_FILTERS);
+    expect(page.memberNames).toEqual({});
+    expect(describeAuditEvent(page.events[0], new Map(Object.entries(page.memberNames))).detail).toBe("Responsável: outro membro");
   });
 });
