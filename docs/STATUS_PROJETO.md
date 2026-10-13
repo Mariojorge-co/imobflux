@@ -4,13 +4,13 @@
 - **Objetivo**: gestão comercial e relacionamento para corretores e imobiliárias, com WhatsApp integrado.
 - **Versão**: `0.1.0`
 - **Produção**: app em `https://imobflux.vercel.app` (Vercel) e banco no Supabase (`imobflux-prod`).
-- **Última atualização**: 2026-10-13 (commit `17479d8`)
+- **Última atualização**: 2026-10-13 (produção em `f781a44`+; branch `feat/mvp-noite` com os itens do MVP, ainda não publicado, ver `RELATORIO_NOITE.md`)
 
 ---
 
 ## Resumo
 
-Escopo do documento de MVP (`FLUXOS_NEGOCIO.md`, 28 fluxos) implementado em cerca de **85%**. Pronto para uso
+Escopo do documento de MVP (`FLUXOS_NEGOCIO.md`, 28 fluxos) implementado em cerca de **95%** (com o branch `feat/mvp-noite`; hoje em produção, cerca de 85%). Pronto para uso
 real com clientes em cerca de **65%**: o código do WhatsApp está completo e testado com Evolution simulada e
 real em ambiente local, mas **falta hospedar a Evolution publicamente, configurar as variáveis no Vercel e
 testar com um celular real** (roteiro em [DEPLOY_EVOLUTION_VPS.md](DEPLOY_EVOLUTION_VPS.md)).
@@ -44,17 +44,24 @@ testar com um celular real** (roteiro em [DEPLOY_EVOLUTION_VPS.md](DEPLOY_EVOLUT
 - **Estados vazios guiados** em Conversas e Kanban (conectar WhatsApp / criar primeira oportunidade).
 - **Tarefas**: criação e conclusão a partir da conversa (RPCs `upsert_work_task` e `complete_work_task`).
 
+## Implementado no branch `feat/mvp-noite` (revisar e publicar)
+
+Detalhes, testes e decisões em [RELATORIO_NOITE.md](RELATORIO_NOITE.md). Migrations pendentes de produção: `004300` a `004800`.
+- **Remoção de funcionário** (fluxo 23): acesso revogado na hora, trabalho liberado para reatribuição, nada apagado.
+- **Atribuição de conversa** (fluxos 18 e 19): vários responsáveis, troca com histórico, filtro "Minhas", respeitando a privacidade.
+- **Auditoria** (fluxo 25): eventos que faltavam e tela de consulta para o OWNER.
+- **Tarefas** (fluxos 16 e 17): responsável, prazo, prioridade, lembrete e tela própria.
+- **Exportação CSV** (fluxo 26): contatos e oportunidades, só OWNER, auditada.
+- Correção: o ATTENDANT passa a ver o nome do responsável de colegas no Kanban.
+
 ## Ainda não implementado (do documento de MVP)
 
-- Exportação de dados pelo OWNER (fluxo 26).
-- Atribuição de conversa a membros e troca de responsável (fluxos 18 e 19): a tabela `conversation_assignments`
-  existe, mas não há RPC nem tela. A oportunidade já tem responsável.
-- Tela para o OWNER consultar a auditoria (fluxo 25): os eventos são gravados em `audit_events`.
-- Tela própria de tarefas (fluxos 16 e 17).
-- Remoção de funcionário (fluxo 23): só existe desativar e reativar (status `suspended`). O status `removed`
-  existe no banco, sem RPC nem tela, e desativar não encerra responsabilidades atribuídas.
-- Sincronização completa inicial (fluxo 3): a Evolution só entrega o histórico recente decidido pelo celular,
-  no pareamento; importar tudo não é possível por esse caminho.
+- Sincronização completa inicial (fluxo 3): a Evolution só entrega o histórico recente decidido pelo celular, no
+  pareamento; importar tudo não é possível por esse caminho.
+- Notificações e lembretes ativos de tarefa (o campo de lembrete é guardado, mas nada avisa).
+- Suspensão marcar atribuições para revisão (fluxo 22, item 5).
+- Exportação de conversas, anexos e relatórios (só contatos e oportunidades por enquanto).
+- Evento de auditoria para "resposta enviada pelo CRM" (decisão de produto: seria um evento por mensagem).
 
 ## Limitações conhecidas
 
@@ -67,7 +74,7 @@ testar com um celular real** (roteiro em [DEPLOY_EVOLUTION_VPS.md](DEPLOY_EVOLUT
 
 ## Banco de dados
 
-- **Migrations**: 42 arquivos forward-only (`20260802000100` a `20260802004200`), todos aplicados em produção.
+- **Migrations**: 48 arquivos forward-only (`20260802000100` a `20260802004800`); os 42 primeiros (até `004200`) estão em produção, `004300` a `004800` estão no branch `feat/mvp-noite`.
 - **Tabelas de domínio**: 19 (`public`), com RLS habilitada e forçada.
 - **Funções**: leitura por RPCs `SECURITY INVOKER` (RLS preservada); escrita por RPCs `SECURITY DEFINER`
   auditadas; funções de ingestão e de mídia só para `service_role`.
@@ -75,8 +82,8 @@ testar com um celular real** (roteiro em [DEPLOY_EVOLUTION_VPS.md](DEPLOY_EVOLUT
 
 ## Qualidade e testes
 
-- **pgTAP**: 19 arquivos, 633 testes passando (`supabase test db --local`, em ambiente descartável).
-- **Unitários**: 284 testes (`npm run test:unit`).
+- **pgTAP**: 25 arquivos, 801 testes passando no branch `feat/mvp-noite` (`supabase test db --local`, em banco novo/descartável); na `main`, 19 arquivos e 633 testes.
+- **Unitários**: 337 testes no branch `feat/mvp-noite` (284 na `main`) (`npm run test:unit`).
 - **Ponta a ponta** (ambiente descartável, scripts fora do repositório): QR com Evolution real v2.3.7 (16/16) e
   simulada (25/25), mídia, histórico (25/25), Kanban/SLA/estados vazios (19/19).
 - **`npm run lint`**, **`npm run typecheck`** (zero erros) e **`npm run build`**: aprovados.

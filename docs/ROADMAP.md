@@ -31,13 +31,17 @@ Planejamento da evolução do **ImobFlux**. Estado atual em [STATUS_PROJETO.md](
 
 ## Pendências do documento de MVP
 
-Itens do `FLUXOS_NEGOCIO.md` ainda não implementados, em ordem sugerida:
+Os cinco itens abaixo foram **implementados no branch `feat/mvp-noite`** (testados; falta revisar, aplicar as migrations
+`004300` a `004800` em produção e publicar). Detalhes em [RELATORIO_NOITE.md](RELATORIO_NOITE.md):
 
-1. **Remoção de funcionário** (fluxo 23) e encerramento de responsabilidades ao desativar.
-2. **Atribuição de conversa e troca de responsável** (fluxos 18 e 19; tabela `conversation_assignments` já existe).
-3. **Tela de auditoria** para o OWNER (fluxo 25).
-4. **Tela própria de tarefas** (fluxos 16 e 17).
-5. **Exportação de dados** pelo OWNER (fluxo 26).
+1. ~~Remoção de funcionário~~ (fluxo 23).
+2. ~~Atribuição de conversa e troca de responsável~~ (fluxos 18 e 19).
+3. ~~Tela de auditoria~~ para o OWNER (fluxo 25).
+4. ~~Tela própria de tarefas~~ (fluxos 16 e 17).
+5. ~~Exportação de dados~~ pelo OWNER (fluxo 26), em CSV de contatos e oportunidades.
+
+Ainda sem implementação: notificações e lembretes ativos de tarefa; suspensão marcando atribuições para revisão;
+exportação de conversas/anexos/relatórios; evento de auditoria por resposta enviada pelo CRM.
 
 ## Qualidade contínua
 
