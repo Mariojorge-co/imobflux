@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ScrollText, Smartphone, Users } from "lucide-react";
+import { Download, ScrollText, Smartphone, Users } from "lucide-react";
 import {
   Card,
   PageContainer,
@@ -44,6 +44,17 @@ export default async function ConfiguracoesPage() {
             <span>
               <span className="block font-semibold text-text">Auditoria</span>
               <span className="text-body text-text-muted">Veja quem fez o quê nas ações sensíveis.</span>
+            </span>
+          </Card>
+        </Link>
+        <Link className="block max-w-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" href="/configuracoes/exportacao">
+          <Card className="flex items-center gap-stack transition-colors hover:bg-neutral-soft">
+            <span className="flex size-11 items-center justify-center rounded-control bg-neutral-soft text-text">
+              <Download aria-hidden="true" size={20} />
+            </span>
+            <span>
+              <span className="block font-semibold text-text">Exportar dados</span>
+              <span className="text-body text-text-muted">Baixe contatos e oportunidades em planilha (CSV).</span>
             </span>
           </Card>
         </Link>

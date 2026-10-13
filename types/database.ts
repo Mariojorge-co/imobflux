@@ -1712,6 +1712,10 @@ export type Database = {
         Args: { p_status?: string; p_scope?: string; p_limit?: number }
         Returns: Json
       }
+      export_dataset: {
+        Args: { p_kind: string }
+        Returns: Json
+      }
       ingest_whatsapp_history_batch: {
         Args: { p_external_account_id: string; p_messages: Json }
         Returns: Json
