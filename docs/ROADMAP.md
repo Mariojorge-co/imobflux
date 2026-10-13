@@ -32,7 +32,7 @@ Planejamento da evolução do **ImobFlux**. Estado atual em [STATUS_PROJETO.md](
 ## Pendências do documento de MVP
 
 Os cinco itens abaixo foram **implementados no branch `feat/mvp-noite`** (testados; falta revisar, aplicar as migrations
-`004300` a `004800` em produção e publicar). Detalhes em [RELATORIO_NOITE.md](RELATORIO_NOITE.md):
+`004300` a `004900` em produção e publicar). Detalhes em [RELATORIO_NOITE.md](RELATORIO_NOITE.md) e correções da revisão em [RELATORIO_CORRECOES.md](RELATORIO_CORRECOES.md):
 
 1. ~~Remoção de funcionário~~ (fluxo 23).
 2. ~~Atribuição de conversa e troca de responsável~~ (fluxos 18 e 19).

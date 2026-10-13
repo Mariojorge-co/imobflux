@@ -46,7 +46,7 @@ testar com um celular real** (roteiro em [DEPLOY_EVOLUTION_VPS.md](DEPLOY_EVOLUT
 
 ## Implementado no branch `feat/mvp-noite` (revisar e publicar)
 
-Detalhes, testes e decisões em [RELATORIO_NOITE.md](RELATORIO_NOITE.md). Migrations pendentes de produção: `004300` a `004800`.
+Detalhes, testes e decisões em [RELATORIO_NOITE.md](RELATORIO_NOITE.md). Correções da revisão adversarial em [RELATORIO_CORRECOES.md](RELATORIO_CORRECOES.md). Migrations pendentes de produção: `004300` a `004900`.
 - **Remoção de funcionário** (fluxo 23): acesso revogado na hora, trabalho liberado para reatribuição, nada apagado.
 - **Atribuição de conversa** (fluxos 18 e 19): vários responsáveis, troca com histórico, filtro "Minhas", respeitando a privacidade.
 - **Auditoria** (fluxo 25): eventos que faltavam e tela de consulta para o OWNER.
@@ -74,7 +74,7 @@ Detalhes, testes e decisões em [RELATORIO_NOITE.md](RELATORIO_NOITE.md). Migrat
 
 ## Banco de dados
 
-- **Migrations**: 48 arquivos forward-only (`20260802000100` a `20260802004800`); os 42 primeiros (até `004200`) estão em produção, `004300` a `004800` estão no branch `feat/mvp-noite`.
+- **Migrations**: 49 arquivos forward-only (`20260802000100` a `20260802004900`); os 42 primeiros (até `004200`) estão em produção, `004300` a `004900` estão no branch `feat/mvp-noite`.
 - **Tabelas de domínio**: 19 (`public`), com RLS habilitada e forçada.
 - **Funções**: leitura por RPCs `SECURITY INVOKER` (RLS preservada); escrita por RPCs `SECURITY DEFINER`
   auditadas; funções de ingestão e de mídia só para `service_role`.
@@ -82,8 +82,8 @@ Detalhes, testes e decisões em [RELATORIO_NOITE.md](RELATORIO_NOITE.md). Migrat
 
 ## Qualidade e testes
 
-- **pgTAP**: 25 arquivos, 801 testes passando no branch `feat/mvp-noite` (`supabase test db --local`, em banco novo/descartável); na `main`, 19 arquivos e 633 testes.
-- **Unitários**: 337 testes no branch `feat/mvp-noite` (284 na `main`) (`npm run test:unit`).
+- **pgTAP**: 31 arquivos, 884 testes passando no branch `feat/mvp-noite` (`supabase test db --local`, em banco novo/descartável); na `main`, 19 arquivos e 633 testes.
+- **Unitários**: 351 testes no branch `feat/mvp-noite` (284 na `main`) (`npm run test:unit`).
 - **Ponta a ponta** (ambiente descartável, scripts fora do repositório): QR com Evolution real v2.3.7 (16/16) e
   simulada (25/25), mídia, histórico (25/25), Kanban/SLA/estados vazios (19/19).
 - **`npm run lint`**, **`npm run typecheck`** (zero erros) e **`npm run build`**: aprovados.

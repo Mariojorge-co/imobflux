@@ -1,5 +1,9 @@
 # Relatório da noite — branch `feat/mvp-noite`
 
+> **Atualização:** os achados da revisão adversarial foram corrigidos depois deste relatório. Veja
+> [RELATORIO_CORRECOES.md](RELATORIO_CORRECOES.md): há uma migration nova (`20260802004900`) e a lista final de
+> migrations para produção passa a ser `004300` a `004900`. Os números de teste abaixo são os da época.
+
 Trabalho autônomo sobre os cinco itens pendentes do MVP, na ordem pedida. **Tudo foi concluído.**
 
 Regras seguidas: commits **locais** na branch `feat/mvp-noite` (criada a partir da `main` em `9ac63f7`); sem push,
@@ -145,6 +149,7 @@ Já estão em produção: até `20260802004200`. Pendentes (aplicar nesta ordem,
 4. `20260802004600_work_tasks.sql`
 5. `20260802004700_export_dataset.sql`
 6. `20260802004800_kanban_responsible_name.sql`
+7. `20260802004900_review_fixes.sql` (correções da revisão; ver RELATORIO_CORRECOES.md)
 
 Todas são `create or replace` de funções/novas funções + permissões (nenhuma altera tabela nem apaga dados).
 Procedimento de sempre: backup (esquema e dados), `migration list --linked`, `db push --linked --dry-run`,
