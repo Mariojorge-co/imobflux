@@ -16,6 +16,7 @@ require.cache[nextCachePath] = {
 } as never;
 const serverModule = require("@/lib/supabase/server");
 const actions = require("@/lib/tasks/actions") as typeof import("@/lib/tasks/actions");
+const conversationActions = require("@/lib/conversations/actions") as typeof import("@/lib/conversations/actions");
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const TASK = "11111111-1111-4111-8111-111111111111";
@@ -131,5 +132,39 @@ test.describe("Tarefas: ações", () => {
     expect(result).toEqual({ success: false, error: taskErrorMessage("task_not_pending") });
     serverModule.createServerSupabaseClient = async () => { throw new Error("boom"); };
     expect((await actions.cancelTaskAction(TASK)).success).toBe(false);
+  });
+});
+
+test.describe("Tarefas na conversa: erros amigáveis e conclusão idempotente", () => {
+  test.beforeEach(() => {
+    calls = [];
+    rpcResult = { data: { success: true, status: "already_completed", task_id: TASK }, error: null };
+    serverModule.createServerSupabaseClient = async () => ({
+      rpc: async (fn: string, args: Record<string, unknown>) => { calls.push({ fn, args }); return rpcResult; },
+    });
+  });
+
+  test("concluir tarefa já concluída (o banco responde already_completed) é sucesso", async () => {
+    const result = await conversationActions.completeWorkTaskAction(TASK);
+    expect(result).toEqual({ success: true });
+    expect(calls).toEqual([{ fn: "complete_work_task", args: { p_task_id: TASK } }]);
+    const viaTasksPage = await actions.completeTaskAction(TASK);
+    expect(viaTasksPage.success).toBe(true);
+  });
+
+  test("concluir tarefa cancelada: mensagem em português, sem task_not_pending", async () => {
+    rpcResult = { data: null, error: { message: "task_not_pending" } };
+    const result = await conversationActions.completeWorkTaskAction(TASK);
+    expect(result.success).toBe(false);
+    expect(result.error).toBe(taskErrorMessage("task_not_pending"));
+    expect(result.error).not.toContain("task_not_pending");
+  });
+
+  test("editar tarefa que não está pendente: mensagem em português", async () => {
+    rpcResult = { data: null, error: { message: "task_not_pending" } };
+    const result = await conversationActions.upsertWorkTaskAction({ taskType: "task", title: "x", taskId: TASK });
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("já foi concluída ou cancelada");
+    expect(result.error).not.toContain("task_not_pending");
   });
 });

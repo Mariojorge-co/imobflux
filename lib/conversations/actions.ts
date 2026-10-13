@@ -27,6 +27,7 @@ import * as adminModule from "@/lib/supabase/admin";
 import * as gatewayModule from "@/lib/supabase/gateway";
 import { classifyGatewayOutcome } from "@/lib/conversations/gateway-outcome";
 import { assignmentErrorMessage } from "@/lib/conversations/assignment";
+import { taskErrorMessage } from "@/lib/tasks/model";
 import * as mediaModule from "@/lib/conversations/media-download";
 import { isDownloadInProgress } from "@/lib/conversations/media-types";
 
@@ -738,7 +739,8 @@ export async function upsertWorkTaskAction(input: {
     });
 
     if (error) {
-      return { success: false, error: error.message };
+      // Ex.: task_not_pending (tarefa já concluída/cancelada não é editável): mensagem clara, sem código técnico.
+      return { success: false, error: taskErrorMessage(error.message) };
     }
 
     if (input.conversationId) {
@@ -767,7 +769,8 @@ export async function completeWorkTaskAction(
     });
 
     if (error) {
-      return { success: false, error: error.message };
+      // Concluir de novo uma tarefa já concluída é sucesso (idempotente no banco); sobra o caso de tarefa cancelada.
+      return { success: false, error: taskErrorMessage(error.message) };
     }
 
     if (conversationId) {

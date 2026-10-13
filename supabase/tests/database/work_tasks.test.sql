@@ -194,7 +194,7 @@ select throws_ok($$select public.get_work_tasks('qualquer')$$, '22023', 'invalid
 -- ─── Concluir e cancelar ────────────────────────────────────────────────────────────────────────
 set local "request.jwt.claim.sub" = 'b5400000-0000-4000-8000-000000000003';
 select is((select public.complete_work_task(current_setting('tk.t2')::uuid)->>'success'), 'true', 'quem tem acesso conclui a tarefa');
-select throws_ok($$select public.complete_work_task(current_setting('tk.t2')::uuid)$$, '55000', 'task_not_pending', 'concluir de novo é recusado');
+select is((select public.complete_work_task(current_setting('tk.t2')::uuid)->>'status'), 'already_completed', 'concluir de novo é idempotente (não é erro)');
 select is((select public.cancel_work_task(current_setting('tk.t1')::uuid)->>'success'), 'true', 'tarefa pendente pode ser cancelada');
 select throws_ok($$select public.cancel_work_task(current_setting('tk.t2')::uuid)$$, '55000', 'task_not_pending', 'não cancela tarefa já concluída');
 select throws_ok($$select public.update_work_task(current_setting('tk.t1')::uuid, p_title => 'x')$$, '55000', 'task_not_pending', 'tarefa cancelada não é editável');

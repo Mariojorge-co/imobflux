@@ -10,6 +10,7 @@
 --   B1  revoke explícito de service_role nas funções novas (não depender do privilégio padrão do ambiente).
 --   B2  assign_conversation, reassign_conversation, create_work_task e reassign_work_task leem o membro com
 --       FOR SHARE: uma remoção concorrente (FOR UPDATE) espera, e a atribuição nunca "ressuscita" um removido.
+--   B3  complete_work_task é idempotente em tarefa já concluída (status already_completed, sem novo evento).
 
 -- ─── A1: reconvidar quem foi removido ───────────────────────────────────────────────────────────
 create or replace function public.prepare_team_invitation(
@@ -485,6 +486,57 @@ begin
         'success', true,
         'status', case when p_responsible_member_id is null then 'unassigned' else 'reassigned' end
     );
+end;
+$function$;
+
+-- ─── B3: concluir tarefa já concluída é idempotente ──────────────────────────────────────────────
+create or replace function public.complete_work_task(p_task_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $function$
+declare
+    v_context record;
+    v_task public.work_tasks%rowtype;
+    v_now timestamptz := pg_catalog.statement_timestamp();
+begin
+    select * into v_context from private.active_member_context() limit 1;
+    if v_context.member_id is null or not private.can_access_work_task(p_task_id) then
+        raise exception 'resource_not_available' using errcode = '42501';
+    end if;
+
+    select task.* into v_task
+    from public.work_tasks as task
+    where task.id = p_task_id and task.workspace_id = v_context.workspace_id
+    for update;
+    if not found then
+        raise exception 'resource_not_available' using errcode = '42501';
+    end if;
+    -- Concluir de novo é idempotente (duplo clique, dois membros ao mesmo tempo): sucesso sem novo evento.
+    if v_task.status = 'completed' then
+        return pg_catalog.jsonb_build_object('success', true, 'status', 'already_completed', 'task_id', v_task.id);
+    end if;
+    if v_task.status <> 'pending' then
+        raise exception 'task_not_pending' using errcode = '55000';
+    end if;
+
+    update public.work_tasks
+    set status = 'completed',
+        completed_at = greatest(v_now, v_task.created_at),
+        completed_by_member_id = v_context.member_id,
+        updated_at = greatest(v_now, v_task.created_at)
+    where id = v_task.id;
+
+    insert into public.audit_events (
+        workspace_id, actor_type, actor_member_id, action, target_type,
+        target_id, result, metadata, occurred_at, recorded_at
+    ) values (
+        v_context.workspace_id, 'member', v_context.member_id, 'task.completed', 'task', v_task.id, 'success',
+        '{}'::jsonb, v_now, v_now
+    );
+
+    return pg_catalog.jsonb_build_object('success', true, 'status', 'completed', 'task_id', v_task.id);
 end;
 $function$;
 
