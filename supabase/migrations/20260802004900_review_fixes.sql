@@ -8,6 +8,8 @@
 --       conseguia ser vinculado ao acesso já existente (team_auth_identity_already_linked) e o aceite
 --       falhava. Pessoa ativa em outro workspace ou identidade desativada: team_identity_unavailable.
 --   B1  revoke explícito de service_role nas funções novas (não depender do privilégio padrão do ambiente).
+--   B2  assign_conversation, reassign_conversation, create_work_task e reassign_work_task leem o membro com
+--       FOR SHARE: uma remoção concorrente (FOR UPDATE) espera, e a atribuição nunca "ressuscita" um removido.
 
 -- ─── A1: reconvidar quem foi removido ───────────────────────────────────────────────────────────
 create or replace function public.prepare_team_invitation(
@@ -146,6 +148,342 @@ begin
         'display_name', v_display_name,
         'expires_at', v_now + interval '1 hour',
         'identity_reused', v_reused
+    );
+end;
+$function$;
+
+-- ─── B2: ler o membro com FOR SHARE (fecha a corrida com remove_team_member) ──────────────────────────
+create or replace function public.assign_conversation(p_conversation_id uuid, p_member_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $function$
+declare
+    v_workspace_id uuid;
+    v_actor_member_id uuid;
+    v_target_role text;
+    v_assignment_id uuid;
+    v_now timestamptz := statement_timestamp();
+begin
+    select conversation.workspace_id into v_workspace_id
+    from public.conversations as conversation
+    where conversation.id = p_conversation_id;
+
+    select context.member_id into v_actor_member_id
+    from private.active_member_context() as context
+    where context.workspace_id = v_workspace_id;
+
+    if v_workspace_id is null or v_actor_member_id is null
+       or not private.can_access_conversation(p_conversation_id) then
+        raise exception 'conversation_not_available' using errcode = '42501';
+    end if;
+
+    select member.role into v_target_role
+    from public.workspace_members as member
+    where member.id = p_member_id
+      and member.workspace_id = v_workspace_id
+      and member.status = 'active'
+        for share of member;
+
+    if v_target_role is null then
+        raise exception 'assignee_not_active' using errcode = '22023';
+    end if;
+    if v_target_role = 'attendant' and not private.is_conversation_team_visible(p_conversation_id) then
+        raise exception 'assignee_cannot_access_conversation' using errcode = '22023';
+    end if;
+
+    insert into public.conversation_assignments (
+        workspace_id, conversation_id, member_id, assigned_by_member_id, assigned_at
+    )
+    values (v_workspace_id, p_conversation_id, p_member_id, v_actor_member_id, v_now)
+    on conflict (conversation_id, member_id) where ended_at is null do nothing
+    returning id into v_assignment_id;
+
+    if v_assignment_id is null then
+        return jsonb_build_object('success', true, 'status', 'unchanged');
+    end if;
+
+    insert into public.audit_events (
+        workspace_id, actor_type, actor_member_id, action, target_type,
+        target_id, result, metadata, occurred_at, recorded_at
+    ) values (
+        v_workspace_id, 'member', v_actor_member_id, 'conversation.assigned', 'conversation',
+        p_conversation_id, 'success', jsonb_build_object('member_id', p_member_id), v_now, v_now
+    );
+
+    return jsonb_build_object('success', true, 'status', 'assigned', 'assignment_id', v_assignment_id);
+end;
+$function$;
+
+create or replace function public.reassign_conversation(
+    p_conversation_id uuid,
+    p_from_member_id uuid,
+    p_to_member_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $function$
+declare
+    v_workspace_id uuid;
+    v_actor_member_id uuid;
+    v_target_role text;
+    v_ended integer;
+    v_new_assignment_id uuid;
+    v_now timestamptz := statement_timestamp();
+begin
+    select conversation.workspace_id into v_workspace_id
+    from public.conversations as conversation
+    where conversation.id = p_conversation_id;
+
+    select context.member_id into v_actor_member_id
+    from private.active_member_context() as context
+    where context.workspace_id = v_workspace_id;
+
+    if v_workspace_id is null or v_actor_member_id is null
+       or not private.can_access_conversation(p_conversation_id) then
+        raise exception 'conversation_not_available' using errcode = '42501';
+    end if;
+
+    if p_from_member_id is null or p_to_member_id is null or p_from_member_id = p_to_member_id then
+        raise exception 'assignment_invalid' using errcode = '22023';
+    end if;
+
+    select member.role into v_target_role
+    from public.workspace_members as member
+    where member.id = p_to_member_id
+      and member.workspace_id = v_workspace_id
+      and member.status = 'active'
+        for share of member;
+
+    if v_target_role is null then
+        raise exception 'assignee_not_active' using errcode = '22023';
+    end if;
+    if v_target_role = 'attendant' and not private.is_conversation_team_visible(p_conversation_id) then
+        raise exception 'assignee_cannot_access_conversation' using errcode = '22023';
+    end if;
+
+    update public.conversation_assignments
+    set ended_at = greatest(v_now, assigned_at),
+        ended_by_member_id = v_actor_member_id,
+        end_reason = 'reassigned'
+    where workspace_id = v_workspace_id
+      and conversation_id = p_conversation_id
+      and member_id = p_from_member_id
+      and ended_at is null;
+    get diagnostics v_ended = row_count;
+
+    if v_ended = 0 then
+        raise exception 'assignment_not_found' using errcode = '55000';
+    end if;
+
+    insert into public.audit_events (
+        workspace_id, actor_type, actor_member_id, action, target_type,
+        target_id, result, metadata, occurred_at, recorded_at
+    ) values (
+        v_workspace_id, 'member', v_actor_member_id, 'conversation.unassigned', 'conversation',
+        p_conversation_id, 'success',
+        jsonb_build_object('member_id', p_from_member_id, 'reason', 'reassigned', 'to_member_id', p_to_member_id),
+        v_now, v_now
+    );
+
+    insert into public.conversation_assignments (
+        workspace_id, conversation_id, member_id, assigned_by_member_id, assigned_at
+    )
+    values (v_workspace_id, p_conversation_id, p_to_member_id, v_actor_member_id, v_now)
+    on conflict (conversation_id, member_id) where ended_at is null do nothing
+    returning id into v_new_assignment_id;
+
+    if v_new_assignment_id is not null then
+        insert into public.audit_events (
+            workspace_id, actor_type, actor_member_id, action, target_type,
+            target_id, result, metadata, occurred_at, recorded_at
+        ) values (
+            v_workspace_id, 'member', v_actor_member_id, 'conversation.assigned', 'conversation',
+            p_conversation_id, 'success',
+            jsonb_build_object('member_id', p_to_member_id, 'from_member_id', p_from_member_id),
+            v_now, v_now
+        );
+    end if;
+
+    return jsonb_build_object('success', true, 'status', 'reassigned');
+end;
+$function$;
+
+create or replace function public.create_work_task(
+    p_title text,
+    p_task_type text default 'task',
+    p_due_at timestamptz default null,
+    p_priority text default 'normal',
+    p_responsible_member_id uuid default null,
+    p_description text default null,
+    p_reminder_at timestamptz default null,
+    p_contact_id uuid default null,
+    p_opportunity_id uuid default null,
+    p_conversation_id uuid default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $function$
+declare
+    v_context record;
+    v_task_id uuid;
+    v_title text := pg_catalog.btrim(coalesce(p_title, ''));
+    v_description text := nullif(pg_catalog.btrim(coalesce(p_description, '')), '');
+    v_due timestamptz;
+    v_target_role text;
+    v_now timestamptz := pg_catalog.statement_timestamp();
+begin
+    select * into v_context from private.active_member_context() limit 1;
+    if v_context.member_id is null then
+        raise exception 'resource_not_available' using errcode = '42501';
+    end if;
+
+    if v_title = '' or pg_catalog.length(v_title) > 200
+       or coalesce(p_task_type, '') not in ('task', 'follow_up')
+       or coalesce(p_priority, '') not in ('low', 'normal', 'high', 'urgent')
+       or (v_description is not null and pg_catalog.length(v_description) > 2000) then
+        raise exception 'invalid_task' using errcode = '22023';
+    end if;
+
+    if num_nonnulls(p_contact_id, p_opportunity_id, p_conversation_id) < 1
+       or (p_contact_id is not null and not private.can_access_contact(p_contact_id))
+       or (p_opportunity_id is not null and not private.can_access_opportunity(p_opportunity_id))
+       or (p_conversation_id is not null and not private.can_access_conversation(p_conversation_id)) then
+        raise exception 'resource_not_available' using errcode = '42501';
+    end if;
+    if p_contact_id is not null and p_opportunity_id is not null and not exists (
+        select 1 from public.opportunities
+        where id = p_opportunity_id and contact_id = p_contact_id and workspace_id = v_context.workspace_id
+    ) then
+        raise exception 'resource_not_available' using errcode = '42501';
+    end if;
+    if p_contact_id is not null and p_conversation_id is not null and not exists (
+        select 1 from public.conversation_participants as participant
+        join public.contact_points as point on point.id = participant.contact_point_id
+        where participant.conversation_id = p_conversation_id
+          and point.contact_id = p_contact_id and participant.left_at is null
+    ) then
+        raise exception 'resource_not_available' using errcode = '42501';
+    end if;
+
+    v_due := coalesce(p_due_at, v_now + interval '1 day');
+    if p_reminder_at is not null and p_reminder_at > v_due then
+        raise exception 'invalid_task' using errcode = '22023';
+    end if;
+
+    if p_responsible_member_id is not null then
+        select member.role into v_target_role
+        from public.workspace_members as member
+        where member.id = p_responsible_member_id
+          and member.workspace_id = v_context.workspace_id
+          and member.status = 'active'
+        for share of member;
+        if v_target_role is null then
+            raise exception 'assignee_not_active' using errcode = '22023';
+        end if;
+        if v_target_role = 'attendant'
+           and not private.is_task_context_team_visible(p_contact_id, p_opportunity_id, p_conversation_id) then
+            raise exception 'assignee_cannot_access_task' using errcode = '22023';
+        end if;
+    end if;
+
+    insert into public.work_tasks (
+        workspace_id, task_type, title, description, status, priority, due_at, reminder_at,
+        responsible_member_id, contact_id, opportunity_id, conversation_id, created_by_member_id
+    ) values (
+        v_context.workspace_id, p_task_type, v_title, v_description, 'pending', p_priority, v_due, p_reminder_at,
+        p_responsible_member_id, p_contact_id, p_opportunity_id, p_conversation_id, v_context.member_id
+    ) returning id into v_task_id;
+
+    insert into public.audit_events (
+        workspace_id, actor_type, actor_member_id, action, target_type,
+        target_id, result, metadata, occurred_at, recorded_at
+    ) values (
+        v_context.workspace_id, 'member', v_context.member_id, 'task.created', 'task', v_task_id, 'success',
+        pg_catalog.jsonb_strip_nulls(pg_catalog.jsonb_build_object(
+            'task_type', p_task_type, 'priority', p_priority,
+            'responsible_member_id', p_responsible_member_id,
+            'contact_id', p_contact_id, 'opportunity_id', p_opportunity_id, 'conversation_id', p_conversation_id
+        )),
+        v_now, v_now
+    );
+
+    return pg_catalog.jsonb_build_object('success', true, 'task_id', v_task_id);
+end;
+$function$;
+
+create or replace function public.reassign_work_task(p_task_id uuid, p_responsible_member_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $function$
+declare
+    v_context record;
+    v_task public.work_tasks%rowtype;
+    v_target_role text;
+    v_now timestamptz := pg_catalog.statement_timestamp();
+begin
+    select * into v_context from private.active_member_context() limit 1;
+    if v_context.member_id is null or not private.can_access_work_task(p_task_id) then
+        raise exception 'resource_not_available' using errcode = '42501';
+    end if;
+
+    select task.* into v_task
+    from public.work_tasks as task
+    where task.id = p_task_id and task.workspace_id = v_context.workspace_id
+    for update;
+    if not found then
+        raise exception 'resource_not_available' using errcode = '42501';
+    end if;
+    if v_task.status <> 'pending' then
+        raise exception 'task_not_pending' using errcode = '55000';
+    end if;
+
+    if v_task.responsible_member_id is not distinct from p_responsible_member_id then
+        return pg_catalog.jsonb_build_object('success', true, 'status', 'unchanged');
+    end if;
+
+    if p_responsible_member_id is not null then
+        select member.role into v_target_role
+        from public.workspace_members as member
+        where member.id = p_responsible_member_id
+          and member.workspace_id = v_context.workspace_id
+          and member.status = 'active'
+        for share of member;
+        if v_target_role is null then
+            raise exception 'assignee_not_active' using errcode = '22023';
+        end if;
+        if v_target_role = 'attendant'
+           and not private.is_task_context_team_visible(v_task.contact_id, v_task.opportunity_id, v_task.conversation_id) then
+            raise exception 'assignee_cannot_access_task' using errcode = '22023';
+        end if;
+    end if;
+
+    update public.work_tasks
+    set responsible_member_id = p_responsible_member_id,
+        updated_at = greatest(v_now, v_task.created_at)
+    where id = v_task.id;
+
+    insert into public.audit_events (
+        workspace_id, actor_type, actor_member_id, action, target_type,
+        target_id, result, metadata, occurred_at, recorded_at
+    ) values (
+        v_context.workspace_id, 'member', v_context.member_id, 'task.reassigned', 'task', v_task.id, 'success',
+        pg_catalog.jsonb_strip_nulls(pg_catalog.jsonb_build_object(
+            'from_member_id', v_task.responsible_member_id, 'to_member_id', p_responsible_member_id
+        )),
+        v_now, v_now
+    );
+
+    return pg_catalog.jsonb_build_object(
+        'success', true,
+        'status', case when p_responsible_member_id is null then 'unassigned' else 'reassigned' end
     );
 end;
 $function$;
