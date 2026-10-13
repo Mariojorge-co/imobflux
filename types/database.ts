@@ -1672,6 +1672,46 @@ export type Database = {
         }
         Returns: Json
       }
+      create_work_task: {
+        Args: {
+          p_title: string
+          p_task_type?: string
+          p_due_at?: string
+          p_priority?: string
+          p_responsible_member_id?: string
+          p_description?: string
+          p_reminder_at?: string
+          p_contact_id?: string
+          p_opportunity_id?: string
+          p_conversation_id?: string
+        }
+        Returns: Json
+      }
+      update_work_task: {
+        Args: {
+          p_task_id: string
+          p_title?: string
+          p_due_at?: string
+          p_task_type?: string
+          p_priority?: string
+          p_description?: string
+          p_reminder_at?: string
+          p_clear_reminder?: boolean
+        }
+        Returns: Json
+      }
+      reassign_work_task: {
+        Args: { p_task_id: string; p_responsible_member_id?: string }
+        Returns: Json
+      }
+      cancel_work_task: {
+        Args: { p_task_id: string }
+        Returns: Json
+      }
+      get_work_tasks: {
+        Args: { p_status?: string; p_scope?: string; p_limit?: number }
+        Returns: Json
+      }
       ingest_whatsapp_history_batch: {
         Args: { p_external_account_id: string; p_messages: Json }
         Returns: Json

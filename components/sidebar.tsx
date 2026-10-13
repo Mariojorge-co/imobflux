@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Columns3, ContactRound, ListChecks, MessageCircle, Settings } from "lucide-react";
+import { ClipboardCheck, Columns3, ContactRound, ListChecks, MessageCircle, Settings } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { classNames } from "@/lib/class-names";
 
@@ -25,6 +25,11 @@ const navigationItems = [
     href: "/kanban",
     label: "Kanban",
     icon: Columns3,
+  },
+  {
+    href: "/tarefas",
+    label: "Tarefas",
+    icon: ClipboardCheck,
   },
   {
     href: "/configuracoes",

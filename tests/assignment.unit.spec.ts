@@ -9,8 +9,9 @@ import {
 } from "../lib/conversations/assignment";
 
 /* eslint-disable @typescript-eslint/no-require-imports */
-require.cache[require.resolve("next/cache")] = {
-  id: "next/cache", filename: "next/cache", loaded: true, exports: { revalidatePath: () => undefined },
+const nextCachePath = require.resolve("next/cache");
+require.cache[nextCachePath] = {
+  id: nextCachePath, filename: nextCachePath, loaded: true, exports: { revalidatePath: () => undefined },
 } as never;
 const serverModule = require("@/lib/supabase/server");
 const actions = require("@/lib/conversations/actions") as typeof import("@/lib/conversations/actions");
