@@ -3,6 +3,9 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { buildCsv, fileDate } from "@/lib/export/csv";
 import { exportBySlug } from "@/lib/export/datasets";
 
+// A consulta e a montagem do CSV (até 5.000 linhas) cabem folgadamente; o teto evita estourar tempo/tamanho de resposta.
+export const maxDuration = 30;
+
 type ExportResult = { success?: boolean; rows?: Array<Record<string, unknown>>; truncated?: boolean } | null;
 
 function plain(status: number, message?: string) {
@@ -39,6 +42,9 @@ export async function GET(request: Request, context: { params: Promise<{ kind: s
   const result = data as ExportResult;
   if (!result?.success) return plain(403, "Somente o proprietário pode exportar dados.");
 
+  // Limitação conhecida: o evento de auditoria "success" é gravado pelo banco no momento em que ele entrega as
+  // linhas ao app (não depois da resposta HTTP). É proposital: mover o registro para depois permitiria obter dados
+  // sem rastro. Se a montagem do arquivo falhar depois disso, a auditoria indica "dados liberados", não "arquivo baixado".
   const csv = buildCsv(definition.columns, result.rows ?? []);
   return new NextResponse(csv, {
     status: 200,

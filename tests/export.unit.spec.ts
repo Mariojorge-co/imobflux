@@ -2,11 +2,12 @@ import "./helpers/server-only";
 
 import { expect, test } from "@playwright/test";
 import { buildCsv, csvCell, fileDate, formatDateTime, formatYesNo, neutralizeFormula } from "../lib/export/csv";
-import { EXPORTS, exportBySlug } from "../lib/export/datasets";
+import { EXPORTS, EXPORT_ROW_LIMIT, exportBySlug, truncationNotice } from "../lib/export/datasets";
 
 /* eslint-disable @typescript-eslint/no-require-imports */
 const serverModule = require("@/lib/supabase/server");
-const { GET } = require("@/app/api/export/[kind]/route") as typeof import("@/app/api/export/[kind]/route");
+const exportRoute = require("@/app/api/export/[kind]/route") as typeof import("@/app/api/export/[kind]/route");
+const { GET } = exportRoute;
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 test.describe("Exportação: CSV seguro", () => {
@@ -162,5 +163,26 @@ test.describe("Exportação: rota", () => {
     expect(rpcCalls).toHaveLength(0);
     expect((await call("contatos", { "sec-fetch-site": "same-origin" })).status).toBe(200);
     expect((await call("contatos", { "sec-fetch-site": "none" })).status).toBe(200);
+  });
+});
+
+test.describe("Exportação: teto de linhas e aviso", () => {
+  test("o teto do app é igual ao do banco (5.000)", () => {
+    expect(EXPORT_ROW_LIMIT).toBe(5000);
+  });
+
+  test("aviso aparece só quando o total passa do teto, com os números em português", () => {
+    expect(truncationNotice(null)).toBeNull();
+    expect(truncationNotice(0)).toBeNull();
+    expect(truncationNotice(5000)).toBeNull();
+    const notice = truncationNotice(7200);
+    expect(notice).toContain("7.200");
+    expect(notice).toContain("5.000");
+    expect(notice).toContain("2.200");
+    expect(notice).toContain("mais antigos");
+  });
+
+  test("a rota define maxDuration", () => {
+    expect(exportRoute.maxDuration).toBe(30);
   });
 });

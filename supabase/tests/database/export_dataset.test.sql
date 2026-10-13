@@ -2,7 +2,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions, auth, pg_catalog;
 
-select plan(27);
+select plan(31);
 
 -- ─── Fixtures ──────────────────────────────────────────────────────────────────────────────
 insert into auth.users (id, email)
@@ -190,6 +190,30 @@ select is(
     (select count(*) from public.contacts where workspace_id = 'b5500002-0000-4000-8000-000000000001'),
     2::bigint,
     'exportar não altera nem apaga dados'
+);
+
+-- ─── Teto de 5.000 linhas por exportação (avisa quando há mais) ─────────────────────────────────
+insert into public.contacts (workspace_id, display_name, classification, operational_status, is_protected, commercial_visible_from, created_at, updated_at)
+select 'b5500002-0000-4000-8000-000000000001', 'EX Massa ' || lpad(i::text, 5, '0'), 'lead', 'active', false,
+       now() - interval '1 day' + (i || ' seconds')::interval, now() - interval '1 day' + (i || ' seconds')::interval, now() - interval '1 day' + (i || ' seconds')::interval
+from generate_series(1, 5001) as i;
+
+set local role authenticated;
+set local "request.jwt.claim.sub" = 'b5500000-0000-4000-8000-000000000001';
+select set_config('ex.big', public.export_dataset('contacts')::text, true);
+
+select is(jsonb_array_length(current_setting('ex.big')::jsonb->'rows'), 5000, 'a exportação é limitada a 5.000 linhas');
+select is((current_setting('ex.big')::jsonb->>'truncated')::boolean, true, 'e informa que foi truncada');
+select ok(
+    (select count(*) from jsonb_array_elements(current_setting('ex.big')::jsonb->'rows') r where r->>'display_name' = 'EX Massa 05001') = 0,
+    'as linhas mais novas além do teto ficam de fora (ordem: mais antigas primeiro)'
+);
+reset role;
+select results_eq(
+    $$select (metadata->>'row_count')::int, (metadata->>'truncated')::boolean from public.audit_events
+      where action = 'export.contacts' and result = 'success' order by occurred_at desc, id desc limit 1$$,
+    $$values (5000, true)$$,
+    'a auditoria registra 5.000 linhas e o truncamento'
 );
 
 select * from finish();

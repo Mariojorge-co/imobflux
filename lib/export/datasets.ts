@@ -12,6 +12,16 @@ const OPPORTUNITY_STATUS: Record<string, string> = {
 const translate = (map: Record<string, string>, value: unknown) =>
   typeof value === "string" ? (map[value] ?? value) : "";
 
+/** Máximo de linhas por exportação (o banco aplica o mesmo teto). */
+export const EXPORT_ROW_LIMIT = 5000;
+
+/** Aviso mostrado na tela quando o total passa do teto; nulo quando cabe tudo. */
+export function truncationNotice(total: number | null, limit: number = EXPORT_ROW_LIMIT): string | null {
+  if (total === null || total <= limit) return null;
+  const format = (value: number) => value.toLocaleString("pt-BR");
+  return `Há ${format(total)} registros, mas cada exportação inclui no máximo ${format(limit)} (os mais antigos). Os ${format(total - limit)} mais recentes ficam de fora do arquivo.`;
+}
+
 export type ExportKind = "contacts" | "opportunities";
 
 export type ExportDefinition = {
