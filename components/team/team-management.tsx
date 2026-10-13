@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { Plus, UserRound } from "lucide-react";
 import {
   deactivateMemberAction,
+  removeMemberAction,
   inviteMemberAction,
   reactivateMemberAction,
   resendInviteAction,
@@ -120,24 +121,54 @@ type MemberPresentationProps = {
 
 function MemberAction({ member, pending, run }: MemberPresentationProps) {
   if (member.role === "owner") return <span className="text-caption text-text-muted">Proprietário</span>;
-  if (member.status === "invited") {
-    return <Button disabled={pending} onClick={() => run(() => resendInviteAction(member.id))} variant="secondary">Reenviar convite</Button>;
-  }
-  if (member.status === "suspended") {
-    return <Button disabled={pending} onClick={() => run(() => reactivateMemberAction(member.id))} variant="secondary">Reativar funcionário</Button>;
-  }
-  return (
+
+  const remove = (
     <Button
       disabled={pending}
       onClick={() => {
-        if (window.confirm(`Desativar acesso de ${member.displayName}?\n\nEle perderá acesso ao workspace, mas o histórico das ações realizadas será preservado.`)) {
-          run(() => deactivateMemberAction(member.id));
-        }
+        const message = member.status === "invited"
+          ? `Cancelar o convite de ${member.displayName}?
+
+O convite deixa de valer e o vínculo é encerrado.`
+          : `Remover ${member.displayName} da equipe?
+
+O acesso é revogado agora. Conversas, oportunidades e tarefas dele ficam sem responsável até você reatribuir. Nada é apagado e o histórico é preservado. Para voltar, será preciso um novo convite.`;
+        if (window.confirm(message)) run(() => removeMemberAction(member.id));
       }}
       variant="danger"
     >
-      Desativar acesso
+      {member.status === "invited" ? "Cancelar convite" : "Remover funcionário"}
     </Button>
+  );
+
+  let primary: React.ReactNode;
+  if (member.status === "invited") {
+    primary = <Button disabled={pending} onClick={() => run(() => resendInviteAction(member.id))} variant="secondary">Reenviar convite</Button>;
+  } else if (member.status === "suspended") {
+    primary = <Button disabled={pending} onClick={() => run(() => reactivateMemberAction(member.id))} variant="secondary">Reativar funcionário</Button>;
+  } else {
+    primary = (
+      <Button
+        disabled={pending}
+        onClick={() => {
+          if (window.confirm(`Desativar acesso de ${member.displayName}?
+
+Ele perderá acesso ao workspace, mas o histórico das ações realizadas será preservado.`)) {
+            run(() => deactivateMemberAction(member.id));
+          }
+        }}
+        variant="secondary"
+      >
+        Desativar acesso
+      </Button>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-inline sm:flex-row sm:flex-wrap sm:justify-end [&>button]:min-h-11">
+      {primary}
+      {remove}
+    </div>
   );
 }
 
@@ -172,7 +203,7 @@ function TeamCard(props: MemberPresentationProps) {
       <MemberIdentity member={member} />
       <div className="flex flex-wrap gap-inline"><Badge tone={member.role === "owner" ? "info" : "neutral"}>{member.role.toUpperCase()}</Badge><Badge tone={status.tone}>{status.label}</Badge></div>
       <p className="text-caption text-text-muted">Entrada ou convite: {formatDate(member.activatedAt ?? member.invitedAt ?? member.createdAt)}</p>
-      <div className="[&>button]:min-h-11 [&>button]:w-full"><MemberAction {...props} /></div>
+      <div className="[&>div>button]:w-full [&>div>button]:min-h-11"><MemberAction {...props} /></div>
     </Card>
   );
 }

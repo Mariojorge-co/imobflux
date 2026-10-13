@@ -1636,6 +1636,10 @@ export type Database = {
         Args: { p_instance_name: string; p_phone?: string; p_state: string }
         Returns: Json
       }
+      remove_team_member: {
+        Args: { p_member_id: string }
+        Returns: Json
+      }
       ingest_whatsapp_history_batch: {
         Args: { p_external_account_id: string; p_messages: Json }
         Returns: Json

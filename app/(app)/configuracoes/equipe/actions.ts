@@ -26,6 +26,9 @@ function friendlyDatabaseMessage(message: string) {
   if (message.includes("team_invitation_already_pending")) {
     return "Já existe um convite pendente para este e-mail.";
   }
+  if (message.includes("team_member_not_removable")) {
+    return "Este funcionário não pode ser removido (já removido ou fora da equipe).";
+  }
   if (message.includes("team_member_inactive")) {
     return "Este funcionário está inativo. Use a ação Reativar funcionário.";
   }
@@ -207,4 +210,29 @@ export async function reactivateMemberAction(memberId: string): Promise<TeamActi
   if (error) return { message: friendlyDatabaseMessage(error.message), status: "error" };
   revalidatePath("/configuracoes/equipe");
   return { message: "Funcionário reativado.", status: "success" };
+}
+
+/** Remoção definitiva do vínculo (ou cancelamento de convite): acesso revogado, trabalho liberado, nada apagado. */
+export async function removeMemberAction(memberId: string): Promise<TeamActionResult> {
+  try {
+    await assertTrustedServerActionOrigin();
+    await requireOwnerAccess();
+  } catch {
+    return { message: "Você não tem permissão para administrar a equipe.", status: "error" };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase.rpc("remove_team_member", { p_member_id: memberId });
+  if (error) return { message: friendlyDatabaseMessage(error.message), status: "error" };
+  revalidatePath("/configuracoes/equipe");
+  revalidatePath("/kanban");
+  revalidatePath("/conversas");
+  const result = data as { ended_conversation_assignments?: number; cleared_opportunities?: number; cleared_tasks?: number } | null;
+  const freed = (result?.ended_conversation_assignments ?? 0) + (result?.cleared_opportunities ?? 0) + (result?.cleared_tasks ?? 0);
+  return {
+    message: freed > 0
+      ? `Funcionário removido. ${freed} item(ns) ficaram sem responsável e aguardam reatribuição.`
+      : "Funcionário removido.",
+    status: "success",
+  };
 }

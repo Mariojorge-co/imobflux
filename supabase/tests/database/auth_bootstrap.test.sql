@@ -327,7 +327,7 @@ select is(
         where namespace_record.nspname = 'public'
           and procedure_record.prosecdef
     ),
-    49::bigint,
+    50::bigint,
     'only the approved domain RPCs use SECURITY DEFINER in the public schema (including reorder_opportunity and attach_whatsapp_media)'
 );
 
