@@ -1,5 +1,6 @@
 "use server";
 
+import { passwordUpdateErrorMessage } from "@/lib/auth/password-errors";
 import { redirect } from "next/navigation";
 import { assertTrustedServerActionOrigin } from "@/lib/auth/security";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -55,7 +56,7 @@ export async function acceptInvitationAction(
         const passwordUpdate = await supabase.auth.updateUser({ password });
         if (passwordUpdate.error) {
           logAuthFailure("invitation_password", passwordUpdate.error);
-          return { message: "Não foi possível definir sua senha. Tente novamente.", status: "error" };
+          return { message: passwordUpdateErrorMessage(passwordUpdate.error), status: "error" };
         }
         await markFlowPasswordDefined(flow, { memberId: lookup.invitation.memberId, workspaceId: lookup.invitation.workspaceId });
       }
