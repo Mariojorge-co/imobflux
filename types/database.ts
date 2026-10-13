@@ -1660,6 +1660,18 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: Json
       }
+      get_audit_events: {
+        Args: {
+          p_actor_member_id?: string
+          p_category?: string
+          p_cursor_id?: string
+          p_cursor_ts?: string
+          p_from?: string
+          p_limit?: number
+          p_to?: string
+        }
+        Returns: Json
+      }
       ingest_whatsapp_history_batch: {
         Args: { p_external_account_id: string; p_messages: Json }
         Returns: Json
