@@ -62,6 +62,7 @@ export type ConversationMessageAttachment = {
   mime_type: string;
   size_bytes: number;
   status: string; // 'pending' | 'available' | 'unavailable' | 'archived'
+  created_at?: string;
 };
 
 /** Uma mensagem individual para exibição no painel de histórico. */

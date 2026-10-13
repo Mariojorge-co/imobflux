@@ -412,4 +412,101 @@ test.describe("Server Action sendMessageAction Unit Tests", () => {
   });
 });
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const mediaDownloadModule = require("@/lib/conversations/media-download");
+const retryAttachmentDownloadAction = actionsModule.retryAttachmentDownloadAction;
+const originalLoadMediaSource = mediaDownloadModule.loadMediaSource;
+const originalStoreAttachmentMedia = mediaDownloadModule.storeAttachmentMedia;
+
+test.describe("retryAttachmentDownloadAction", () => {
+  const ATTACHMENT_ID = "d3b0b8a2-6f5e-4c1a-9e57-0c1f2a9b7e11";
+  let user: { id: string } | null;
+  let attachmentRow: { id: string; status: string; created_at: string } | null;
+  let source: unknown;
+  let storeResult: { status: string; code?: string };
+  let storeCalls: string[];
+  let loadCalls: number;
+
+  test.beforeEach(() => {
+    user = { id: "u1" };
+    attachmentRow = { id: ATTACHMENT_ID, status: "unavailable", created_at: new Date(Date.now() - 3_600_000).toISOString() };
+    source = { instance: "inst", key: { id: "EXT" } };
+    storeResult = { status: "available" };
+    storeCalls = [];
+    loadCalls = 0;
+    serverSupabaseModule.createServerSupabaseClient = async () => ({
+      auth: { getUser: async () => ({ data: { user }, error: null }) },
+      from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: attachmentRow, error: null }) }) }) }),
+    });
+    adminSupabaseModule.createAdminSupabaseClient = () => ({});
+    mediaDownloadModule.loadMediaSource = async () => { loadCalls++; return source; };
+    mediaDownloadModule.storeAttachmentMedia = async (_admin: unknown, id: string) => { storeCalls.push(id); return storeResult; };
+  });
+
+  test.afterEach(() => {
+    serverSupabaseModule.createServerSupabaseClient = originalCreateServerSupabaseClient;
+    adminSupabaseModule.createAdminSupabaseClient = originalCreateAdminSupabaseClient;
+    mediaDownloadModule.loadMediaSource = originalLoadMediaSource;
+    mediaDownloadModule.storeAttachmentMedia = originalStoreAttachmentMedia;
+  });
+
+  test("anexo indisponível: baixa de novo e confirma", async () => {
+    expect(await retryAttachmentDownloadAction(ATTACHMENT_ID)).toEqual({ success: true });
+    expect(storeCalls).toEqual([ATTACHMENT_ID]);
+  });
+
+  test("valida identificador e sessão antes de qualquer chamada externa", async () => {
+    expect(await retryAttachmentDownloadAction("nao-uuid")).toEqual({ success: false, error: "Anexo inválido." });
+    user = null;
+    expect(await retryAttachmentDownloadAction(ATTACHMENT_ID)).toMatchObject({ success: false });
+    expect(loadCalls).toBe(0);
+    expect(storeCalls).toHaveLength(0);
+  });
+
+  test("anexo que a RLS esconde (privacidade) não chega à Evolution", async () => {
+    attachmentRow = null;
+    expect(await retryAttachmentDownloadAction(ATTACHMENT_ID)).toEqual({ success: false, error: "Anexo não encontrado." });
+    expect(loadCalls).toBe(0);
+    expect(storeCalls).toHaveLength(0);
+  });
+
+  test("já disponível: sucesso sem nova chamada; arquivado: recusa", async () => {
+    attachmentRow = { ...attachmentRow!, status: "available" };
+    expect(await retryAttachmentDownloadAction(ATTACHMENT_ID)).toEqual({ success: true });
+    attachmentRow = { ...attachmentRow, status: "archived" };
+    expect(await retryAttachmentDownloadAction(ATTACHMENT_ID)).toMatchObject({ success: false });
+    expect(storeCalls).toHaveLength(0);
+  });
+
+  test("download em andamento (pending recente) não dispara tentativa simultânea; pending antigo sim", async () => {
+    attachmentRow = { ...attachmentRow!, status: "pending", created_at: new Date().toISOString() };
+    expect(await retryAttachmentDownloadAction(ATTACHMENT_ID)).toEqual({ success: false, error: "O arquivo já está sendo carregado." });
+    expect(storeCalls).toHaveLength(0);
+
+    attachmentRow = { ...attachmentRow, created_at: new Date(Date.now() - 3_600_000).toISOString() };
+    expect(await retryAttachmentDownloadAction(ATTACHMENT_ID)).toEqual({ success: true });
+  });
+
+  test("sem origem na conexão: erro claro, sem chamar o download", async () => {
+    source = null;
+    expect(await retryAttachmentDownloadAction(ATTACHMENT_ID)).toMatchObject({ success: false });
+    expect(storeCalls).toHaveLength(0);
+  });
+
+  test("Evolution fora do ar: erro amigável, sem lançar", async () => {
+    storeResult = { status: "failed", code: "NETWORK_ERROR" };
+    expect(await retryAttachmentDownloadAction(ATTACHMENT_ID)).toEqual({
+      success: false,
+      error: "Não foi possível falar com o WhatsApp agora. Tente novamente em instantes.",
+    });
+    storeResult = { status: "failed", code: "NOT_FOUND" };
+    expect(await retryAttachmentDownloadAction(ATTACHMENT_ID)).toMatchObject({ success: false, error: expect.stringContaining("não tem mais este arquivo") });
+  });
+
+  test("erro inesperado vira mensagem genérica, nunca exceção", async () => {
+    mediaDownloadModule.storeAttachmentMedia = async () => { throw new Error("boom"); };
+    expect(await retryAttachmentDownloadAction(ATTACHMENT_ID)).toEqual({ success: false, error: "Não foi possível carregar o arquivo agora." });
+  });
+});
+
 const revalidateCalls: unknown[] = [];

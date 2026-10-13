@@ -67,8 +67,8 @@ select is(
 select results_eq(
     $$select original_file_name, mime_type, size_bytes, status, storage_bucket from public.attachments
       where message_id = (select id from public.messages where external_message_id = 'media-pdf-1')$$,
-    $$values ('holerite.pdf'::text, 'application/pdf'::text, 120000::bigint, 'unavailable'::text, 'whatsapp-media'::text)$$,
-    'attachment keeps file name, mime, size and is unavailable until a download exists'
+    $$values ('holerite.pdf'::text, 'application/pdf'::text, 120000::bigint, 'pending'::text, 'whatsapp-media'::text)$$,
+    'attachment keeps file name, mime, size and starts pending until the download runs'
 );
 
 select is(
@@ -162,7 +162,7 @@ select is(
     (select (m->'attachments'->0->>'file_name') || '|' || (m->'attachments'->0->>'status')
      from jsonb_array_elements(public.get_conversation_messages((select id from public.conversations limit 1))->'messages') as m
      where m->>'text_content' = '📄 Documento: holerite.pdf'),
-    'holerite.pdf|unavailable',
+    'holerite.pdf|pending',
     'attachment metadata exposes name and status'
 );
 select is(

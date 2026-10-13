@@ -20,6 +20,10 @@ const routeModule = require("@/app/api/webhooks/whatsapp/route");
 const POST = routeModule.POST;
 
 const originalCreateAdminSupabaseClient = adminModule.createAdminSupabaseClient;
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const mediaModule = require("@/lib/conversations/media-download");
+const originalScheduleMediaDownload = mediaModule.scheduleMediaDownload;
+const originalStoreAttachmentMedia = mediaModule.storeAttachmentMedia;
 
 // Helper para construir requisições HTTP mockadas
 function createMockRequest(options: {
@@ -47,6 +51,8 @@ function createMockRequest(options: {
 test.describe("Evolution API Webhook Route Handler & Parser Complete Unit Tests", () => {
   const originalEnv = process.env;
   let rpcCalls: Array<{ fnName: string; args: Record<string, unknown> }> = [];
+  let scheduledDownloads: Array<() => Promise<unknown>> = [];
+  let storedDownloads: Array<{ attachmentId: string; source: unknown }> = [];
   let rpcMockResult: { data: unknown; error: unknown } = {
     data: { status: "success", message_id: "msg-uuid-123" },
     error: null,
@@ -61,6 +67,15 @@ test.describe("Evolution API Webhook Route Handler & Parser Complete Unit Tests"
     rpcMockResult = {
       data: { status: "success", message_id: "msg-uuid-123" },
       error: null,
+    };
+
+    // O download da mídia roda depois da resposta: nos testes, apenas registramos o agendamento.
+    scheduledDownloads = [];
+    storedDownloads = [];
+    mediaModule.scheduleMediaDownload = (task: () => Promise<unknown>) => { scheduledDownloads.push(task); };
+    mediaModule.storeAttachmentMedia = async (_admin: unknown, attachmentId: string, source: unknown) => {
+      storedDownloads.push({ attachmentId, source });
+      return { status: "available" };
     };
 
     // Mock do client administrativo Supabase
@@ -81,6 +96,8 @@ test.describe("Evolution API Webhook Route Handler & Parser Complete Unit Tests"
       error: null,
     };
     adminModule.createAdminSupabaseClient = originalCreateAdminSupabaseClient;
+    mediaModule.scheduleMediaDownload = originalScheduleMediaDownload;
+    mediaModule.storeAttachmentMedia = originalStoreAttachmentMedia;
   });
 
   // 1. POST sem segredo retorna 401
@@ -292,6 +309,78 @@ test.describe("Evolution API Webhook Route Handler & Parser Complete Unit Tests"
     const res = await POST(mediaRequest({ imageMessage: { mimetype: "image/png" } }));
     expect(res.status).toBe(500);
     expect(await res.text()).not.toContain("detalhe interno");
+  });
+
+  function adminWithAttachment(attachResult: { data: unknown; error: unknown }) {
+    adminModule.createAdminSupabaseClient = () => ({
+      rpc: async (fnName: string, args: Record<string, unknown>) => {
+        rpcCalls.push({ fnName, args });
+        return fnName === "attach_whatsapp_media" ? attachResult : rpcMockResult;
+      },
+    });
+  }
+
+  test("6j. mídia nova agenda o download depois da resposta, com a chave da mensagem e a instância", async () => {
+    adminWithAttachment({ data: { status: "success", attachment_id: "att-1", attachment_status: "pending" }, error: null });
+    const res = await POST(mediaRequest({ documentMessage: { mimetype: "application/pdf", fileName: "rg.pdf" } }));
+    expect(res.status).toBe(200);
+    // A resposta já saiu; o trabalho só está agendado, ainda não executou.
+    expect(scheduledDownloads).toHaveLength(1);
+    expect(storedDownloads).toHaveLength(0);
+
+    await scheduledDownloads[0]();
+    expect(storedDownloads).toEqual([{
+      attachmentId: "att-1",
+      source: {
+        instance: "inst-1",
+        key: { id: "msg-media-1", remoteJid: "5582988880000@s.whatsapp.net", fromMe: false, participant: null },
+        inlineBase64: null,
+      },
+    }]);
+  });
+
+  test("6k. em grupo a chave leva o participante; base64 do webhook é repassado sem nova chamada", async () => {
+    adminWithAttachment({ data: { status: "success", attachment_id: "att-2", attachment_status: "pending" }, error: null });
+    await POST(mediaRequest(
+      { imageMessage: { mimetype: "image/png" }, base64: "aGVsbG8=" },
+      { jid: "120363041999999999@g.us", participant: "5582988881111@s.whatsapp.net" },
+    ));
+    await scheduledDownloads[0]();
+    expect(storedDownloads[0]).toMatchObject({
+      attachmentId: "att-2",
+      source: { key: { remoteJid: "120363041999999999@g.us", participant: "5582988881111@s.whatsapp.net" }, inlineBase64: "aGVsbG8=" },
+    });
+  });
+
+  test("6l. anexo já disponível (reentrega) não agenda novo download", async () => {
+    adminWithAttachment({ data: { status: "duplicate", attachment_id: "att-1", attachment_status: "available" }, error: null });
+    await POST(mediaRequest({ imageMessage: { mimetype: "image/png" } }));
+    expect(scheduledDownloads).toHaveLength(0);
+  });
+
+  test("6m. reentrega de anexo ainda pendente agenda de novo (recupera download que não terminou)", async () => {
+    adminWithAttachment({ data: { status: "duplicate", attachment_id: "att-1", attachment_status: "unavailable" }, error: null });
+    await POST(mediaRequest({ imageMessage: { mimetype: "image/png" } }));
+    expect(scheduledDownloads).toHaveLength(1);
+  });
+
+  test("6n. falha ao registrar o anexo não agenda download; texto nunca agenda", async () => {
+    adminWithAttachment({ data: null, error: { message: "boom" } });
+    expect((await POST(mediaRequest({ imageMessage: { mimetype: "image/png" } }))).status).toBe(500);
+    expect(scheduledDownloads).toHaveLength(0);
+
+    adminWithAttachment({ data: { status: "success", attachment_id: "att-9", attachment_status: "pending" }, error: null });
+    await POST(mediaRequest({ conversation: "só texto" }));
+    expect(scheduledDownloads).toHaveLength(0);
+  });
+
+  test("6o. o webhook responde 200 mesmo que o download falhe depois (a mensagem já foi gravada)", async () => {
+    adminWithAttachment({ data: { status: "success", attachment_id: "att-1", attachment_status: "pending" }, error: null });
+    mediaModule.storeAttachmentMedia = async () => ({ status: "failed", code: "NETWORK_ERROR" });
+    const res = await POST(mediaRequest({ imageMessage: { mimetype: "image/png" } }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).status).toBe("success");
+    await expect(scheduledDownloads[0]()).resolves.toEqual({ status: "failed", code: "NETWORK_ERROR" });
   });
 
   test("6i. texto continua com uma única RPC (sem anexo)", async () => {

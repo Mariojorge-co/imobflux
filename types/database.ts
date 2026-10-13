@@ -1610,6 +1610,23 @@ export type Database = {
         Args: { p_conversation_id: string; p_opportunity_id: string }
         Returns: Json
       }
+      get_attachment_download_context: {
+        Args: { p_attachment_id: string }
+        Returns: Json
+      }
+      mark_attachment_available: {
+        Args: {
+          p_attachment_id: string
+          p_mime_type: string
+          p_sha256?: string
+          p_size_bytes: number
+        }
+        Returns: Json
+      }
+      mark_attachment_download_state: {
+        Args: { p_attachment_id: string; p_state: string }
+        Returns: Json
+      }
       mark_conversation_unread: {
         Args: { p_conversation_id: string; p_unread?: boolean }
         Returns: Json

@@ -28,6 +28,8 @@ export function describeAttachment(attachment: AttachmentLabelInput): { title: s
   const kind = attachmentKindLabel(attachment.mime_type);
   const size = formatAttachmentSize(attachment.size_bytes);
   const title = [kind, attachment.file_name, size].filter(Boolean).join(" · ");
-  const hint = attachment.status === "available" ? null : "Ainda não disponível no ImobFlux — abra no WhatsApp para ver o arquivo.";
+  const hint = attachment.status === "available"
+    ? null
+    : "Ainda não disponível no ImobFlux — tente novamente ou abra no WhatsApp para ver o arquivo.";
   return { title, hint };
 }

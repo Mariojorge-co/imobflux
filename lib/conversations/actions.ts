@@ -26,6 +26,8 @@ import * as serverModule from "@/lib/supabase/server";
 import * as adminModule from "@/lib/supabase/admin";
 import * as gatewayModule from "@/lib/supabase/gateway";
 import { classifyGatewayOutcome } from "@/lib/conversations/gateway-outcome";
+import * as mediaModule from "@/lib/conversations/media-download";
+import { isDownloadInProgress } from "@/lib/conversations/media-types";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -453,6 +455,58 @@ export async function sendMessageAction(
       error: "Erro interno no servidor ao processar envio",
       code: "INTERNAL_ERROR",
     };
+  }
+}
+
+const MEDIA_RETRY_ERRORS: Record<mediaModule.MediaFailureCode, string> = {
+  NOT_CONFIGURED: "O WhatsApp ainda não está conectado ao ImobFlux.",
+  TIMEOUT: "Não foi possível falar com o WhatsApp agora. Tente novamente em instantes.",
+  NETWORK_ERROR: "Não foi possível falar com o WhatsApp agora. Tente novamente em instantes.",
+  HTTP_ERROR: "O WhatsApp não entregou o arquivo. Tente novamente em instantes.",
+  INVALID_RESPONSE: "O WhatsApp devolveu o arquivo em formato inesperado.",
+  TOO_LARGE: "O arquivo é maior que o limite de 25 MB.",
+  STORAGE_ERROR: "Não foi possível guardar o arquivo agora. Tente novamente em instantes.",
+  NOT_FOUND: "O WhatsApp não tem mais este arquivo. Abra a conversa no WhatsApp para vê-lo.",
+};
+
+/**
+ * Server Action: tenta baixar de novo um anexo que ficou indisponível. O acesso ao anexo é
+ * verificado pela RLS (mesma privacidade das mensagens) antes de qualquer chamada à Evolution.
+ */
+export async function retryAttachmentDownloadAction(
+  attachmentId: string,
+): Promise<{ success: true } | { success: false; error: string }> {
+  if (!attachmentId || !UUID_REGEX.test(attachmentId)) {
+    return { success: false, error: "Anexo inválido." };
+  }
+
+  try {
+    const supabase = await serverModule.createServerSupabaseClient();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user) return { success: false, error: "Sessão expirada. Faça login novamente." };
+
+    const { data: attachment } = await supabase
+      .from("attachments")
+      .select("id, status, created_at")
+      .eq("id", attachmentId)
+      .maybeSingle();
+    if (!attachment) return { success: false, error: "Anexo não encontrado." };
+    if (attachment.status === "available") return { success: true };
+    if (attachment.status === "archived") return { success: false, error: "Este anexo foi arquivado." };
+    if (isDownloadInProgress(attachment)) return { success: false, error: "O arquivo já está sendo carregado." };
+
+    const admin = adminModule.createAdminSupabaseClient();
+    const source = await mediaModule.loadMediaSource(admin, attachmentId);
+    if (!source) {
+      return { success: false, error: "Não foi possível localizar este arquivo na conexão do WhatsApp." };
+    }
+
+    const result = await mediaModule.storeAttachmentMedia(admin, attachmentId, source);
+    if (result.status === "available") return { success: true };
+    return { success: false, error: MEDIA_RETRY_ERRORS[result.code] };
+  } catch (error) {
+    console.error("Erro em retryAttachmentDownloadAction:", error);
+    return { success: false, error: "Não foi possível carregar o arquivo agora." };
   }
 }
 

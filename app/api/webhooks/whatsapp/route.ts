@@ -5,6 +5,11 @@ import {
   validateWebhookSecret,
 } from "@/lib/conversations/webhook";
 
+import { scheduleMediaDownload, storeAttachmentMedia } from "@/lib/conversations/media-download";
+
+// O download da mídia roda depois da resposta (after); dá tempo suficiente para arquivos grandes.
+export const maxDuration = 60;
+
 export async function POST(request: Request) {
   try {
     // 1. Validar autenticidade do webhook via header X-Evolution-Secret
@@ -89,7 +94,7 @@ export async function POST(request: Request) {
     // também cobre reentregas). Falha aqui retorna 500 para o provedor poder reenviar.
     const ingested = rpcResult as { status?: string; message_id?: string } | null;
     if (result.media && ingested?.message_id && (ingested.status === "success" || ingested.status === "duplicate")) {
-      const { error: attachError } = await supabase.rpc("attach_whatsapp_media", {
+      const { data: attachResult, error: attachError } = await supabase.rpc("attach_whatsapp_media", {
         p_message_id: ingested.message_id,
         p_media_kind: result.media.kind,
         p_file_name: result.media.fileName ?? "",
@@ -102,6 +107,24 @@ export async function POST(request: Request) {
           { error: "Erro interno no processamento do webhook" },
           { status: 500 },
         );
+      }
+
+      // O download do arquivo roda depois da resposta; se falhar, o anexo fica "indisponível"
+      // (aviso + nova tentativa na conversa) e a mensagem não é afetada.
+      const attachment = attachResult as { attachment_id?: string; attachment_status?: string } | null;
+      if (attachment?.attachment_id && attachment.attachment_status !== "available" && result.externalMessageId) {
+        const attachmentId = attachment.attachment_id;
+        const source = {
+          instance: result.instance,
+          key: {
+            id: result.externalMessageId,
+            remoteJid: result.remoteJid,
+            fromMe: result.fromMe,
+            participant: result.senderJid,
+          },
+          inlineBase64: result.media.inlineBase64,
+        };
+        scheduleMediaDownload(() => storeAttachmentMedia(supabase, attachmentId, source));
       }
     }
 

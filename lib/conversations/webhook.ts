@@ -8,6 +8,8 @@ export type WebhookMedia = {
   mimeType: string | null;
   fileName: string | null;
   sizeBytes: number | null;
+  /** Arquivo em base64 quando a Evolution está configurada para enviá-lo no webhook. */
+  inlineBase64: string | null;
 };
 
 export type WebhookParseResult =
@@ -57,6 +59,7 @@ interface EvolutionMessageContent {
   audioMessage?: EvolutionMediaMessage;
   videoMessage?: EvolutionMediaMessage;
   stickerMessage?: EvolutionMediaMessage;
+  base64?: unknown;
 }
 
 interface EvolutionPayloadData {
@@ -64,6 +67,7 @@ interface EvolutionPayloadData {
   pushName?: string;
   subject?: string;
   message?: EvolutionMessageContent;
+  base64?: unknown;
   messageTimestamp?: number | string;
 }
 
@@ -153,6 +157,7 @@ export function extractWebhookMedia(
       mimeType: cleanString(content.mimetype),
       fileName,
       sizeBytes: parseFileLength(content.fileLength),
+      inlineBase64: cleanString(message.base64),
     },
     caption,
     label,
@@ -252,7 +257,7 @@ export function parseEvolutionWebhookPayload(body: unknown): WebhookParseResult 
     externalMessageId,
     pushName,
     textContent,
-    media: extracted?.media ?? null,
+    media: extracted ? { ...extracted.media, inlineBase64: extracted.media.inlineBase64 ?? cleanString(data.base64) } : null,
     occurredAt,
   };
 }
