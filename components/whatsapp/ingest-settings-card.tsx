@@ -26,9 +26,18 @@ export function IngestSettingsCard({ initial, connectionStatus }: Props) {
   function save(change: { ingestGroups?: boolean; onlyKnownContacts?: boolean; historyWindowDays?: number }) {
     setError(null);
     setSaved(false);
+    // Atualiza na hora (o controle não "pisca" de volta) e desfaz se o servidor recusar.
+    const previous = settings;
+    setSettings({
+      ...settings,
+      ...(change.ingestGroups === undefined ? {} : { ingestGroups: change.ingestGroups }),
+      ...(change.onlyKnownContacts === undefined ? {} : { onlyKnownContacts: change.onlyKnownContacts }),
+      ...(change.historyWindowDays === undefined ? {} : { historyWindowDays: change.historyWindowDays }),
+    });
     startTransition(async () => {
       const result = await saveWhatsappIngestSettingsAction(change);
       if (!result.ok) {
+        setSettings(previous);
         setError(result.error);
         return;
       }
