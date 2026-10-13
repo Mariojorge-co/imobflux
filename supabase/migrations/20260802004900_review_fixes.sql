@@ -7,6 +7,7 @@
 --       reconvidar alguém cujo vínculo foi removido. Antes, o convite criava um app_users novo que nunca
 --       conseguia ser vinculado ao acesso já existente (team_auth_identity_already_linked) e o aceite
 --       falhava. Pessoa ativa em outro workspace ou identidade desativada: team_identity_unavailable.
+--   B1  revoke explícito de service_role nas funções novas (não depender do privilégio padrão do ambiente).
 
 -- ─── A1: reconvidar quem foi removido ───────────────────────────────────────────────────────────
 create or replace function public.prepare_team_invitation(
@@ -148,3 +149,41 @@ begin
     );
 end;
 $function$;
+
+-- ─── B1: revoke explícito de service_role (independe do privilégio padrão do ambiente) ───────────────
+-- Todas estas funções dependem de auth.uid(); com a chave de serviço o contexto é vazio e elas recusam.
+-- Mesmo assim, o acesso é fechado de forma explícita, como nas funções de equipe mais antigas.
+revoke all on function public.remove_team_member(uuid) from public, anon, service_role;
+revoke all on function public.assign_conversation(uuid, uuid) from public, anon, service_role;
+revoke all on function public.unassign_conversation(uuid, uuid) from public, anon, service_role;
+revoke all on function public.reassign_conversation(uuid, uuid, uuid) from public, anon, service_role;
+revoke all on function public.prepare_team_invitation(text, text) from public, anon, service_role;
+revoke all on function public.complete_work_task(uuid) from public, anon, service_role;
+revoke all on function public.upsert_work_task(text, text, timestamptz, uuid, uuid, uuid, uuid) from public, anon, service_role;
+revoke all on function private.is_conversation_team_visible(uuid) from public, anon, authenticated, service_role;
+revoke all on function private.is_task_context_team_visible(uuid, uuid, uuid) from public, anon, authenticated, service_role;
+revoke all on function private.member_display_name(uuid, uuid) from public, anon, service_role;
+
+-- Funções redefinidas acima: garante dono e permissões finais
+alter function public.prepare_team_invitation(text, text) owner to postgres;
+alter function public.assign_conversation(uuid, uuid) owner to postgres;
+alter function public.reassign_conversation(uuid, uuid, uuid) owner to postgres;
+alter function public.create_work_task(text, text, timestamptz, text, uuid, text, timestamptz, uuid, uuid, uuid) owner to postgres;
+alter function public.reassign_work_task(uuid, uuid) owner to postgres;
+alter function public.complete_work_task(uuid) owner to postgres;
+alter function public.upsert_work_task(text, text, timestamptz, uuid, uuid, uuid, uuid) owner to postgres;
+alter function public.get_audit_events(text, uuid, timestamptz, timestamptz, timestamptz, uuid, integer) owner to postgres;
+alter function public.export_dataset(text) owner to postgres;
+grant execute on function public.prepare_team_invitation(text, text) to authenticated;
+grant execute on function public.complete_work_task(uuid) to authenticated;
+grant execute on function public.upsert_work_task(text, text, timestamptz, uuid, uuid, uuid, uuid) to authenticated;
+
+-- ─── ROLLBACK (manual, só funções; nada de tabela nem de dado) ───────────────────────────────────────
+-- Restaurar as definições anteriores, copiando o corpo dos arquivos indicados:
+--   prepare_team_invitation        <- 20260802002700_add_team_management.sql
+--   assign_conversation / reassign_conversation <- 20260802004400_conversation_assignments.sql
+--   create_work_task / reassign_work_task / complete_work_task / upsert_work_task <- 20260802004600_work_tasks.sql
+--   get_audit_events               <- 20260802004500_audit_trail.sql
+--   export_dataset                 <- 20260802004700_export_dataset.sql
+-- Os revokes de service_role podem ficar (são mais restritivos e inofensivos).
+-- Convites criados com identidade reaproveitada continuam válidos: o vínculo aponta para o mesmo app_users.
