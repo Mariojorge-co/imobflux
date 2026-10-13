@@ -8,6 +8,7 @@ import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createEmailSupabaseClient } from "@/lib/supabase/email";
 import { logAuthFailure } from "@/lib/auth/email-flow";
+import { REINVITE_SUCCESS_MESSAGE, friendlyTeamError } from "@/lib/team/errors";
 
 export type TeamActionResult = {
   message: string;
@@ -20,19 +21,7 @@ function text(formData: FormData, field: string) {
 }
 
 function friendlyDatabaseMessage(message: string) {
-  if (message.includes("team_member_already_active")) {
-    return "Este usuário já faz parte da equipe.";
-  }
-  if (message.includes("team_invitation_already_pending")) {
-    return "Já existe um convite pendente para este e-mail.";
-  }
-  if (message.includes("team_member_not_removable")) {
-    return "Este funcionário não pode ser removido (já removido ou fora da equipe).";
-  }
-  if (message.includes("team_member_inactive")) {
-    return "Este funcionário está inativo. Use a ação Reativar funcionário.";
-  }
-  return "Não foi possível concluir a operação. Tente novamente.";
+  return friendlyTeamError(message);
 }
 
 async function invitationRedirectUrl() {
@@ -90,7 +79,15 @@ export async function inviteMemberAction(formData: FormData): Promise<TeamAction
     };
   }
 
-  const invitation = prepared.data as { member_id: string };
+  const invitation = prepared.data as { member_id: string; identity_reused?: boolean };
+
+  // Pessoa que já tem acesso (ex.: funcionário removido e reconvidado): o convite do Auth não se aplica a
+  // e-mail já registrado. Usa o mesmo caminho do reenvio: e-mail de acesso + convite pendente já vinculado.
+  if (invitation.identity_reused) {
+    const resent = await resendInviteAction(invitation.member_id);
+    return resent.status === "success" ? { message: REINVITE_SUCCESS_MESSAGE, status: "success" } : resent;
+  }
+
   const admin = createAdminSupabaseClient();
   const invited = await sendAuthInvitation(admin, email, displayName);
 
