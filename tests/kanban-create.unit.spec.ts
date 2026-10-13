@@ -1,15 +1,4 @@
-// Bypass dos markers 'server-only' e 'next/cache' para ambiente Node de testes
-try {
-  const serverOnlyPath = require.resolve("server-only");
-  require.cache[serverOnlyPath] = {
-    id: serverOnlyPath,
-    filename: serverOnlyPath,
-    loaded: true,
-    exports: { __esModule: true },
-  };
-} catch {
-  // Ignorar
-}
+import "./helpers/server-only";
 
 import { expect, test } from "@playwright/test";
 import type { KanbanCard, KanbanStage } from "@/types/kanban";

@@ -1,9 +1,4 @@
-try {
-  const serverOnlyPath = require.resolve("server-only");
-  require.cache[serverOnlyPath] = { id: serverOnlyPath, filename: serverOnlyPath, loaded: true, exports: {} };
-} catch {
-  // server-only is intentionally bypassed in unit tests.
-}
+import "./helpers/server-only";
 
 import { expect, test } from "@playwright/test";
 import { getPendingInvitationForUser } from "@/lib/auth/invitation";

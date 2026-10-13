@@ -49,3 +49,6 @@ docker/evolution/.env.evolution
 *.tsbuildinfo
 next-env.d.ts
 
+
+# Dumps de produção (contêm dados e sessões reais): nunca versionar
+backup-prod-*.sql

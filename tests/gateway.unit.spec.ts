@@ -1,15 +1,4 @@
-// Bypass do marker 'server-only' para ambiente Node de testes
-try {
-  const serverOnlyPath = require.resolve("server-only");
-  require.cache[serverOnlyPath] = {
-    id: serverOnlyPath,
-    filename: serverOnlyPath,
-    loaded: true,
-    exports: {},
-  };
-} catch {
-  // Ignorar se não resolvido
-}
+import "./helpers/server-only";
 
 import { expect, test } from "@playwright/test";
 

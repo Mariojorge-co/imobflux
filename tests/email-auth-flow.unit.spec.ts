@@ -15,7 +15,7 @@ const cookieStore = {
 class Redirect extends Error { constructor(readonly destination: string) { super("test_redirect"); } }
 function stubModule(name: string, exports: object) {
   const path = require.resolve(name);
-  require.cache[path] = { id: path, filename: path, loaded: true, exports };
+  require.cache[path] = { id: path, filename: path, loaded: true, exports } as never;
 }
 stubModule("server-only", {});
 stubModule("next/headers", { cookies: async () => cookieStore, headers: async () => new Headers({ origin: "https://app.test", host: "app.test" }) });

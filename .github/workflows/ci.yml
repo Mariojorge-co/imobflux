@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  app:
+    name: Lint, tipos, testes unitários e build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test:unit
+      - name: Build
+        run: npm run build
+        env:
+          # Valores de mentira: o build não fala com o Supabase.
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_CLIENT_KEY: ci-placeholder-client-key
+          SUPABASE_ADMIN_KEY: ci-placeholder-admin-key
+
+  database:
+    name: Banco (migrations + pgTAP)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.111.0
+      - name: Sobe o Supabase local e aplica todas as migrations
+        run: supabase start -x studio,imgproxy,edge-runtime,logflare,vector,postgres-meta,mailpit
+      - name: pgTAP
+        run: supabase test db --local
+      - name: Para o Supabase local
+        if: always()
+        run: supabase stop --no-backup

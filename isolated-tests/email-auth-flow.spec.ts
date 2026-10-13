@@ -75,6 +75,7 @@ async function membership(email: string) {
     .select("id, user_id, role, status, activated_at, app_users!inner(auth_user_id)")
     .eq("invited_email_normalized", email).single();
   expect(error).toBeNull();
+  if (!data) throw new Error(`membership não encontrada para ${email}`);
   return data;
 }
 

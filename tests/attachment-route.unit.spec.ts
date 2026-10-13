@@ -1,9 +1,4 @@
-try {
-  const serverOnlyPath = require.resolve("server-only");
-  require.cache[serverOnlyPath] = { id: serverOnlyPath, filename: serverOnlyPath, loaded: true, exports: {} } as never;
-} catch {
-  // ignorar
-}
+import "./helpers/server-only";
 
 import { expect, test } from "@playwright/test";
 
