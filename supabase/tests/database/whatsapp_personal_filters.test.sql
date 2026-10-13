@@ -2,7 +2,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions, auth, pg_catalog;
 
-select plan(73);
+select plan(75);
 
 -- ─── Fixtures: OWNER + ATTENDANT, duas conexões (uma ativa já pareada, uma ainda não pareada) ──────
 insert into auth.users (id, email)
@@ -504,6 +504,25 @@ select is(
     0::bigint,
     'nenhuma conexão tem janela fora do intervalo'
 );
+
+-- ─── Registro da conexão devolve a janela (o app decide se assina o histórico) ─────────────────────────────
+set local role authenticated;
+set local "request.jwt.claim.sub" = 'b5000000-0000-4000-8000-000000000001';
+select is(
+    (select public.register_whatsapp_channel('pers-register-test')->>'history_window_days'),
+    '15',
+    'conexão nova registrada pelo app nasce com a janela padrão (15) e o registro a devolve'
+);
+reset role;
+update public.channel_connections set history_window_days = 0 where external_account_id = 'pers-register-test';
+set local role authenticated;
+set local "request.jwt.claim.sub" = 'b5000000-0000-4000-8000-000000000001';
+select is(
+    (select public.register_whatsapp_channel('pers-register-test')->>'history_window_days'),
+    '0',
+    'registrar de novo uma conexão com histórico desligado devolve 0'
+);
+reset role;
 
 -- ─── Conexão inexistente nunca quebra o webhook para telefone inválido ───────────────────────────────
 select is(

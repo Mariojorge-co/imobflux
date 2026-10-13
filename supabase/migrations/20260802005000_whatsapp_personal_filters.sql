@@ -108,6 +108,83 @@ begin
 end;
 $function$;
 
+-- O app precisa da janela ao conectar (para assinar ou não o histórico): o registro passa a devolvê-la.
+create or replace function public.register_whatsapp_channel(p_instance_name text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $function$
+declare
+    v_workspace_id uuid;
+    v_member_id uuid;
+    v_now timestamptz := now();
+    v_connection public.channel_connections%rowtype;
+    v_registered boolean := false;
+begin
+    select context.workspace_id, context.member_id
+    into v_workspace_id, v_member_id
+    from private.active_member_context() as context
+    where context.member_role = 'owner';
+
+    if v_member_id is null then
+        raise exception 'whatsapp_channel_not_authorized' using errcode = '42501';
+    end if;
+
+    if p_instance_name is null or p_instance_name !~ '^[a-z0-9][a-z0-9-]{2,62}$' then
+        raise exception 'invalid_whatsapp_instance_name' using errcode = '22023';
+    end if;
+
+    select * into v_connection
+    from public.channel_connections as connection
+    where connection.provider = 'whatsapp'
+      and connection.external_account_id = p_instance_name
+    for update;
+
+    if found then
+        if v_connection.workspace_id <> v_workspace_id then
+            raise exception 'whatsapp_instance_in_use' using errcode = '42501';
+        end if;
+
+        if v_connection.status in ('disconnected', 'replaced') then
+            update public.channel_connections
+            set status = 'configured',
+                activated_at = null,
+                paused_at = null,
+                disconnected_at = null
+            where id = v_connection.id;
+            v_registered := true;
+        end if;
+    else
+        insert into public.channel_connections (
+            workspace_id, provider, external_account_id, display_name, status
+        )
+        values (v_workspace_id, 'whatsapp', p_instance_name, 'WhatsApp', 'configured')
+        returning * into v_connection;
+        v_registered := true;
+    end if;
+
+    if v_registered then
+        insert into public.audit_events (
+            workspace_id, actor_type, actor_member_id, action, target_type,
+            target_id, result, metadata, occurred_at, recorded_at
+        )
+        values (
+            v_workspace_id, 'member', v_member_id, 'whatsapp.channel_registered',
+            'channel_connection', v_connection.id, 'success',
+            jsonb_build_object('provider', 'whatsapp'), v_now, v_now
+        );
+    end if;
+
+    return jsonb_build_object(
+        'status', 'success',
+        'connection_id', v_connection.id,
+        'connection_status', (select connection.status from public.channel_connections as connection where connection.id = v_connection.id),
+        'history_window_days', (select connection.history_window_days from public.channel_connections as connection where connection.id = v_connection.id)
+    );
+end;
+$function$;
+
 -- Entrada de grupos, individual e histórico (definições vigentes + as chaves acima).
 create or replace function public.ingest_whatsapp_group_text_message(
     p_external_account_id text,
