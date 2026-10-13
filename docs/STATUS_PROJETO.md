@@ -4,7 +4,7 @@
 - **Objetivo**: gestão comercial e relacionamento para corretores e imobiliárias, com WhatsApp integrado.
 - **Versão**: `0.1.0`
 - **Produção**: app em `https://imobflux.vercel.app` (Vercel) e banco no Supabase (`imobflux-prod`).
-- **Última atualização**: 2026-10-13 (produção em `f781a44`+; branch `feat/mvp-noite` com os itens do MVP, ainda não publicado, ver `RELATORIO_NOITE.md`)
+- **Última atualização**: 2026-10-13 (produção em `720dd37`: itens do MVP da `feat/mvp-noite` publicados; migrations `004300` a `004900` aplicadas em produção em 2026-10-13, ver `RELATORIO_NOITE.md`)
 
 ---
 
@@ -44,9 +44,9 @@ testar com um celular real** (roteiro em [DEPLOY_EVOLUTION_VPS.md](DEPLOY_EVOLUT
 - **Estados vazios guiados** em Conversas e Kanban (conectar WhatsApp / criar primeira oportunidade).
 - **Tarefas**: criação e conclusão a partir da conversa (RPCs `upsert_work_task` e `complete_work_task`).
 
-## Implementado no branch `feat/mvp-noite` (revisar e publicar)
+## Publicado em produção em 2026-10-13 (ex-branch `feat/mvp-noite`, commit `720dd37`)
 
-Detalhes, testes e decisões em [RELATORIO_NOITE.md](RELATORIO_NOITE.md). Correções da revisão adversarial em [RELATORIO_CORRECOES.md](RELATORIO_CORRECOES.md). Migrations pendentes de produção: `004300` a `004900`.
+Detalhes, testes e decisões em [RELATORIO_NOITE.md](RELATORIO_NOITE.md). Correções da revisão adversarial em [RELATORIO_CORRECOES.md](RELATORIO_CORRECOES.md). Migrations `004300` a `004900` aplicadas em produção em 2026-10-13 (backup feito antes e apagado depois da validação).
 - **Remoção de funcionário** (fluxo 23): acesso revogado na hora, trabalho liberado para reatribuição, nada apagado.
 - **Atribuição de conversa** (fluxos 18 e 19): vários responsáveis, troca com histórico, filtro "Minhas", respeitando a privacidade.
 - **Auditoria** (fluxo 25): eventos que faltavam e tela de consulta para o OWNER.
@@ -74,7 +74,7 @@ Detalhes, testes e decisões em [RELATORIO_NOITE.md](RELATORIO_NOITE.md). Corre�
 
 ## Banco de dados
 
-- **Migrations**: 49 arquivos forward-only (`20260802000100` a `20260802004900`); os 42 primeiros (até `004200`) estão em produção, `004300` a `004900` estão no branch `feat/mvp-noite`.
+- **Migrations**: 49 arquivos forward-only (`20260802000100` a `20260802004900`); todas as 49 estão em produção (`004300` a `004900` aplicadas em 2026-10-13).
 - **Tabelas de domínio**: 19 (`public`), com RLS habilitada e forçada.
 - **Funções**: leitura por RPCs `SECURITY INVOKER` (RLS preservada); escrita por RPCs `SECURITY DEFINER`
   auditadas; funções de ingestão e de mídia só para `service_role`.
