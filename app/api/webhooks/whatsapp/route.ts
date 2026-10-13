@@ -63,6 +63,9 @@ export async function POST(request: Request) {
     if (result.status === "history") {
       try {
         const summary = await importHistoryBatch(createAdminSupabaseClient(), result);
+        if (summary.disabled) {
+          return NextResponse.json({ status: "ignored", reason: "history_disabled", received: result.received }, { status: 200 });
+        }
         return NextResponse.json({ status: "history_imported", received: result.received, skipped: result.skipped, ...summary }, { status: 200 });
       } catch (historyError) {
         // 500: a Evolution tenta de novo (a importação é idempotente) e o erro já ficou registrado

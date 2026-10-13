@@ -194,6 +194,10 @@ export type Database = {
           history_import_started_at: string | null
           history_import_status: string | null
           history_imported_count: number
+          history_window_days: number
+          ignored_counts: Json
+          ingest_groups: boolean
+          ingest_only_known_contacts: boolean
           activated_at: string | null
           created_at: string
           credential_reference: string | null
@@ -214,6 +218,10 @@ export type Database = {
           history_import_started_at?: string | null
           history_import_status?: string | null
           history_imported_count?: number
+          history_window_days?: number
+          ignored_counts?: Json
+          ingest_groups?: boolean
+          ingest_only_known_contacts?: boolean
           activated_at?: string | null
           created_at?: string
           credential_reference?: string | null
@@ -234,6 +242,10 @@ export type Database = {
           history_import_started_at?: string | null
           history_import_status?: string | null
           history_imported_count?: number
+          history_window_days?: number
+          ignored_counts?: Json
+          ingest_groups?: boolean
+          ingest_only_known_contacts?: boolean
           activated_at?: string | null
           created_at?: string
           credential_reference?: string | null
@@ -1626,6 +1638,14 @@ export type Database = {
       }
       link_opportunity_conversation: {
         Args: { p_conversation_id: string; p_opportunity_id: string }
+        Returns: Json
+      }
+      update_whatsapp_ingest_settings: {
+        Args: {
+          p_ingest_groups?: boolean
+          p_only_known_contacts?: boolean
+          p_history_window_days?: number
+        }
         Returns: Json
       }
       register_whatsapp_channel: {

@@ -43,7 +43,7 @@ export type WebhookHistoryResult = {
 export type WebhookParseResult =
   | { status: "invalid_secret"; error: string }
   | { status: "malformed"; error: string }
-  | { status: "ignored"; reason: "unhandled_event" | "group_sender_missing" | "non_text_message_ignored" | "missing_timestamp" }
+  | { status: "ignored"; reason: "unhandled_event" | "group_sender_missing" | "non_text_message_ignored" | "missing_timestamp" | "broadcast_or_channel" }
   | { status: "connection"; instance: string; state: "open" | "close" | null }
   | WebhookHistoryResult
   | {
@@ -250,6 +250,11 @@ function parseMessageData(
     !remoteJid.includes("@")
   ) {
     return { status: "malformed", error: "Identificador remoto inválido" };
+  }
+
+  // Lista de transmissão, canal e Status nunca são conversa: o identificador de uma lista poderia passar por telefone.
+  if (/@(broadcast|newsletter)$/.test(remoteJid)) {
+    return { status: "ignored", reason: "broadcast_or_channel" };
   }
 
   const conversationType = remoteJid.endsWith("@g.us") ? "group" : "individual";

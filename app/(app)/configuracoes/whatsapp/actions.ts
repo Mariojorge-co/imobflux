@@ -8,6 +8,7 @@ import * as evolution from "@/lib/whatsapp/evolution-instance";
 import type { EvolutionFailure, EvolutionQr } from "@/lib/whatsapp/evolution-instance";
 import { instanceNameForWorkspace, resolveWebhookUrl, type InstanceState } from "@/lib/whatsapp/channel";
 import { resolveHistoryImport, type HistoryImportView } from "@/lib/whatsapp/history-status";
+import { INGEST_SETTINGS_COLUMNS, parseIngestSettings, pickCurrentConnection, type IngestSettings } from "@/lib/whatsapp/ingest-settings";
 
 export type WhatsappActionErrorCode =
   | "FORBIDDEN"
@@ -94,13 +95,15 @@ export async function startWhatsappConnectionAction(): Promise<WhatsappActionRes
 
   try {
     const supabase = await serverModule.createServerSupabaseClient();
-    const { error } = await supabase.rpc("register_whatsapp_channel", { p_instance_name: instance });
+    const { data: registered, error } = await supabase.rpc("register_whatsapp_channel", { p_instance_name: instance });
     if (error) return fail(error.code === "42501" ? "FORBIDDEN" : "DATABASE");
+    // Janela de histórico 0: a Evolution nem assina o evento de histórico para esta conexão.
+    const includeHistory = (registered as { history_window_days?: number } | null)?.history_window_days !== 0;
 
     const created = await evolution.createInstance(instance);
     if (!created.ok) return fromEvolution(created.code);
 
-    const hook = await evolution.setInstanceWebhook(instance, { url: webhook.url, secret });
+    const hook = await evolution.setInstanceWebhook(instance, { url: webhook.url, secret, includeHistory });
     if (!hook.ok) return fromEvolution(hook.code);
 
     const state = await evolution.getInstanceState(instance);
@@ -216,5 +219,68 @@ export async function getHistoryImportStatusAction(): Promise<HistoryImportActio
   } catch (error) {
     console.error("Erro em getHistoryImportStatusAction:", error);
     return { ok: false };
+  }
+}
+
+export type IngestSettingsInput = { ingestGroups?: boolean; onlyKnownContacts?: boolean; historyWindowDays?: number };
+
+export type IngestSettingsActionResult =
+  | { ok: true; connectionStatus: string | null; settings: IngestSettings }
+  | { ok: false; error: string };
+
+const INGEST_ERRORS = {
+  INVALID: "Valor inválido para esta configuração.",
+  LOCKED: "O histórico só pode ser escolhido antes de conectar o número. Desconecte e conecte de novo para mudar.",
+  DATABASE: "Não foi possível salvar agora. Tente novamente.",
+} as const;
+
+/**
+ * OWNER: liga/desliga as chaves de entrada do WhatsApp (grupos, modo "só cadastrados", janela de
+ * histórico). Sem conexão registrada ainda, registra uma (só no banco) para guardar a escolha antes do QR code.
+ * A alteração é auditada pelo banco.
+ */
+export async function saveWhatsappIngestSettingsAction(input: IngestSettingsInput): Promise<IngestSettingsActionResult> {
+  const owner = await ownerInstance();
+  if (!("instance" in owner)) return { ok: false, error: owner.ok ? ERRORS.FORBIDDEN : owner.error };
+
+  const { ingestGroups, onlyKnownContacts, historyWindowDays } = input ?? {};
+  const validBoolean = (value: unknown) => value === undefined || typeof value === "boolean";
+  if (
+    !validBoolean(ingestGroups)
+    || !validBoolean(onlyKnownContacts)
+    || (historyWindowDays !== undefined && (!Number.isInteger(historyWindowDays) || historyWindowDays < 0 || historyWindowDays > 15))
+  ) {
+    return { ok: false, error: INGEST_ERRORS.INVALID };
+  }
+
+  try {
+    const supabase = await serverModule.createServerSupabaseClient();
+    const args = {
+      ...(ingestGroups === undefined ? {} : { p_ingest_groups: ingestGroups }),
+      ...(onlyKnownContacts === undefined ? {} : { p_only_known_contacts: onlyKnownContacts }),
+      ...(historyWindowDays === undefined ? {} : { p_history_window_days: historyWindowDays }),
+    };
+
+    let { error } = await supabase.rpc("update_whatsapp_ingest_settings", args);
+    if (error?.code === "P0002") {
+      // Ainda não há conexão: registra (somente no banco, sem falar com a Evolution) e tenta de novo.
+      const registered = await supabase.rpc("register_whatsapp_channel", { p_instance_name: owner.instance });
+      if (registered.error) return { ok: false, error: registered.error.code === "42501" ? ERRORS.FORBIDDEN : INGEST_ERRORS.DATABASE };
+      ({ error } = await supabase.rpc("update_whatsapp_ingest_settings", args));
+    }
+    if (error) {
+      if (error.code === "42501") return { ok: false, error: ERRORS.FORBIDDEN };
+      if (error.code === "55000") return { ok: false, error: INGEST_ERRORS.LOCKED };
+      if (error.code === "22023") return { ok: false, error: INGEST_ERRORS.INVALID };
+      return { ok: false, error: INGEST_ERRORS.DATABASE };
+    }
+
+    const { data, error: readError } = await supabase.from("channel_connections").select(INGEST_SETTINGS_COLUMNS).eq("provider", "whatsapp");
+    if (readError) return { ok: false, error: INGEST_ERRORS.DATABASE };
+    const current = pickCurrentConnection(data);
+    return { ok: true, connectionStatus: current?.status ?? null, settings: parseIngestSettings(current) };
+  } catch (error) {
+    console.error("Erro em saveWhatsappIngestSettingsAction:", error);
+    return { ok: false, error: INGEST_ERRORS.DATABASE };
   }
 }

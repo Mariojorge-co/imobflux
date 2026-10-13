@@ -12,9 +12,11 @@ export type HistoryBatchSummary = {
   ignored: number;
   failed: number;
   firstError: string | null;
+  /** A conexão está com a janela de histórico em 0: o lote foi descartado sem gravar nada. */
+  disabled?: boolean;
 };
 
-type BatchRpcResult = { imported?: number; duplicate?: number; ignored?: number; failed?: number; first_error?: string | null } | null;
+type BatchRpcResult = { imported?: number; duplicate?: number; ignored?: number; failed?: number; first_error?: string | null; reason?: string } | null;
 
 function chunk<T>(items: T[], size: number): T[][] {
   const chunks: T[][] = [];
@@ -61,6 +63,10 @@ export async function importHistoryBatch(client: RpcClient, batch: WebhookHistor
       throw new Error(message);
     }
     const result = data as BatchRpcResult;
+    // Janela 0: o banco descarta o lote inteiro; não há o que gravar nem andamento a registrar.
+    if (result?.reason === "history_disabled") {
+      return { ...summary, ignored: batch.received, disabled: true };
+    }
     summary.imported += result?.imported ?? 0;
     summary.duplicate += result?.duplicate ?? 0;
     summary.ignored += result?.ignored ?? 0;

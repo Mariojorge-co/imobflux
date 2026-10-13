@@ -60,6 +60,7 @@ const ACTION_LABELS: Record<string, string> = {
   "export.opportunities": "Exportação de oportunidades",
   "whatsapp.channel_registered": "Conexão do WhatsApp iniciada",
   "whatsapp.channel_connected": "WhatsApp conectado",
+  "whatsapp.ingest_settings_changed": "Filtros de entrada do WhatsApp alterados",
   "whatsapp.channel_disconnected": "WhatsApp desconectado",
   "whatsapp.channel_number_changed": "Número do WhatsApp alterado",
 };

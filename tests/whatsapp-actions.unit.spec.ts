@@ -31,6 +31,8 @@ let rpcCalls: Array<{ fn: string; args: Record<string, unknown> }>;
 let rpcResults: Record<string, { data?: unknown; error?: { code?: string } | null }>;
 let evoCalls: string[];
 let evoResults: Record<string, unknown>;
+let connectionRows: Array<Record<string, unknown>>;
+let rpcSequence: Record<string, Array<{ data?: unknown; error?: { code?: string } | null }>>;
 
 function stubEvolution() {
   const record = (name: string, args?: unknown) => { evoCalls.push(args === undefined ? name : `${name}:${JSON.stringify(args)}`); return evoResults[name]; };
@@ -52,6 +54,8 @@ test.beforeEach(() => {
   access = { role: "owner", workspaceId: WORKSPACE };
   rpcCalls = [];
   rpcResults = {};
+  rpcSequence = {};
+  connectionRows = [];
   evoCalls = [];
   evoResults = {
     createInstance: { ok: true, data: { created: true, qr: QR } },
@@ -63,7 +67,12 @@ test.beforeEach(() => {
   };
   dal.getOptionalActiveAccess = async () => access;
   serverModule.createServerSupabaseClient = async () => ({
-    rpc: async (fn: string, args: Record<string, unknown>) => { rpcCalls.push({ fn, args }); return rpcResults[fn] ?? { data: { status: "success" }, error: null }; },
+    rpc: async (fn: string, args: Record<string, unknown>) => {
+      rpcCalls.push({ fn, args });
+      const queued = rpcSequence[fn]?.shift();
+      return queued ?? rpcResults[fn] ?? { data: { status: "success" }, error: null };
+    },
+    from: (table: string) => ({ select: () => ({ eq: async () => ({ data: table === "channel_connections" ? connectionRows : [], error: null }) }) }),
   });
   stubEvolution();
 });
@@ -109,7 +118,7 @@ test.describe("startWhatsappConnectionAction", () => {
     expect(rpcCalls).toEqual([{ fn: "register_whatsapp_channel", args: { p_instance_name: INSTANCE } }]);
     expect(evoCalls).toEqual([
       `createInstance:"${INSTANCE}"`,
-      `setInstanceWebhook:${JSON.stringify([INSTANCE, { url: "https://imobflux.test/api/webhooks/whatsapp", secret: "segredo-do-webhook" }])}`,
+      `setInstanceWebhook:${JSON.stringify([INSTANCE, { url: "https://imobflux.test/api/webhooks/whatsapp", secret: "segredo-do-webhook", includeHistory: true }])}`,
       `getInstanceState:"${INSTANCE}"`,
     ]); // o QR veio da criação: não precisa pedir de novo
   });
@@ -241,5 +250,81 @@ test.describe("disconnectWhatsappAction", () => {
     evoResults.logoutInstance = { ok: false, code: "NETWORK_ERROR" };
     expect(await actions.disconnectWhatsappAction()).toMatchObject({ ok: false, code: "EVOLUTION_UNREACHABLE" });
     expect(rpcCalls).toHaveLength(0);
+  });
+});
+
+test.describe("histórico zero na conexão", () => {
+  test("janela 0 no registro: a Evolution é configurada SEM assinar o histórico", async () => {
+    rpcResults.register_whatsapp_channel = { data: { status: "success", history_window_days: 0 }, error: null };
+    await actions.startWhatsappConnectionAction();
+    const hook = evoCalls.find((call) => call.startsWith("setInstanceWebhook"));
+    expect(hook).toContain('"includeHistory":false');
+  });
+
+  test("janela 15 (ou sem a informação): assina o histórico como antes", async () => {
+    rpcResults.register_whatsapp_channel = { data: { status: "success", history_window_days: 15 }, error: null };
+    await actions.startWhatsappConnectionAction();
+    expect(evoCalls.find((call) => call.startsWith("setInstanceWebhook"))).toContain('"includeHistory":true');
+  });
+});
+
+test.describe("saveWhatsappIngestSettingsAction", () => {
+  test("só o OWNER ativo; ATTENDANT e sem sessão são recusados antes de qualquer chamada", async () => {
+    for (const who of [{ role: "attendant", workspaceId: WORKSPACE }, null]) {
+      access = who;
+      expect(await actions.saveWhatsappIngestSettingsAction({ onlyKnownContacts: true })).toMatchObject({ ok: false });
+    }
+    expect(rpcCalls).toHaveLength(0);
+  });
+
+  test("origem não confiável (CSRF) é recusada antes de qualquer chamada", async () => {
+    const originalCheck = security.assertTrustedServerActionOrigin;
+    security.assertTrustedServerActionOrigin = async () => { throw new Error("Origem da operação não permitida."); };
+    try {
+      expect(await actions.saveWhatsappIngestSettingsAction({ ingestGroups: true })).toMatchObject({ ok: false });
+    } finally {
+      security.assertTrustedServerActionOrigin = originalCheck;
+    }
+    expect(rpcCalls).toHaveLength(0);
+  });
+
+  test("valores inválidos são recusados sem chamar o banco", async () => {
+    for (const input of [{ ingestGroups: "sim" }, { onlyKnownContacts: 1 }, { historyWindowDays: 16 }, { historyWindowDays: -1 }, { historyWindowDays: 1.5 }]) {
+      expect(await actions.saveWhatsappIngestSettingsAction(input as never)).toEqual({ ok: false, error: "Valor inválido para esta configuração." });
+    }
+    expect(rpcCalls).toHaveLength(0);
+  });
+
+  test("envia só as chaves informadas e devolve as configurações lidas do banco", async () => {
+    connectionRows = [{ status: "configured", created_at: "2026-10-13", history_window_days: 0, ingest_groups: false, ingest_only_known_contacts: true, ignored_counts: { unknown_contact: 4 } }];
+    const result = await actions.saveWhatsappIngestSettingsAction({ onlyKnownContacts: true });
+    expect(rpcCalls).toEqual([{ fn: "update_whatsapp_ingest_settings", args: { p_only_known_contacts: true } }]);
+    expect(result).toEqual({
+      ok: true,
+      connectionStatus: "configured",
+      settings: { ingestGroups: false, onlyKnownContacts: true, historyWindowDays: 0, ignored: { groups: 0, unknownContacts: 4, invalidPhones: 0 } },
+    });
+  });
+
+  test("sem conexão ainda: registra (só no banco, sem falar com a Evolution) e tenta de novo", async () => {
+    rpcSequence.update_whatsapp_ingest_settings = [{ data: null, error: { code: "P0002" } }];
+    connectionRows = [{ status: "configured", created_at: "2026-10-13", history_window_days: 15, ingest_groups: true }];
+    const result = await actions.saveWhatsappIngestSettingsAction({ ingestGroups: true });
+    expect(rpcCalls.map((call) => call.fn)).toEqual(["update_whatsapp_ingest_settings", "register_whatsapp_channel", "update_whatsapp_ingest_settings"]);
+    expect(rpcCalls[1].args).toEqual({ p_instance_name: INSTANCE });
+    expect(result).toMatchObject({ ok: true });
+    expect(evoCalls).toHaveLength(0);
+  });
+
+  test("mensagens claras: janela trancada depois do pareamento, sem permissão e erro de banco", async () => {
+    rpcResults.update_whatsapp_ingest_settings = { data: null, error: { code: "55000" } };
+    expect(await actions.saveWhatsappIngestSettingsAction({ historyWindowDays: 0 })).toEqual({
+      ok: false,
+      error: "O histórico só pode ser escolhido antes de conectar o número. Desconecte e conecte de novo para mudar.",
+    });
+    rpcResults.update_whatsapp_ingest_settings = { data: null, error: { code: "42501" } };
+    expect(await actions.saveWhatsappIngestSettingsAction({ ingestGroups: true })).toMatchObject({ ok: false, error: expect.stringContaining("proprietário") });
+    rpcResults.update_whatsapp_ingest_settings = { data: null, error: { code: "XX000" } };
+    expect(await actions.saveWhatsappIngestSettingsAction({ ingestGroups: true })).toEqual({ ok: false, error: "Não foi possível salvar agora. Tente novamente." });
   });
 });

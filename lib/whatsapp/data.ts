@@ -1,6 +1,7 @@
 import "server-only";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { resolveHistoryImport, type HistoryImportView } from "@/lib/whatsapp/history-status";
+import { parseIngestSettings, type IngestSettings } from "@/lib/whatsapp/ingest-settings";
 
 export type WhatsappChannelStatus = {
   id: string;
@@ -12,6 +13,8 @@ export type WhatsappChannelStatus = {
   /** Situação da importação do histórico recente (só existe para conexão pareada). */
   historyImport: HistoryImportView;
   historyStartedAt: string | null;
+  /** Chaves de entrada desta conexão (grupos, só cadastrados, janela de histórico, contadores). */
+  ingestSettings: IngestSettings;
 };
 
 /**
@@ -22,7 +25,7 @@ export async function getWhatsappChannelStatus(): Promise<WhatsappChannelStatus 
   const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase
     .from("channel_connections")
-    .select("id, external_account_id, status, external_phone_normalized, activated_at, disconnected_at, created_at, history_import_status, history_import_started_at, history_import_finished_at, history_imported_count, history_import_error")
+    .select("id, external_account_id, status, external_phone_normalized, activated_at, disconnected_at, created_at, history_import_status, history_import_started_at, history_import_finished_at, history_imported_count, history_import_error, history_window_days, ingest_groups, ingest_only_known_contacts, ignored_counts")
     .eq("provider", "whatsapp")
     .neq("status", "replaced")
     .order("created_at", { ascending: false });
@@ -37,6 +40,7 @@ export async function getWhatsappChannelStatus(): Promise<WhatsappChannelStatus 
     activatedAt: chosen.activated_at,
     disconnectedAt: chosen.disconnected_at,
     historyStartedAt: chosen.history_import_started_at,
+    ingestSettings: parseIngestSettings(chosen),
     historyImport: chosen.status === "active"
       ? resolveHistoryImport({
           status: chosen.history_import_status,
