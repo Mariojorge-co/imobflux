@@ -1,6 +1,13 @@
-# Evolution API para produção (VM e2-micro, 1 GB de RAM).
+# Evolution API para produção (VPS Linux com IP fixo; dimensionado para 4 vCPU / 8 GB de RAM).
 # Só o Caddy (HTTPS) é exposto; Evolution e Postgres ficam na rede interna.
 # Sem Redis: o cache local da Evolution basta para uma única instância e poupa memória.
+# Em máquina bem menor (ex.: 1 GB), reduza mem_limit, NODE_OPTIONS e o shared_buffers do Postgres.
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
 
 services:
   caddy:
@@ -19,7 +26,8 @@ services:
       - evolution-api
     networks:
       - evolution-net
-    mem_limit: 96m
+    mem_limit: 128m
+    logging: *logging
 
   evolution-api:
     image: evoapicloud/evolution-api:v2.3.7
@@ -42,14 +50,15 @@ services:
       DATABASE_SAVE_DATA_CHATS: "false"
       CACHE_REDIS_ENABLED: "false"
       CACHE_LOCAL_ENABLED: "true"
-      NODE_OPTIONS: --max-old-space-size=420
+      NODE_OPTIONS: --max-old-space-size=1536
       LOG_LEVEL: ERROR,WARN
     depends_on:
       evolution-postgres:
         condition: service_healthy
     networks:
       - evolution-net
-    mem_limit: 520m
+    mem_limit: 2g
+    logging: *logging
 
   evolution-postgres:
     image: postgres:16-alpine
@@ -58,7 +67,7 @@ services:
       POSTGRES_USER: evolution
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: evolution
-    command: ["postgres", "-c", "shared_buffers=48MB", "-c", "max_connections=40", "-c", "work_mem=2MB"]
+    command: ["postgres", "-c", "shared_buffers=256MB", "-c", "max_connections=100", "-c", "work_mem=4MB"]
     volumes:
       - evolution_postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -68,7 +77,8 @@ services:
       retries: 10
     networks:
       - evolution-net
-    mem_limit: 220m
+    mem_limit: 1g
+    logging: *logging
 
 networks:
   evolution-net:

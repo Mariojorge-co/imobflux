@@ -1,0 +1,5 @@
+# Arquivos que rodam em Linux (VPS/Docker) precisam de quebra de linha LF, mesmo em checkout no Windows.
+*.sh text eol=lf
+docker/evolution-prod/Caddyfile text eol=lf
+docker/evolution-prod/docker-compose.yml text eol=lf
+docker/evolution-prod/.env.example text eol=lf

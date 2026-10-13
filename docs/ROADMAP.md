@@ -23,11 +23,11 @@ Planejamento da evolução do **ImobFlux**. Estado atual em [STATUS_PROJETO.md](
 
 ## Próximas prioridades (para uso real)
 
-1. **Hospedar a Evolution API** (Google Cloud e2-micro) e **configurar o Vercel**
+1. **Hospedar a Evolution API** (VPS Contabo, Debian 12) e **configurar o Vercel**
    (`EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_WEBHOOK_SECRET` + redeploy).
-   Passo a passo em [DEPLOY_EVOLUTION_GCP.md](DEPLOY_EVOLUTION_GCP.md). Prioridade: **ALTA**.
+   Passo a passo em [DEPLOY_EVOLUTION_VPS.md](DEPLOY_EVOLUTION_VPS.md). Prioridade: **ALTA**.
 2. **Teste com número real**: pareamento, envio/recebimento, mídia, histórico (medir o que o celular envia),
-   SLA e privacidade. Roteiro na seção 5 do mesmo documento. Prioridade: **ALTA**.
+   SLA e privacidade. Roteiro na seção 8 do mesmo documento. Prioridade: **ALTA**.
 
 ## Pendências do documento de MVP
 

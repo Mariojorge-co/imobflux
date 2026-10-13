@@ -1,3 +1,5 @@
+> **DESCARTADO:** o Google Cloud exigiu pré-pagamento e foi abandonado. Use [DEPLOY_EVOLUTION_VPS.md](DEPLOY_EVOLUTION_VPS.md). Este arquivo fica só como histórico; o `docker-compose.yml` atual está dimensionado para 8 GB de RAM (não para a e2-micro) e o `setup-vm.sh` foi substituído por `setup-vps.sh`.
+
 # Evolution API em produção — Google Cloud (e2-micro) + Vercel + teste com celular
 
 Objetivo: deixar a Evolution API acessível por HTTPS na internet para o ImobFlux (Vercel) conectar um

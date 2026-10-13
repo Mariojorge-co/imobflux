@@ -13,7 +13,7 @@
 Escopo do documento de MVP (`FLUXOS_NEGOCIO.md`, 28 fluxos) implementado em cerca de **85%**. Pronto para uso
 real com clientes em cerca de **65%**: o código do WhatsApp está completo e testado com Evolution simulada e
 real em ambiente local, mas **falta hospedar a Evolution publicamente, configurar as variáveis no Vercel e
-testar com um celular real** (roteiro em [DEPLOY_EVOLUTION_GCP.md](DEPLOY_EVOLUTION_GCP.md)).
+testar com um celular real** (roteiro em [DEPLOY_EVOLUTION_VPS.md](DEPLOY_EVOLUTION_VPS.md)).
 
 ---
 
@@ -87,7 +87,7 @@ testar com um celular real** (roteiro em [DEPLOY_EVOLUTION_GCP.md](DEPLOY_EVOLUT
 
 - **Vercel**: variáveis necessárias para o WhatsApp: `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`,
   `EVOLUTION_WEBHOOK_SECRET` (**pendentes de configuração/confirmação**).
-- **Evolution API**: compose local em `docker/evolution/`; produção prevista em Google Cloud e2-micro com
+- **Evolution API**: compose local em `docker/evolution/`; produção prevista em VPS Contabo (Debian 12) com
   `docker/evolution-prod/` (**pendente de hospedagem**).
 - **Supabase**: migrations aplicadas por `supabase db push --linked` com backup, dry-run e validação.
 
@@ -97,7 +97,7 @@ testar com um celular real** (roteiro em [DEPLOY_EVOLUTION_GCP.md](DEPLOY_EVOLUT
 
 - [STATUS_PROJETO.md](STATUS_PROJETO.md): este documento.
 - [ROADMAP.md](ROADMAP.md): planejamento.
-- [DEPLOY_EVOLUTION_GCP.md](DEPLOY_EVOLUTION_GCP.md): hospedagem da Evolution, Vercel e roteiro do teste com celular.
+- [DEPLOY_EVOLUTION_VPS.md](DEPLOY_EVOLUTION_VPS.md): hospedagem da Evolution (VPS Contabo), Vercel e roteiro do teste com celular.
 - [FLUXOS_NEGOCIO.md](FLUXOS_NEGOCIO.md): documento de MVP (28 fluxos).
 - [HANDOFF.md](../HANDOFF.md): transição operacional (ainda descreve a Sprint 24; consulte este status primeiro).
 - [DECISOES.md](DECISOES.md), [ARQUITETURA.md](ARQUITETURA.md), [DOCUMENTATION_POLICY.md](DOCUMENTATION_POLICY.md).
