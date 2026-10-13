@@ -26,6 +26,7 @@ insert into grant_targets values
     ('public.get_work_tasks(text,text,integer)', 'public'),
     ('public.export_dataset(text)', 'public'),
     ('public.get_conversations_inbox(text,text,timestamptz,uuid,integer)', 'public'),
+    ('public.update_whatsapp_ingest_settings(boolean,boolean,integer)', 'public'),
     ('public.link_opportunity_conversation(uuid,uuid)', 'public'),
     ('public.update_contact_opportunity_qualification(uuid,uuid,text,text,text,numeric,numeric,text,numeric,text,numeric,text,text)', 'public'),
     ('private.is_conversation_team_visible(uuid)', 'private'),

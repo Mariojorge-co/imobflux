@@ -26,6 +26,9 @@ values
 insert into public.channel_connections (id, workspace_id, provider, external_account_id, external_phone_normalized, status, activated_at)
 values ('b3700004-0000-4000-8000-000000000001', 'b3700002-0000-4000-8000-000000000001', 'whatsapp', 'media_instance', '+5582999903700', 'active', now());
 
+-- WhatsApp pessoal (migration 005000): grupos vêm desligados por padrão; este teste exercita a ingestão de grupos.
+update public.channel_connections set ingest_groups = true;
+
 -- ─── Permissões ──────────────────────────────────────────────────────────────────
 select ok(
     not pg_catalog.has_function_privilege('authenticated', 'public.attach_whatsapp_media(uuid,text,text,text,bigint)', 'execute')

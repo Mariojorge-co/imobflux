@@ -26,6 +26,9 @@ values
 insert into public.channel_connections (id, workspace_id, provider, external_account_id, status)
 values ('b4200004-0000-4000-8000-000000000001', 'b4200002-0000-4000-8000-000000000001', 'whatsapp', 'hist_instance', 'configured');
 
+-- WhatsApp pessoal (migration 005000): grupos vêm desligados por padrão; este teste exercita a ingestão de grupos.
+update public.channel_connections set ingest_groups = true;
+
 -- ─── Permissões ──────────────────────────────────────────────────────────────────────────
 select ok(
     not pg_catalog.has_function_privilege('authenticated', 'public.ingest_whatsapp_history_batch(text,jsonb)', 'execute')

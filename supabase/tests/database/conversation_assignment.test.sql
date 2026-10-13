@@ -37,6 +37,9 @@ values
 insert into public.channel_connections (id, workspace_id, provider, external_account_id, external_phone_normalized, status, activated_at)
 values ('b5200004-0000-4000-8000-000000000001', 'b5200002-0000-4000-8000-000000000001', 'whatsapp', 'as_instance', '+5582999905200', 'active', now());
 
+-- WhatsApp pessoal (migration 005000): grupos vêm desligados por padrão; este teste exercita a ingestão de grupos.
+update public.channel_connections set ingest_groups = true;
+
 -- Contato protegido (conversa privada)
 insert into public.contacts (id, workspace_id, display_name, classification, operational_status, is_protected, protected_at, commercial_visible_from, created_at, updated_at)
 values ('b5200005-0000-4000-8000-000000000002', 'b5200002-0000-4000-8000-000000000001', 'AS Protegido', 'lead', 'active', true, now() - interval '1 hour', null, now() - interval '2 hours', now() - interval '2 hours');

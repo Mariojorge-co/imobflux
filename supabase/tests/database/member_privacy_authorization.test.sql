@@ -41,6 +41,9 @@ values (
   'whatsapp', 'privacy-account', '+5582999902400', 'active', now()
 );
 
+-- WhatsApp pessoal (migration 005000): grupos vêm desligados por padrão; este teste exercita a ingestão de grupos.
+update public.channel_connections set ingest_groups = true;
+
 insert into public.contacts (
   id, workspace_id, display_name, classification, operational_status,
   is_protected, protected_at, commercial_visible_from, created_at, updated_at

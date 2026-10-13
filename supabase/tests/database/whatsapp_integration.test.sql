@@ -36,6 +36,9 @@ values
     ('61000000-0000-4000-8000-000000000098', '21000000-0000-4000-8000-000000000098', 'whatsapp', 'instance_test_98', '+5582999990098', 'active', now())
 on conflict (id) do nothing;
 
+-- WhatsApp pessoal (migration 005000): grupos vêm desligados por padrão; este teste exercita a ingestão de grupos.
+update public.channel_connections set ingest_groups = true;
+
 
 -- ─── 2. Testes de Permissões das RPCs ────────────────────────────────────────
 

@@ -25,6 +25,9 @@ values
 insert into public.channel_connections (id, workspace_id, provider, external_account_id, external_phone_normalized, status, activated_at)
 values ('c3800004-0000-4000-8000-000000000001', 'c3800002-0000-4000-8000-000000000001', 'whatsapp', 'timing_instance', '+5582999903800', 'active', now());
 
+-- WhatsApp pessoal (migration 005000): grupos vêm desligados por padrão; este teste exercita a ingestão de grupos.
+update public.channel_connections set ingest_groups = true;
+
 -- 1. Número novo, mensagem 30 s no passado (o caso real do webhook)
 select lives_ok(
     $$select public.ingest_whatsapp_text_message('timing_instance', 'timing-new-1', '5582988883800@s.whatsapp.net', false, 'Cliente Novo', 'Primeira mensagem', now() - interval '30 seconds')$$,

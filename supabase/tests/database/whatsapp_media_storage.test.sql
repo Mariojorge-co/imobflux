@@ -21,6 +21,9 @@ values
 insert into public.channel_connections (id, workspace_id, provider, external_account_id, external_phone_normalized, status, activated_at)
 values ('c3900004-0000-4000-8000-000000000001', 'c3900002-0000-4000-8000-000000000001', 'whatsapp', 'storage_instance', '+5582999903900', 'active', now());
 
+-- WhatsApp pessoal (migration 005000): grupos vêm desligados por padrão; este teste exercita a ingestão de grupos.
+update public.channel_connections set ingest_groups = true;
+
 -- ─── Bucket privado ────────────────────────────────────────────────────────────────────
 select is(
     (select public from storage.buckets where id = 'whatsapp-media'),
