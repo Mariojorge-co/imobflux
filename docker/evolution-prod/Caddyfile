@@ -1,0 +1,10 @@
+# HTTPS automático (Let's Encrypt) para o domínio definido em DOMAIN no .env.
+{$DOMAIN} {
+	encode gzip
+
+	# O painel web da Evolution não é usado (o ImobFlux fala com a API) e não precisa ficar exposto.
+	@painel path /manager /manager/*
+	respond @painel 404
+
+	reverse_proxy evolution-api:8080
+}

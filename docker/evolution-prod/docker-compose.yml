@@ -1,0 +1,80 @@
+# Evolution API para produção (VM e2-micro, 1 GB de RAM).
+# Só o Caddy (HTTPS) é exposto; Evolution e Postgres ficam na rede interna.
+# Sem Redis: o cache local da Evolution basta para uma única instância e poupa memória.
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - evolution-api
+    networks:
+      - evolution-net
+    mem_limit: 96m
+
+  evolution-api:
+    image: evoapicloud/evolution-api:v2.3.7
+    restart: always
+    expose:
+      - "8080"
+    environment:
+      SERVER_URL: https://${DOMAIN}
+      AUTHENTICATION_TYPE: apikey
+      AUTHENTICATION_API_KEY: ${AUTHENTICATION_API_KEY}
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://evolution:${POSTGRES_PASSWORD}@evolution-postgres:5432/evolution
+      # Instâncias e sessão ficam no Postgres (sobrevivem a reinício; sem isso seria preciso ler o QR de novo).
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      # O ImobFlux baixa mídia pela Evolution, que precisa lembrar das mensagens recebidas.
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "true"
+      # O histórico recente é entregue por webhook; não precisa ficar guardado na Evolution.
+      DATABASE_SAVE_DATA_HISTORIC: "false"
+      DATABASE_SAVE_DATA_CONTACTS: "false"
+      DATABASE_SAVE_DATA_CHATS: "false"
+      CACHE_REDIS_ENABLED: "false"
+      CACHE_LOCAL_ENABLED: "true"
+      NODE_OPTIONS: --max-old-space-size=420
+      LOG_LEVEL: ERROR,WARN
+    depends_on:
+      evolution-postgres:
+        condition: service_healthy
+    networks:
+      - evolution-net
+    mem_limit: 520m
+
+  evolution-postgres:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: evolution
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: evolution
+    command: ["postgres", "-c", "shared_buffers=48MB", "-c", "max_connections=40", "-c", "work_mem=2MB"]
+    volumes:
+      - evolution_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evolution -d evolution"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - evolution-net
+    mem_limit: 220m
+
+networks:
+  evolution-net:
+    driver: bridge
+
+volumes:
+  evolution_postgres_data:
+  caddy_data:
+  caddy_config:
