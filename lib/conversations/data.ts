@@ -15,6 +15,8 @@ export type ConversationsCursor = {
 /** Um item da listagem de conversas retornado pela RPC. */
 export type ConversationListItem = {
   conversation_id: string;
+  /** Só vem de get_conversation_item (uma conversa); a lista não traz. */
+  workspace_id?: string;
   conversation_type: string; // 'individual' | 'group'
   visibility: string; // 'commercial' | 'owner_only'
   operational_status: string;
@@ -33,6 +35,12 @@ export type ConversationListItem = {
   /** Responsáveis atuais (atribuição indica responsabilidade, não acesso). */
   assignees?: ConversationAssignee[];
   assigned_to_me?: boolean;
+  /**
+   * Base do contador de espera (SLA): direção e hora da última mensagem VÁLIDA (resposta que falhou e histórico
+   * não contam). Nulos quando a conversa está encerrada (arquivada) ou não tem mensagem válida.
+   */
+  sla_direction?: string | null;
+  sla_at?: string | null;
   /** Cursores do próximo lote — retornados pela RPC */
   next_cursor_ts: string | null;
   next_cursor_id: string | null;
@@ -258,106 +266,31 @@ export async function getMemberDirectory(): Promise<DirectoryMember[]> {
 /**
  * Carrega os dados de uma conversa específica pelo ID.
  */
+/**
+ * Uma conversa no mesmo formato da lista, numa única consulta (RPC `get_conversation_item`): quem não tem acesso
+ * recebe nulo. Antes, abrir uma conversa recarregava a lista inteira só para achar esta linha.
+ */
 export async function getConversationById(
   conversationId: string,
 ): Promise<ConversationListItem | null> {
-  const list = await getConversationsList({ limit: 100 });
-  const found = list.find((c) => c.conversation_id === conversationId);
-  if (found) return found;
-
   const supabase = await createServerSupabaseClient();
-  const { data: conv, error: conversationError } = await supabase
-    .from("conversations")
-    .select("id, workspace_id, conversation_type, visibility, operational_status, started_at, archived_at, subject")
-    .eq("id", conversationId)
-    .maybeSingle();
+  const { data, error } = await supabase.rpc("get_conversation_item", {
+    p_conversation_id: conversationId,
+  });
 
-  if (conversationError) {
+  if (error) {
     throw new Error("Não foi possível carregar a conversa.");
   }
-  if (!conv) return null;
+  if (!data) return null;
 
-  let contactId: string | null = null;
-  let contactDisplayName: string | null = null;
-  let externalDisplayName: string | null = null;
-  let phoneDisplayValue: string | null = null;
-  let normalizedPhone: string | null = null;
-
-  if (conv.conversation_type === "individual") {
-    const { data: participant, error: participantError } = await supabase
-      .from("conversation_participants")
-      .select("contact_point_id, external_display_name")
-      .eq("workspace_id", conv.workspace_id)
-      .eq("conversation_id", conv.id)
-      .is("left_at", null)
-      .order("first_seen_at", { ascending: true })
-      .order("id", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (participantError) {
-      throw new Error("Não foi possível carregar a identidade da conversa.");
-    }
-
-    externalDisplayName = participant?.external_display_name ?? null;
-
-    if (participant?.contact_point_id) {
-      const { data: point, error: pointError } = await supabase
-        .from("contact_points")
-        .select("id, contact_id, display_value, normalized_value, external_display_name")
-        .eq("workspace_id", conv.workspace_id)
-        .eq("id", participant.contact_point_id)
-        .maybeSingle();
-
-      if (pointError) {
-        throw new Error("Não foi possível carregar o telefone da conversa.");
-      }
-
-      contactId = point?.contact_id ?? null;
-      phoneDisplayValue = point?.display_value ?? null;
-      normalizedPhone = point?.normalized_value ?? null;
-      externalDisplayName ??= point?.external_display_name ?? null;
-
-      if (contactId) {
-        const { data: contact, error: contactError } = await supabase
-          .from("contacts")
-          .select("display_name")
-          .eq("workspace_id", conv.workspace_id)
-          .eq("id", contactId)
-          .maybeSingle();
-
-        if (contactError) {
-          throw new Error("Não foi possível carregar o contato da conversa.");
-        }
-
-        contactDisplayName = contact?.display_name ?? null;
-      }
-    }
-  }
-
+  const item = data as unknown as ConversationListItem;
   return {
-    conversation_id: conv.id,
-    conversation_type: conv.conversation_type,
-    visibility: conv.visibility,
-    operational_status: conv.operational_status,
-    started_at: conv.started_at,
-    archived_at: conv.archived_at,
-    last_activity_at: conv.started_at,
-    last_msg_text: null,
-    last_msg_direction: null,
-    last_msg_occurred_at: null,
-    last_msg_author_name: null,
+    ...item,
     participant_name: resolveConversationIdentity({
-      contactDisplayName,
-      conversationType: conv.conversation_type,
-      externalDisplayName,
-      groupSubject: conv.subject,
-      normalizedPhone,
-      phoneDisplayValue,
+      contactDisplayName: item.participant_name,
+      conversationType: item.conversation_type,
+      phoneDisplayValue: item.participant_phone,
     }),
-    participant_phone: phoneDisplayValue,
-    contact_id: contactId,
-    is_unread: false,
     next_cursor_ts: null,
     next_cursor_id: null,
   };
@@ -589,6 +522,20 @@ export async function getVisibleInternalNotes(
     created_at: note.created_at,
     author_name: note.author_name,
   }));
+}
+
+/**
+ * Etapas ativas do funil, sem depender da conversa: a RLS já limita ao espaço de trabalho do usuário e a
+ * página filtra pelo workspace_id da conversa. Uma consulta só, que roda junto com as demais.
+ */
+export async function getPipelineStagesByWorkspace(): Promise<Array<ConversationPipelineStage & { workspace_id: string }>> {
+  const supabase = await createServerSupabaseClient();
+  const { data } = await supabase
+    .from("pipeline_stages")
+    .select("id, name, workspace_id")
+    .eq("is_active", true)
+    .order("position", { ascending: true });
+  return data ?? [];
 }
 
 export async function getConversationPipelineStages(

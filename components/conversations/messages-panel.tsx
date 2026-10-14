@@ -19,6 +19,7 @@ import { Button, Drawer, Input, ModalDialog } from "@/components/ui";
 import { SlaBadge } from "@/components/conversations/sla-badge";
 import { resolveOpportunityTargets } from "@/lib/conversations/opportunity-targets";
 import { AttachmentView } from "@/components/conversations/attachment-view";
+import { isStickerMessage } from "@/lib/conversations/sticker";
 import type {
   ConversationContextData,
   ConversationListItem,
@@ -32,6 +33,8 @@ import { ClientContextPanel } from "@/components/conversations/client-context-pa
 import { AssigneesBar } from "@/components/conversations/assignees-bar";
 import type { ConversationAssignee, DirectoryMember } from "@/lib/conversations/assignment";
 import { emitConversationClientUpdate } from "@/lib/conversations/client-events";
+import { mergeMessages, outgoingStatusLabel, removePendingMessage } from "@/lib/conversations/message-merge";
+import { conversationPatchFromMessage, isConversationClosed } from "@/lib/conversations/sla-display";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 type MessagesPanelProps = {
@@ -89,6 +92,9 @@ export function MessagesPanel({
   const router = useRouter();
   const listRef = useRef<HTMLDivElement>(null);
   const hasAutoScrolledRef = useRef(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const stickToBottomRef = useRef(true);
+  const lastScrollHeightRef = useRef(0);
   const pendingScrollAdjustmentRef = useRef<{
     scrollHeight: number;
     scrollTop: number;
@@ -157,17 +163,35 @@ export function MessagesPanel({
     pendingScrollToBottomRef.current = false;
   }, [messages]);
 
-  const handleMessagePersisted = useCallback((message: ConversationMessage) => {
-    pendingScrollToBottomRef.current = true;
-    setMessages((previous) => {
-      const byId = new Map(previous.map((item) => [item.id, item]));
-      byId.set(message.id, message);
-      return [...byId.values()].sort(
-        (left, right) =>
-          left.occurred_at.localeCompare(right.occurred_at)
-          || left.id.localeCompare(right.id),
-      );
+  // Fica no final enquanto o usuário não rolou para cima: fotos e figurinhas carregam depois e aumentam a altura.
+  useEffect(() => {
+    const content = contentRef.current;
+    const list = listRef.current;
+    if (!content || !list || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      if (stickToBottomRef.current) list.scrollTop = list.scrollHeight;
+      lastScrollHeightRef.current = list.scrollHeight;
     });
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, []);
+
+  const handleLogScroll = useCallback(() => {
+    const list = listRef.current;
+    if (!list) return;
+    // Se a altura mudou desde a última medição (foto carregou), a distância ao final cresceu por causa da mídia e não
+    // porque o usuário rolou: ignora este evento (o ResizeObserver cuida de manter no final).
+    if (list.scrollHeight !== lastScrollHeightRef.current) {
+      lastScrollHeightRef.current = list.scrollHeight;
+      return;
+    }
+    stickToBottomRef.current = list.scrollHeight - list.scrollTop - list.clientHeight < 80;
+  }, []);
+
+  const handleMessagePersisted = useCallback((message: ConversationMessage) => {
+    stickToBottomRef.current = true;
+    pendingScrollToBottomRef.current = true;
+    setMessages((previous) => mergeMessages(previous, [message]));
 
     setLiveConversation((previous) => ({
       ...previous,
@@ -175,6 +199,7 @@ export function MessagesPanel({
       last_msg_direction: message.direction,
       last_msg_occurred_at: message.occurred_at,
       last_msg_text: message.text_content,
+      ...conversationPatchFromMessage(previous, message),
       is_unread: false,
     }));
     emitConversationClientUpdate({
@@ -183,6 +208,18 @@ export function MessagesPanel({
       message,
     });
   }, [conversation.conversation_id]);
+
+  // Bolha provisória: aparece na hora ("enviando…") e sai quando o envio termina (sucesso ou falha).
+  const handleMessageSending = useCallback((pending: ConversationMessage) => {
+    stickToBottomRef.current = true;
+    pendingScrollToBottomRef.current = true;
+    setMessages((previous) => mergeMessages(previous, [pending]));
+  }, []);
+
+  const handleMessageSettled = useCallback((pendingId: string, persisted?: ConversationMessage) => {
+    setMessages((previous) => removePendingMessage(previous, pendingId));
+    if (persisted) handleMessagePersisted(persisted);
+  }, [handleMessagePersisted]);
 
   const handleInternalNoteSaved = useCallback((
     note: ConversationContextData["notes"][number],
@@ -305,19 +342,14 @@ export function MessagesPanel({
     let disposed = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let noteTimer: ReturnType<typeof setTimeout> | undefined;
+    let realtimeReady = false;
     const reconcileMessages = () => {
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         void (async () => {
           const page = await refreshConversationMessagesAction(conversation.conversation_id);
           if (disposed) return;
-          setMessages((previous) => {
-            const byId = new Map(previous.map((message) => [message.id, message]));
-            for (const message of page.messages) byId.set(message.id, message);
-            return [...byId.values()].sort((left, right) =>
-              left.occurred_at.localeCompare(right.occurred_at)
-              || left.id.localeCompare(right.id));
-          });
+          setMessages((previous) => mergeMessages(previous, page.messages));
           const newest = page.messages.at(-1);
           if (newest) {
             setLiveConversation((previous) => ({
@@ -326,6 +358,7 @@ export function MessagesPanel({
               last_msg_direction: newest.direction,
               last_msg_occurred_at: newest.occurred_at,
               last_msg_text: newest.text_content,
+              ...conversationPatchFromMessage(previous, newest),
             }));
             emitConversationClientUpdate({
               conversationId: conversation.conversation_id,
@@ -368,17 +401,23 @@ export function MessagesPanel({
         },
       )
       .subscribe((status) => {
-        if (status === "SUBSCRIBED") reconcileMessages();
+        realtimeReady = status === "SUBSCRIBED";
+        if (realtimeReady) reconcileMessages();
       });
-    const pollingTimer = setInterval(() => {
+    // Rede de segurança: com o Realtime conectado, confere a cada 15 s (antes: a cada 2 s, o que mantinha ações
+    // do servidor em andamento o tempo todo e disputava a fila com a troca de conversa); sem Realtime, a cada 2 s.
+    let pollingTimer: ReturnType<typeof setTimeout> | undefined;
+    const poll = () => {
       reconcileMessages();
       void reconcileVisibleNotes();
-    }, 2_000);
+      pollingTimer = setTimeout(poll, realtimeReady ? 15_000 : 2_000);
+    };
+    pollingTimer = setTimeout(poll, 2_000);
     return () => {
       disposed = true;
       if (timer) clearTimeout(timer);
       if (noteTimer) clearTimeout(noteTimer);
-      clearInterval(pollingTimer);
+      if (pollingTimer) clearTimeout(pollingTimer);
       void supabase.removeChannel(channel);
     };
   }, [conversation.conversation_id, reconcileVisibleNotes]);
@@ -424,8 +463,8 @@ export function MessagesPanel({
       {/* Coluna Principal da Conversa */}
       <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-background">
         {/* Cabeçalho do painel de mensagens */}
-        <div className="flex shrink-0 flex-col gap-2 border-b border-border bg-surface px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:px-4">
-          <div className="flex min-w-0 w-full items-center gap-2 sm:w-auto sm:flex-1 sm:gap-3">
+        <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-border bg-surface px-3 py-1.5 sm:px-4" data-testid="conversation-header">
+          <div className="flex min-w-0 flex-1 basis-48 items-center gap-2 sm:gap-3">
             {showBackButton && (
               <Link
                 aria-label="Voltar para a lista de conversas"
@@ -448,16 +487,28 @@ export function MessagesPanel({
                 )}
                 <SlaBadge
                   className="max-w-full truncate"
-                  direction={liveConversation.last_msg_direction}
-                  lastActivityAt={liveConversation.last_activity_at}
+                  closed={isConversationClosed(liveConversation)}
+                  direction={liveConversation.sla_direction}
+                  lastActivityAt={liveConversation.sla_at}
                   variant="full"
                 />
               </div>
             </div>
           </div>
 
+          {/* Responsáveis: dentro do cabeçalho, compacto (antes era uma linha própria que roubava altura das mensagens) */}
+          {members.length > 0 ? (
+            <AssigneesBar
+              assignees={assignees}
+              conversationId={conversation.conversation_id}
+              key={conversation.conversation_id}
+              members={members}
+              visibility={liveConversation.visibility}
+            />
+          ) : null}
+
           {/* Ações do Cabeçalho */}
-          <div className="flex w-full min-w-0 items-center justify-between gap-1.5 sm:w-auto sm:justify-end sm:gap-2">
+          <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5 sm:flex-none sm:gap-2">
             {/* Troca de Etapa do Kanban diretamente na conversa */}
             {activeOpp ? (
               <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:flex-none">
@@ -466,7 +517,7 @@ export function MessagesPanel({
                 </span>
                 <select
                   aria-label="Alterar etapa da oportunidade ativa"
-                  className="min-h-11 min-w-0 flex-1 rounded-control border border-border bg-background px-2.5 text-caption font-semibold text-text focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 sm:min-h-9 sm:max-w-[13rem] sm:flex-none"
+                  className="min-h-11 min-w-0 flex-1 rounded-control border border-border bg-background px-2.5 text-caption font-semibold text-text focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 sm:min-h-9 sm:max-w-[10rem] sm:flex-none"
                   onChange={(e) => {
                     handleStageSelect(e.target.value);
                   }}
@@ -485,14 +536,15 @@ export function MessagesPanel({
                 variant="secondary"
               >
                 <Plus className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Criar oportunidade</span>
+                <span className="hidden sm:inline 2xl:hidden">Oportunidade</span>
+                <span className="hidden 2xl:inline">Criar oportunidade</span>
               </Button>
             )}
 
             {/* Marcar como Não Lida (Desktop direto, no Mobile via menu de 44px) */}
             <button
               aria-label={liveConversation.is_unread ? "Marcar como lida" : "Marcar como não lida"}
-              className="hidden sm:flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-control text-text-muted transition-colors hover:bg-neutral-soft hover:text-text"
+              className="hidden size-9 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-neutral-soft hover:text-text sm:flex"
               onClick={handleToggleUnread}
               title={liveConversation.is_unread ? "Marcar como lida" : "Marcar como não lida"}
               type="button"
@@ -502,7 +554,7 @@ export function MessagesPanel({
 
             <button
               aria-label={liveConversation.archived_at ? "Desarquivar conversa" : "Arquivar conversa"}
-              className="hidden sm:flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-control text-text-muted transition-colors hover:bg-neutral-soft hover:text-text"
+              className="hidden size-9 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-neutral-soft hover:text-text sm:flex"
               onClick={handleArchive}
               title={liveConversation.archived_at ? "Desarquivar conversa" : "Arquivar conversa"}
               type="button"
@@ -526,7 +578,7 @@ export function MessagesPanel({
             {/* Contexto sempre sob demanda, em drawer no desktop e no mobile. */}
             <button
               aria-label="Abrir dados do cliente"
-              className="flex size-11 shrink-0 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="flex size-11 shrink-0 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:size-9"
               onClick={() => setIsContextOpen(true)}
               title="Informações do cliente"
               type="button"
@@ -536,20 +588,11 @@ export function MessagesPanel({
           </div>
         </div>
 
-        {members.length > 0 ? (
-          <AssigneesBar
-            assignees={assignees}
-            conversationId={conversation.conversation_id}
-            key={conversation.conversation_id}
-            members={members}
-            visibility={liveConversation.visibility}
-          />
-        ) : null}
-
         {/* Histórico de Mensagens */}
         <div
           aria-label="Histórico de mensagens"
           className="flex-1 overflow-y-auto px-3 py-3 sm:px-4"
+          onScroll={handleLogScroll}
           ref={listRef}
           role="log"
         >
@@ -575,7 +618,7 @@ export function MessagesPanel({
             </div>
           )}
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2" ref={contentRef}>
             {messages.map((msg, idx) => {
               const isOutgoing = msg.direction === "outgoing";
               const showDateSeparator =
@@ -609,6 +652,8 @@ export function MessagesPanel({
           conversationId={conversation.conversation_id}
           onInternalNoteSaved={handleInternalNoteSaved}
           onMessagePersisted={handleMessagePersisted}
+          onMessageSending={handleMessageSending}
+          onMessageSettled={handleMessageSettled}
           opportunityId={effectiveOpportunityId}
         />
       </div>
@@ -750,10 +795,25 @@ type MessageBubbleProps = {
 };
 
 function MessageBubble({ message, isOutgoing }: MessageBubbleProps) {
+  const deliveryState = outgoingStatusLabel(message);
   const timeLabel = new Date(message.occurred_at).toLocaleTimeString("pt-BR", {
     hour: "2-digit",
     minute: "2-digit",
   });
+
+  // Figurinha: pequena, sem fundo/bolha, sem legenda, só um horário discreto.
+  if (isStickerMessage(message) && message.attachments?.[0]) {
+    return (
+      <div className={["flex", isOutgoing ? "justify-end" : "justify-start"].join(" ")} data-testid="sticker-message">
+        <div className="flex max-w-[88%] flex-col gap-0.5">
+          <AttachmentView attachment={message.attachments[0]} isOutgoing={isOutgoing} messageText={message.text_content} />
+          <p className={["text-[11px] leading-none text-text-muted/70", isOutgoing ? "text-right" : "text-left"].join(" ")}>
+            {deliveryState === "sending" ? "Enviando…" : deliveryState === "failed" ? "Não enviada" : timeLabel}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -781,7 +841,7 @@ function MessageBubble({ message, isOutgoing }: MessageBubbleProps) {
 
         {message.attachments?.length
           ? message.attachments.map((attachment) => (
-              <AttachmentView attachment={attachment} isOutgoing={isOutgoing} key={attachment.id} />
+              <AttachmentView attachment={attachment} isOutgoing={isOutgoing} key={attachment.id} messageText={message.text_content} />
             ))
           : message.has_attachments && (
               <div
@@ -809,8 +869,9 @@ function MessageBubble({ message, isOutgoing }: MessageBubbleProps) {
             "mt-1 text-right text-caption",
             isOutgoing ? "text-primary-foreground/60" : "text-text-muted",
           ].join(" ")}
+          data-testid={deliveryState ? `message-${deliveryState}` : undefined}
         >
-          {timeLabel}
+          {deliveryState === "sending" ? "Enviando…" : deliveryState === "failed" ? "Não enviada" : timeLabel}
         </p>
       </div>
     </div>

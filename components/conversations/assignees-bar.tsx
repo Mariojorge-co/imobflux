@@ -52,12 +52,13 @@ export function AssigneesBar({ conversationId, visibility, assignees: initialAss
   };
 
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border bg-surface px-3 py-1.5 text-caption sm:px-4" data-testid="assignees-bar">
-      <span className="flex items-center gap-1 text-text-muted">
-        <UserCheck aria-hidden="true" size={14} /> Responsáveis:
+    <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-caption" data-testid="assignees-bar">
+      <span className="flex items-center gap-1 text-text-muted" title="Responsáveis pela conversa">
+        <UserCheck aria-hidden="true" size={14} />
+        <span className="max-2xl:sr-only">Resp.:</span>
       </span>
 
-      {assignees.length === 0 ? <span className="text-text-muted" data-testid="assignees-empty">ninguém ainda</span> : null}
+      {assignees.length === 0 ? <span className="text-text-muted max-2xl:sr-only" data-testid="assignees-empty">ninguém ainda</span> : null}
 
       {assignees.map((assignee) => {
         const swapOptions = options.filter((member) => member.member_id !== assignee.member_id);

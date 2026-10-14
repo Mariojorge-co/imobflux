@@ -234,7 +234,8 @@ test.describe("Server Action sendMessageAction Unit Tests", () => {
     });
     expect(gatewayCalledCount).toBe(0);
     expect(revalidateCalls.length).toBe(0);
-    expect(revalidatedPaths).toContain(`/conversas/${VALID_CONVERSATION_ID}`);
+    // o envio não revalida rotas: a tela atualiza sozinha e a revalidação re-renderizaria a lista inteira
+    expect(revalidatedPaths).toEqual([]);
   });
 
   test("8. duplicate com status queued retorna sucesso idempotente em fila", async () => {
@@ -259,7 +260,8 @@ test.describe("Server Action sendMessageAction Unit Tests", () => {
       status: "duplicate",
     });
     expect(gatewayCalledCount).toBe(0);
-    expect(revalidatedPaths).toContain(`/conversas/${VALID_CONVERSATION_ID}`);
+    // o envio não revalida rotas: a tela atualiza sozinha e a revalidação re-renderizaria a lista inteira
+    expect(revalidatedPaths).toEqual([]);
   });
 
   test("9. duplicate com status failed indica erro anterior sem retry automático", async () => {
@@ -286,7 +288,7 @@ test.describe("Server Action sendMessageAction Unit Tests", () => {
     expect(gatewayCalledCount).toBe(0);
   });
 
-  test("10. fluxo com sucesso no gateway chama reconcile com sent e revalida o caminho", async () => {
+  test("10. fluxo com sucesso no gateway chama reconcile com sent (sem revalidar rotas)", async () => {
     const res = await sendMessageAction(
       VALID_CONVERSATION_ID,
       "Olá, mundo",
@@ -308,10 +310,11 @@ test.describe("Server Action sendMessageAction Unit Tests", () => {
         p_external_message_id: "ext-msg-123",
       },
     });
-    expect(revalidatedPaths).toContain(`/conversas/${VALID_CONVERSATION_ID}`);
+    // o envio não revalida rotas: a tela atualiza sozinha e a revalidação re-renderizaria a lista inteira
+    expect(revalidatedPaths).toEqual([]);
   });
 
-  test("11. fluxo com falha no gateway chama reconcile com failed, revalida e omite segredos", async () => {
+  test("11. fluxo com falha no gateway chama reconcile com failed e omite segredos", async () => {
     gatewayResult = {
       success: false,
       error: "HTTP 500",
@@ -339,7 +342,8 @@ test.describe("Server Action sendMessageAction Unit Tests", () => {
         p_external_message_id: undefined,
       },
     });
-    expect(revalidatedPaths).toContain(`/conversas/${VALID_CONVERSATION_ID}`);
+    // o envio não revalida rotas: a tela atualiza sozinha e a revalidação re-renderizaria a lista inteira
+    expect(revalidatedPaths).toEqual([]);
   });
 
   test.describe("12. status 'enviada' só com aceite real do gateway", () => {

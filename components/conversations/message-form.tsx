@@ -2,6 +2,7 @@
 
 import {
   useCallback,
+  useEffect,
   useId,
   useRef,
   useState,
@@ -16,6 +17,7 @@ import type {
   ConversationContextData,
   ConversationMessage,
 } from "@/lib/conversations/data";
+import { buildPendingMessage } from "@/lib/conversations/message-merge";
 
 const MAX_CHAR_LIMIT = 4096;
 const COUNTER_SHOW_THRESHOLD = 3500;
@@ -28,6 +30,10 @@ type MessageFormProps = {
     opportunityId: string | null,
   ) => void;
   onMessagePersisted?: (message: ConversationMessage) => void;
+  /** Bolha provisória ("enviando…") assim que o usuário envia, antes de o servidor responder. */
+  onMessageSending?: (message: ConversationMessage) => void;
+  /** Fim do envio: remove a bolha provisória e, se deu certo, entrega a mensagem gravada. */
+  onMessageSettled?: (pendingId: string, persisted?: ConversationMessage) => void;
 };
 
 export function MessageForm({
@@ -35,6 +41,8 @@ export function MessageForm({
   opportunityId,
   onInternalNoteSaved,
   onMessagePersisted,
+  onMessageSending,
+  onMessageSettled,
 }: MessageFormProps) {
   const [activeTab, setActiveTab] = useState<"message" | "note">("message");
   const [text, setText] = useState("");
@@ -45,6 +53,7 @@ export function MessageForm({
   } | null>(null);
 
   const activeIdempotencyKeyRef = useRef<string | null>(null);
+  const pendingIdRef = useRef<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const reactId = useId();
@@ -56,6 +65,14 @@ export function MessageForm({
     }
     return activeIdempotencyKeyRef.current;
   }, []);
+
+  // A caixa começa com 1 linha e cresce até ~5 linhas (depois rola), sem roubar altura das mensagens.
+  useEffect(() => {
+    const element = textareaRef.current;
+    if (!element) return;
+    element.style.height = "auto";
+    element.style.height = `${Math.min(element.scrollHeight, 128)}px`;
+  }, [text]);
 
   const handleTextChange = (newText: string) => {
     if (newText !== text) {
@@ -102,6 +119,11 @@ export function MessageForm({
       } else {
         // Envio de MENSAGEM normal ao cliente
         const idempotencyKey = getOrCreateIdempotencyKey();
+        // A bolha aparece na hora ("enviando…") e a caixa é limpa; se falhar, o texto volta para a caixa.
+        const pending = buildPendingMessage({ idempotencyKey, text: trimmed });
+        pendingIdRef.current = pending.id;
+        onMessageSending?.(pending);
+        setText("");
         const result = await sendMessageAction(
           conversationId,
           trimmed,
@@ -109,9 +131,10 @@ export function MessageForm({
         );
 
         if (result.success) {
-          setText("");
           activeIdempotencyKeyRef.current = null;
-          if (result.message) onMessagePersisted?.(result.message);
+          pendingIdRef.current = null;
+          if (onMessageSettled) onMessageSettled(pending.id, result.message);
+          else if (result.message) onMessagePersisted?.(result.message);
 
           if (result.status === "duplicate") {
             setFeedback({
@@ -123,6 +146,9 @@ export function MessageForm({
           // Falha: a próxima tentativa (clique do usuário) é uma mensagem nova, com chave nova. A que falhou
           // continua marcada como falha e nunca é reenviada sozinha; assim o reenvio não esbarra em "falhou antes".
           activeIdempotencyKeyRef.current = null;
+          pendingIdRef.current = null;
+          onMessageSettled?.(pending.id);
+          setText((current) => (current === "" ? trimmed : current));
           if (result.code === "UNAUTHORIZED") {
             setFeedback({
               type: "error",
@@ -145,6 +171,12 @@ export function MessageForm({
         }
       }
     } catch {
+      if (pendingIdRef.current) {
+        onMessageSettled?.(pendingIdRef.current);
+        pendingIdRef.current = null;
+        activeIdempotencyKeyRef.current = null;
+        setText((current) => (current === "" ? trimmed : current));
+      }
       setFeedback({
         type: "error",
         message: "Erro de conexão ao processar a requisição.",
@@ -170,13 +202,13 @@ export function MessageForm({
   const isButtonDisabled = isSubmitting || isTextEmpty || isOverLimit;
 
   return (
-    <div className="shrink-0 border-t border-border bg-surface px-3 py-2 sm:px-4">
+    <div className="shrink-0 border-t border-border bg-surface px-3 py-1.5 sm:px-4" data-testid="message-composer">
       {/* Abas: Mensagem vs Nota Interna */}
-      <div className="mb-2 flex items-center gap-1 border-b border-border/60 pb-1 text-caption">
+      <div className="mb-1 flex items-center gap-1 border-b border-border/60 pb-0.5 text-caption">
         <button
           aria-pressed={activeTab === "message"}
           className={[
-            "flex min-h-11 items-center gap-1.5 rounded-control px-3 font-medium transition-colors",
+            "flex min-h-8 items-center gap-1.5 rounded-control px-3 font-medium transition-colors",
             activeTab === "message"
               ? "bg-primary/10 text-primary"
               : "text-text-muted hover:text-text",
@@ -194,7 +226,7 @@ export function MessageForm({
         <button
           aria-pressed={activeTab === "note"}
           className={[
-            "flex min-h-11 items-center gap-1.5 rounded-control px-3 font-medium transition-colors",
+            "flex min-h-8 items-center gap-1.5 rounded-control px-3 font-medium transition-colors",
             activeTab === "note"
               ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
               : "text-text-muted hover:text-text",
@@ -264,12 +296,11 @@ export function MessageForm({
                 : "Digitar mensagem de texto"
             }
             className={[
-              "min-h-[4.5rem] w-full resize-none rounded-control border bg-background px-3 py-2 text-body text-text placeholder:text-text-muted focus:outline-none focus:ring-2 disabled:opacity-50",
+              "max-h-32 min-h-11 w-full resize-none rounded-control border bg-background px-3 py-2 text-body text-text placeholder:text-text-muted focus:outline-none focus:ring-2 disabled:opacity-50",
               activeTab === "note"
                 ? "border-amber-500/40 focus:border-amber-500 focus:ring-amber-500"
                 : "border-border focus:border-primary focus:ring-primary",
             ].join(" ")}
-            disabled={isSubmitting}
             id={inputId}
             maxLength={MAX_CHAR_LIMIT}
             onChange={(e) => handleTextChange(e.target.value)}
@@ -280,7 +311,7 @@ export function MessageForm({
                 : "Digite sua mensagem (Enter para enviar, Shift+Enter para nova linha)..."
             }
             ref={textareaRef}
-            rows={2}
+            rows={1}
             value={text}
           />
           {showCounter && (

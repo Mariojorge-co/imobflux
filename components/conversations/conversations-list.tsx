@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Archive, MessageCircle, Plus, TriangleAlert } from "lucide-react";
 import { Avatar, Button, EmptyState, Input, ModalDialog, SearchInput } from "@/components/ui";
 import {
@@ -45,11 +45,20 @@ type ConversationsListProps = {
 export function ConversationsList({
   initialItems,
   initialCounts,
-  selectedId,
+  selectedId: selectedIdProp,
   emptyHint,
   historyWarning = null,
 }: ConversationsListProps) {
   const router = useRouter();
+  // A lista vive no layout (persistente): a conversa selecionada vem da URL.
+  const params = useParams<{ conversationId?: string }>();
+  const selectedId = selectedIdProp ?? params?.conversationId;
+  const prefetchedRef = useRef(new Set<string>());
+  const prefetchConversation = useCallback((conversationId: string) => {
+    if (prefetchedRef.current.has(conversationId)) return;
+    prefetchedRef.current.add(conversationId);
+    router.prefetch(`/conversas/${conversationId}`);
+  }, [router]);
   const [isPending, startTransition] = useTransition();
 
   const [items, setItems] = useState<ConversationListItem[]>(initialItems);
@@ -72,11 +81,16 @@ export function ConversationsList({
   const newConversationDebounceRef = useRef<ReturnType<typeof setTimeout>>(null);
   const searchRef = useRef(search);
   const viewRef = useRef(view);
+  const itemsRef = useRef(items);
 
   useEffect(() => {
     searchRef.current = search;
     viewRef.current = view;
   }, [search, view]);
+
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
 
   // Reseta a lista sempre que a busca mudar
   const handleSearchChange = useCallback(
@@ -218,7 +232,6 @@ export function ConversationsList({
         .channel(`authorized-conversations-inbox-${crypto.randomUUID()}`)
         .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, scheduleReconcile)
         .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, scheduleReconcile)
-        .on("postgres_changes", { event: "*", schema: "public", table: "conversation_read_states" }, scheduleReconcile)
         .subscribe((status) => {
           document.documentElement.dataset.realtimeInbox = status.toLowerCase();
           if (status === "SUBSCRIBED") {
@@ -247,6 +260,15 @@ export function ConversationsList({
   useEffect(() => {
     const handleUpdate = (event: Event) => {
       const { detail } = event as CustomEvent<ConversationClientUpdate>;
+      if (detail.isUnread !== undefined) {
+        // Ajusta o contador na hora, sem recarregar a lista (que é uma consulta pesada): só conta se o estado mudou.
+        const current = itemsRef.current.find((item) => item.conversation_id === detail.conversationId);
+        if (current && Boolean(current.is_unread) !== detail.isUnread) {
+          const key = current.archived_at ? "archived_unread" : "unread";
+          const delta = detail.isUnread ? 1 : -1;
+          setCounts((previous) => ({ ...previous, [key]: Math.max(0, (previous[key] ?? 0) + delta) }));
+        }
+      }
       setItems((previous) => {
         const updated = previous.map((item) => {
           if (item.conversation_id !== detail.conversationId) return item;
@@ -265,6 +287,7 @@ export function ConversationsList({
                   last_msg_direction: detail.message.direction,
                   last_msg_occurred_at: detail.message.occurred_at,
                   last_msg_text: detail.message.text_content,
+                  ...conversationPatchFromMessage(item, detail.message),
                 }
               : {}),
           };
@@ -440,6 +463,7 @@ export function ConversationsList({
             onClick={() =>
               router.push(`/conversas/${conv.conversation_id}`)
             }
+            onPrefetch={() => prefetchConversation(conv.conversation_id)}
           />
         ))}
 
@@ -467,11 +491,14 @@ type ConversationCardProps = {
   item: ConversationListItem;
   isSelected: boolean;
   onClick: () => void;
+  /** Pré-carrega a conversa quando o ponteiro passa por cima ou o dedo encosta no cartão. */
+  onPrefetch?: () => void;
 };
 
 import { SlaBadge } from "@/components/conversations/sla-badge";
+import { conversationPatchFromMessage, isConversationClosed } from "@/lib/conversations/sla-display";
 
-function ConversationCard({ item, isSelected, onClick }: ConversationCardProps) {
+function ConversationCard({ item, isSelected, onClick, onPrefetch }: ConversationCardProps) {
   const displayName = item.participant_name ?? "Participante desconhecido";
   const snippet = item.last_msg_text
     ? truncate(item.last_msg_text, 60)
@@ -493,6 +520,9 @@ function ConversationCard({ item, isSelected, onClick }: ConversationCardProps) 
       ].join(" ")}
       id={`conv-card-${item.conversation_id}`}
       onClick={onClick}
+      onFocus={onPrefetch}
+      onPointerEnter={onPrefetch}
+      onTouchStart={onPrefetch}
       type="button"
     >
       <Avatar className="mt-0.5" name={displayName} size="sm" src={item.avatar_url ?? undefined} />
@@ -518,8 +548,9 @@ function ConversationCard({ item, isSelected, onClick }: ConversationCardProps) 
         <div className="mt-1 flex min-w-0 items-center gap-1">
           <SlaBadge
             className="max-w-full"
-            direction={item.last_msg_direction}
-            lastActivityAt={item.last_activity_at}
+            closed={isConversationClosed(item)}
+            direction={item.sla_direction}
+            lastActivityAt={item.sla_at}
             variant="full"
           />
         </div>

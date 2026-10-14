@@ -7,13 +7,15 @@ import { SLA_TONE_CLASS, describeSlaFor } from "@/lib/conversations/sla-display"
 type SlaBadgeProps = {
   direction: string | null | undefined;
   lastActivityAt: string | null | undefined;
+  /** Conversa encerrada (arquivada): nenhum contador. */
+  closed?: boolean;
   /** "compact" mostra só o tempo; "full" mostra a frase completa. */
   variant?: "compact" | "full";
   className?: string;
 };
 
 /** Indicador de SLA: cor + ícone + texto (nunca só cor). Recalcula a cada minuto. */
-export function SlaBadge({ direction, lastActivityAt, variant = "compact", className = "" }: SlaBadgeProps) {
+export function SlaBadge({ direction, lastActivityAt, closed = false, variant = "compact", className = "" }: SlaBadgeProps) {
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -21,7 +23,7 @@ export function SlaBadge({ direction, lastActivityAt, variant = "compact", class
     return () => window.clearInterval(timer);
   }, []);
 
-  const sla = describeSlaFor(direction, lastActivityAt);
+  const sla = closed ? null : describeSlaFor(direction, lastActivityAt);
   if (!sla) return null;
 
   const Icon = sla.teamWaiting ? (sla.urgent ? AlertCircle : MessageCircleWarning) : Hourglass;

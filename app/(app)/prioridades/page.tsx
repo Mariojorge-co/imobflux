@@ -24,6 +24,7 @@ import { requireActiveAccess } from "@/lib/auth/dal";
 import { getPrioridadesDashboard } from "@/lib/prioridades/data";
 import { getConversationsList } from "@/lib/conversations/data";
 import { calculateSLA } from "@/lib/conversations/sla";
+import { isConversationClosed } from "@/lib/conversations/sla-display";
 import type { PriorityClient, PrioritySummaryId } from "@/types/prioridades";
 
 const summaryIcons = {
@@ -45,7 +46,8 @@ export default async function PrioridadesPage() {
   const clientWaitingClients: PriorityClient[] = [];
 
   for (const conv of conversations) {
-    const sla = calculateSLA(conv.last_msg_direction, conv.last_activity_at);
+    // Encerrada (arquivada) não tem contador nem conta como atrasada; resposta que falhou não conta como resposta.
+    const sla = isConversationClosed(conv) ? null : calculateSLA(conv.sla_direction ?? null, conv.sla_at ?? null);
     if (!sla) continue;
 
     const clientObj: PriorityClient = {

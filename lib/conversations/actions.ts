@@ -25,7 +25,7 @@ import {
 import * as serverModule from "@/lib/supabase/server";
 import * as adminModule from "@/lib/supabase/admin";
 import * as gatewayModule from "@/lib/supabase/gateway";
-import { connectionLookupFromAdmin, resolveSendInstance } from "@/lib/conversations/send-instance";
+import { resolveSendInstance } from "@/lib/conversations/send-instance";
 import { classifyGatewayOutcome } from "@/lib/conversations/gateway-outcome";
 import { assignmentErrorMessage } from "@/lib/conversations/assignment";
 import { taskErrorMessage } from "@/lib/tasks/model";
@@ -371,7 +371,6 @@ export async function sendMessageAction(
           code: "PREVIOUSLY_FAILED",
         };
       }
-      revalidatePath(`/conversas/${conversationId}`);
       const message = await getPersistedMessage(supabase, queueObj.message_id);
       return {
         success: true,
@@ -394,12 +393,9 @@ export async function sendMessageAction(
 
     const admin = adminModule.createAdminSupabaseClient();
 
-    // A instância vem da conexão do próprio workspace no banco (id devolvido pela RPC de enfileirar, nunca
-    // do navegador); EVOLUTION_INSTANCE_NAME é só reserva. Sem conexão ativa, nada é enviado.
-    const resolved = await resolveSendInstance(
-      connectionLookupFromAdmin(admin),
-      queueObj.channel_connection_id as string | undefined,
-    );
+    // A instância vem do banco (a RPC de enfileirar já devolve a conexão ativa; nada vem do navegador);
+    // EVOLUTION_INSTANCE_NAME é só reserva, para banco sem a migration. Sem conexão ativa, nada é enviado.
+    const resolved = resolveSendInstance(queueObj);
     const gatewayResult = resolved.ok
       ? await gatewayModule.sendEvolutionTextMessage(resolved.instance, recipientTarget, textContent)
       : { success: false as const, code: resolved.code, error: "Instância do WhatsApp indisponível" };
@@ -432,10 +428,9 @@ export async function sendMessageAction(
         }
       }
 
-      revalidatePath(`/conversas/${conversationId}`);
-      revalidatePath("/conversas");
-      revalidatePath("/prioridades");
-
+      // Sem revalidatePath: cada um deles faria o servidor renderizar de novo a rota inteira (lista incluída) dentro da
+      // resposta do envio. A tela já atualiza sozinha (bolha provisória, mensagem gravada, Realtime); as demais
+      // telas são dinâmicas e leem o banco quando abertas.
       const message = await getPersistedMessage(supabase, messageId);
 
       return {
@@ -460,7 +455,6 @@ export async function sendMessageAction(
         console.error("Erro ao reconciliar status para failed:", reconcileError);
       }
 
-      revalidatePath(`/conversas/${conversationId}`);
       return {
         success: false,
         error: outcome.error,

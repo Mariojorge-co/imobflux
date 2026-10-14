@@ -1,7 +1,7 @@
 import "./helpers/server-only";
 
 import { expect, test } from "@playwright/test";
-import { resolveSendInstance, type ConnectionLookup, type SendConnectionRow } from "../lib/conversations/send-instance";
+import { resolveSendInstance } from "../lib/conversations/send-instance";
 
 /* eslint-disable @typescript-eslint/no-require-imports */
 const serverSupabaseModule = require("@/lib/supabase/server");
@@ -18,61 +18,33 @@ const gateway = require("@/lib/supabase/gateway") as typeof import("@/lib/supaba
 
 const sendMessageAction = actionsModule.sendMessageAction as (conversationId: string, text: string, key: string) => Promise<Record<string, unknown>>;
 
-const WORKSPACE = "b6000002-0000-4000-8000-000000000001";
 const CONNECTION = "b6000004-0000-4000-8000-000000000001";
 const CONVERSATION = "21000000-0000-4000-8000-000000000099";
 const KEY = "77000000-0000-4000-8000-000000000001";
 const SECRET_KEY = "chave-secreta-da-evolution";
-const row = (over: Partial<SendConnectionRow> = {}): SendConnectionRow => ({ id: CONNECTION, workspace_id: WORKSPACE, status: "active", external_account_id: "imobflux-60428201b111", ...over });
-
-function lookup(over: { own?: SendConnectionRow | null; active?: SendConnectionRow | null; ownError?: unknown; activeError?: unknown; throws?: boolean }): ConnectionLookup & { calls: string[] } {
-  const calls: string[] = [];
-  return {
-    calls,
-    async byId(id) {
-      calls.push(`byId:${id}`);
-      if (over.throws) throw new Error("boom");
-      return { data: over.own ?? null, error: over.ownError ?? null };
-    },
-    async activeForWorkspace(workspace) {
-      calls.push(`active:${workspace}`);
-      return { data: over.active ?? null, error: over.activeError ?? null };
-    },
-  };
-}
+const INSTANCE = "imobflux-60428201b111";
 
 test.describe("resolveSendInstance: de onde vem a instância do envio", () => {
-  test("conexão da conversa ativa: usa a instância gravada no banco, ignorando a variável de ambiente", async () => {
-    const result = await resolveSendInstance(lookup({ own: row() }), CONNECTION, { EVOLUTION_INSTANCE_NAME: "instancia-antiga" });
-    expect(result).toEqual({ ok: true, instance: "imobflux-60428201b111", source: "connection" });
+  test("o banco devolveu a instância: usa essa, ignorando a variável de ambiente", () => {
+    expect(resolveSendInstance({ instance_name: INSTANCE, connection_status: "active" }, { EVOLUTION_INSTANCE_NAME: "instancia-antiga" })).toEqual({ ok: true, instance: INSTANCE, source: "connection" });
+    expect(resolveSendInstance({ instance_name: "  " + INSTANCE + " " }, {})).toEqual({ ok: true, instance: INSTANCE, source: "connection" });
   });
 
-  test("conexão da conversa foi substituída: usa a conexão ativa do workspace", async () => {
-    const l = lookup({ own: row({ status: "replaced", external_account_id: "imobflux-velha" }), active: row({ id: "outra", external_account_id: "imobflux-nova" }) });
-    expect(await resolveSendInstance(l, CONNECTION, {})).toEqual({ ok: true, instance: "imobflux-nova", source: "connection" });
-    expect(l.calls).toEqual([`byId:${CONNECTION}`, `active:${WORKSPACE}`]);
-  });
-
-  test("conexão inexistente ou desativada e sem outra ativa: WHATSAPP_DISCONNECTED (e a reserva do ambiente NÃO é usada)", async () => {
+  test("sem conexão ativa (instância nula): WHATSAPP_DISCONNECTED, e a reserva do ambiente NÃO mascara isso", () => {
     const env = { EVOLUTION_INSTANCE_NAME: "instancia-reserva" };
-    expect(await resolveSendInstance(lookup({ own: null }), CONNECTION, env)).toEqual({ ok: false, code: "WHATSAPP_DISCONNECTED" });
-    for (const status of ["disconnected", "configured", "paused", "replaced"]) {
-      expect(await resolveSendInstance(lookup({ own: row({ status }), active: null }), CONNECTION, env)).toEqual({ ok: false, code: "WHATSAPP_DISCONNECTED" });
-    }
+    expect(resolveSendInstance({ instance_name: null, connection_status: null }, env)).toEqual({ ok: false, code: "WHATSAPP_DISCONNECTED" });
+    expect(resolveSendInstance({ instance_name: "" }, env)).toEqual({ ok: false, code: "WHATSAPP_DISCONNECTED" });
   });
 
-  test("a reserva do ambiente só vale quando o banco não pôde ser consultado", async () => {
-    const env = { EVOLUTION_INSTANCE_NAME: " instancia-reserva " };
-    const expected = { ok: true, instance: "instancia-reserva", source: "env_fallback" };
-    expect(await resolveSendInstance(lookup({ ownError: { code: "XX000" } }), CONNECTION, env)).toEqual(expected);
-    expect(await resolveSendInstance(lookup({ throws: true }), CONNECTION, env)).toEqual(expected);
-    expect(await resolveSendInstance(lookup({ own: row({ status: "replaced" }), activeError: { code: "XX000" } }), CONNECTION, env)).toEqual(expected);
-    expect(await resolveSendInstance(lookup({}), undefined, env)).toEqual(expected);
+  test("banco ainda sem a migration (campo ausente): reserva do ambiente, como era antes", () => {
+    expect(resolveSendInstance({}, { EVOLUTION_INSTANCE_NAME: " instancia-reserva " })).toEqual({ ok: true, instance: "instancia-reserva", source: "env_fallback" });
+    expect(resolveSendInstance(null, { EVOLUTION_INSTANCE_NAME: "instancia-reserva" })).toEqual({ ok: true, instance: "instancia-reserva", source: "env_fallback" });
+    expect(resolveSendInstance(undefined, { EVOLUTION_INSTANCE_NAME: "instancia-reserva" })).toEqual({ ok: true, instance: "instancia-reserva", source: "env_fallback" });
   });
 
-  test("sem banco e sem reserva: MISSING_INSTANCE", async () => {
-    expect(await resolveSendInstance(lookup({ throws: true }), CONNECTION, {})).toEqual({ ok: false, code: "MISSING_INSTANCE" });
-    expect(await resolveSendInstance(lookup({}), null, {})).toEqual({ ok: false, code: "MISSING_INSTANCE" });
+  test("campo ausente e sem reserva: MISSING_INSTANCE", () => {
+    expect(resolveSendInstance({}, {})).toEqual({ ok: false, code: "MISSING_INSTANCE" });
+    expect(resolveSendInstance(null, {})).toEqual({ ok: false, code: "MISSING_INSTANCE" });
   });
 });
 
@@ -80,7 +52,6 @@ test.describe("sendMessageAction: instância pelo banco, Evolution v2 simulada (
   // Os valores originais são lidos em cada teste (outros arquivos também trocam estes módulos).
   let original: { server: unknown; admin: unknown; cache: unknown; fetch: typeof fetch };
   const originalEnv = { ...process.env };
-  let connections: SendConnectionRow[];
   let queueResult: Record<string, unknown>;
   let reconcileCalls: Array<Record<string, unknown>>;
   let reconcileErrors: Array<{ code?: string } | null>;
@@ -99,8 +70,7 @@ test.describe("sendMessageAction: instância pelo banco, Evolution v2 simulada (
     Object.assign(process.env, { NODE_ENV: "production", EVOLUTION_API_URL: "https://evolution.test", EVOLUTION_API_KEY: SECRET_KEY });
     delete process.env.EVOLUTION_INSTANCE_NAME;
     delete process.env.NEXT_PUBLIC_DEMO_MODE;
-    connections = [row()];
-    queueResult = { status: "queued", message_id: "msg-1", channel_connection_id: CONNECTION, recipient_target: "5582988887000@s.whatsapp.net" };
+    queueResult = { status: "queued", message_id: "msg-1", channel_connection_id: CONNECTION, recipient_target: "5582988887000@s.whatsapp.net", instance_name: INSTANCE, connection_status: "active" };
     reconcileCalls = [];
     reconcileErrors = [];
     fetchCalls = [];
@@ -111,25 +81,14 @@ test.describe("sendMessageAction: instância pelo banco, Evolution v2 simulada (
     serverSupabaseModule.createServerSupabaseClient = async () => ({
       auth: { getUser: async () => ({ data: { user: { id: "u1" } }, error: null }) },
       rpc: async (fn: string) => (fn === "queue_outgoing_text_message" ? { data: queueResult, error: null } : { data: null, error: null }),
-      from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }) }),
     });
-    adminSupabaseModule.createAdminSupabaseClient = () => {
-      const query = (filters: Record<string, string>) => ({
-        eq: (column: string, value: string) => query({ ...filters, [column]: value }),
-        maybeSingle: async () => ({
-          data: connections.find((c) => Object.entries(filters).every(([k, v]) => ({ ...c, provider: "whatsapp" } as unknown as Record<string, string>)[k] === v)) ?? null,
-          error: null,
-        }),
-      });
-      return {
-        from: () => ({ select: () => query({}) }),
-        rpc: async (_fn: string, args: Record<string, unknown>) => {
-          reconcileCalls.push(args);
-          const error = reconcileErrors.shift() ?? null;
-          return { data: error ? null : { status: "success" }, error };
-        },
-      };
-    };
+    adminSupabaseModule.createAdminSupabaseClient = () => ({
+      rpc: async (_fn: string, args: Record<string, unknown>) => {
+        reconcileCalls.push(args);
+        const error = reconcileErrors.shift() ?? null;
+        return { data: error ? null : { status: "success" }, error };
+      },
+    });
     nextCacheModule.revalidatePath = () => undefined;
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       fetchCalls.push({ url: String(input), body: JSON.parse(String(init?.body ?? "{}")), headers: (init?.headers ?? {}) as Record<string, string> });
@@ -153,7 +112,7 @@ test.describe("sendMessageAction: instância pelo banco, Evolution v2 simulada (
     const result = await send();
     expect(result).toMatchObject({ success: true, status: "sent" });
     expect(fetchCalls).toHaveLength(1);
-    expect(fetchCalls[0].url).toBe("https://evolution.test/message/sendText/imobflux-60428201b111");
+    expect(fetchCalls[0].url).toBe("https://evolution.test/message/sendText/" + INSTANCE);
   });
 
   test("C. contrato v2: corpo { number, text }, destino saído do JID e id externo gravado na mensagem", async () => {
@@ -163,8 +122,9 @@ test.describe("sendMessageAction: instância pelo banco, Evolution v2 simulada (
     expect(reconcileCalls).toEqual([{ p_message_id: "msg-1", p_target_status: "sent", p_external_message_id: "BAE5-ABC" }]);
   });
 
-  test("B. conexão desativada no banco: WHATSAPP_DISCONNECTED, nada é enviado e a mensagem fica 'failed'", async () => {
-    connections = [row({ status: "disconnected" })];
+  test("B. sem conexão ativa no banco: WHATSAPP_DISCONNECTED, nada é enviado e a mensagem fica 'failed'", async () => {
+    queueResult = { ...queueResult, instance_name: null, connection_status: null };
+    process.env.EVOLUTION_INSTANCE_NAME = "instancia-reserva";
     const result = await send();
     expect(result).toMatchObject({ success: false, code: "WHATSAPP_DISCONNECTED" });
     expect(String(result.error)).toContain("desconectado");
@@ -172,16 +132,22 @@ test.describe("sendMessageAction: instância pelo banco, Evolution v2 simulada (
     expect(statuses()).toEqual(["failed"]);
   });
 
-  test("B. conexão da conversa substituída: sai pela conexão ativa do workspace", async () => {
-    connections = [row({ status: "replaced", external_account_id: "imobflux-velha" }), row({ id: "b6000004-0000-4000-8000-000000000002", external_account_id: "imobflux-nova" })];
+  test("B. conversa de conexão substituída: o banco já devolve a conexão ativa do workspace e o envio sai por ela", async () => {
+    queueResult = { ...queueResult, instance_name: "imobflux-nova" };
     await send();
     expect(fetchCalls[0].url).toBe("https://evolution.test/message/sendText/imobflux-nova");
   });
 
-  test("B. conexão inexistente: WHATSAPP_DISCONNECTED (a reserva do ambiente não mascara)", async () => {
-    connections = [];
+  test("banco ainda sem a migration (resposta antiga da fila): usa EVOLUTION_INSTANCE_NAME como reserva", async () => {
+    queueResult = { status: "queued", message_id: "msg-1", channel_connection_id: CONNECTION, recipient_target: "5582988887000@s.whatsapp.net" };
     process.env.EVOLUTION_INSTANCE_NAME = "instancia-reserva";
-    expect(await send()).toMatchObject({ success: false, code: "WHATSAPP_DISCONNECTED" });
+    await send();
+    expect(fetchCalls[0].url).toBe("https://evolution.test/message/sendText/instancia-reserva");
+  });
+
+  test("banco sem a migration e sem reserva: NO_INSTANCE (a frase de 'falta a instância')", async () => {
+    queueResult = { status: "queued", message_id: "msg-1", channel_connection_id: CONNECTION, recipient_target: "5582988887000@s.whatsapp.net" };
+    expect(await send()).toMatchObject({ success: false, code: "NO_INSTANCE" });
     expect(fetchCalls).toHaveLength(0);
   });
 
@@ -233,7 +199,7 @@ test.describe("sendMessageAction: instância pelo banco, Evolution v2 simulada (
     expect(await send()).toMatchObject({ success: false, code: "PREVIOUSLY_FAILED" });
     expect(fetchCalls).toHaveLength(0);
     // chave nova: é outra mensagem, enfileirada de novo
-    queueResult = { status: "queued", message_id: "msg-2", channel_connection_id: CONNECTION, recipient_target: "5582988887000@s.whatsapp.net" };
+    queueResult = { status: "queued", message_id: "msg-2", channel_connection_id: CONNECTION, recipient_target: "5582988887000@s.whatsapp.net", instance_name: INSTANCE, connection_status: "active" };
     expect(await sendMessageAction(CONVERSATION, "Olá", "77000000-0000-4000-8000-000000000002")).toMatchObject({ success: true, status: "sent" });
     expect(reconcileCalls.at(-1)).toMatchObject({ p_message_id: "msg-2", p_target_status: "sent" });
   });

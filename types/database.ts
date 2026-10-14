@@ -1532,6 +1532,10 @@ export type Database = {
         }
         Returns: Json
       }
+      get_conversation_item: {
+        Args: { p_conversation_id: string }
+        Returns: Json
+      }
       get_conversations_inbox: {
         Args: {
           p_cursor_id?: string

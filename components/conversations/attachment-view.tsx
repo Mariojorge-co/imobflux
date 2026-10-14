@@ -1,29 +1,35 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Eye, EyeOff, ExternalLink, FileText, Paperclip, RotateCw } from "lucide-react";
+import { Eye, EyeOff, ExternalLink, FileText, Maximize2, Paperclip, RotateCw } from "lucide-react";
 import { retryAttachmentDownloadAction } from "@/lib/conversations/actions";
 import { describeAttachment } from "@/lib/conversations/attachment-label";
 import { isDownloadInProgress, viewerKindForMime } from "@/lib/conversations/media-types";
+import { isStickerAttachment, STICKER_MAX_PX } from "@/lib/conversations/sticker";
+import { MediaLightbox } from "@/components/conversations/media-lightbox";
 import type { ConversationMessageAttachment } from "@/lib/conversations/data";
 
 type AttachmentViewProps = {
   attachment: ConversationMessageAttachment;
   isOutgoing: boolean;
+  /** Texto da mensagem (a figurinha também é reconhecida pelo rótulo "Figurinha"). */
+  messageText?: string | null;
 };
 
 const linkClass = "inline-flex min-h-9 items-center gap-1 rounded-control px-2 text-xs font-medium underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary";
 
 /**
- * Exibe um anexo de mensagem dentro da conversa: imagem, player de áudio/vídeo e PDF com
- * pré-visualização. Se o arquivo ainda não está disponível (ou falhou), degrada para um aviso
+ * Exibe um anexo de mensagem dentro da conversa: figurinha pequena, foto e vídeo com altura limitada (clique amplia),
+ * player de áudio e PDF com pré-visualização. Se o arquivo ainda não está disponível (ou falhou), degrada para um aviso
  * com a opção de tentar novamente, sem afetar o restante da conversa.
  */
-export function AttachmentView({ attachment, isOutgoing }: AttachmentViewProps) {
+export function AttachmentView({ attachment, isOutgoing, messageText }: AttachmentViewProps) {
   const src = `/api/attachments/${attachment.id}`;
   const description = describeAttachment(attachment);
   const [broken, setBroken] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const [retry, setRetry] = useState<{ state: "idle" | "running" | "done" | "error"; message?: string }>({ state: "idle" });
   const [, startTransition] = useTransition();
 
@@ -32,18 +38,46 @@ export function AttachmentView({ attachment, isOutgoing }: AttachmentViewProps) 
   const kind = viewerKindForMime(attachment.mime_type);
 
   if (attachment.status === "available" && !broken) {
+    // Figurinha: pequena, sem moldura, sem ampliar.
+    if (kind === "image" && isStickerAttachment(attachment, messageText)) {
+      return (
+        // eslint-disable-next-line @next/next/no-img-element -- arquivo privado servido pela rota autenticada
+        <img
+          alt="Figurinha"
+          className="block object-contain"
+          data-testid="sticker-image"
+          loading="lazy"
+          onError={() => setBroken(true)}
+          src={src}
+          style={{ height: "auto", maxHeight: STICKER_MAX_PX, maxWidth: STICKER_MAX_PX, width: "auto" }}
+        />
+      );
+    }
+
+    // Foto: altura limitada (celular 220 px, desktop 280 px), proporção preservada, espaço reservado até carregar
+    // (a rolagem não "pula") e o clique abre ampliada.
     if (kind === "image") {
       return (
-        <a className="mb-1.5 block" href={src} rel="noreferrer" target="_blank">
-          {/* eslint-disable-next-line @next/next/no-img-element -- arquivo privado servido pela rota autenticada */}
-          <img
-            alt={attachment.file_name}
-            className="max-h-72 max-w-full rounded-lg object-contain"
-            loading="lazy"
-            onError={() => setBroken(true)}
-            src={src}
-          />
-        </a>
+        <>
+          <button
+            aria-label={`Ampliar imagem ${attachment.file_name}`}
+            className={`mb-1.5 block max-w-full cursor-zoom-in overflow-hidden rounded-lg ${loaded ? "" : "h-40 w-40 animate-pulse bg-neutral-soft"}`}
+            data-testid="image-thumb"
+            onClick={() => setLightboxOpen(true)}
+            type="button"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element -- arquivo privado servido pela rota autenticada */}
+            <img
+              alt={attachment.file_name}
+              className={`block max-h-[220px] w-auto max-w-full object-contain sm:max-h-[280px] ${loaded ? "" : "opacity-0"}`}
+              loading="lazy"
+              onError={() => setBroken(true)}
+              onLoad={() => setLoaded(true)}
+              src={src}
+            />
+          </button>
+          <MediaLightbox kind="image" label={attachment.file_name} onClose={() => setLightboxOpen(false)} open={lightboxOpen} src={src} />
+        </>
       );
     }
 
@@ -61,7 +95,11 @@ export function AttachmentView({ attachment, isOutgoing }: AttachmentViewProps) 
     if (kind === "video") {
       return (
         <div className="mb-1.5 max-w-full">
-          <video aria-label={description.title} className="max-h-72 max-w-full rounded-lg" controls onError={() => setBroken(true)} playsInline preload="metadata" src={src} />
+          <video aria-label={description.title} className="block max-h-[220px] max-w-full rounded-lg sm:max-h-[280px]" controls onError={() => setBroken(true)} playsInline preload="metadata" src={src} />
+          <button className={`${linkClass} ${isOutgoing ? "text-primary-foreground/80" : "text-text-muted"}`} data-testid="video-expand" onClick={() => setLightboxOpen(true)} type="button">
+            <Maximize2 aria-hidden="true" size={12} /> Ampliar
+          </button>
+          <MediaLightbox kind="video" label={attachment.file_name} onClose={() => setLightboxOpen(false)} open={lightboxOpen} src={src} />
         </div>
       );
     }
@@ -87,7 +125,7 @@ export function AttachmentView({ attachment, isOutgoing }: AttachmentViewProps) 
         </div>
         {kind === "pdf" && previewOpen ? (
           <iframe
-            className="mt-1.5 h-[70vh] w-full rounded-md border border-border bg-white"
+            className="mt-1.5 h-[60vh] max-h-[480px] w-full rounded-md border border-border bg-white"
             loading="lazy"
             src={src}
             title={`Visualização de ${attachment.file_name}`}
