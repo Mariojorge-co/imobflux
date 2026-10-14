@@ -4,7 +4,7 @@
 - **Objetivo**: gestão comercial e relacionamento para corretores e imobiliárias, com WhatsApp integrado.
 - **Versão**: `0.1.0`
 - **Produção**: app em `https://imobflux.vercel.app` (Vercel) e banco no Supabase (`imobflux-prod`).
-- **Última atualização**: 2026-10-13 (produção em `720dd37`: itens do MVP da `feat/mvp-noite` publicados; migrations `004300` a `004900` aplicadas em produção em 2026-10-13, ver `RELATORIO_NOITE.md`)
+- **Última atualização**: 2026-10-14 (produção em `965f695`: WhatsApp pessoal publicado; migration `005000` aplicada em produção em 2026-10-14, ver `RELATORIO_WHATSAPP_PESSOAL.md`)
 
 ---
 
@@ -74,7 +74,7 @@ Detalhes, testes e decisões em [RELATORIO_NOITE.md](RELATORIO_NOITE.md). Corre�
 
 ## Banco de dados
 
-- **Migrations**: 49 arquivos forward-only (`20260802000100` a `20260802004900`); todas as 49 estão em produção (`004300` a `004900` aplicadas em 2026-10-13).
+- **Migrations**: 50 arquivos forward-only (`20260802000100` a `20260802005000`); todas as 50 estão em produção (`004300` a `004900` em 2026-10-13; `005000` em 2026-10-14).
 - **Tabelas de domínio**: 19 (`public`), com RLS habilitada e forçada.
 - **Funções**: leitura por RPCs `SECURITY INVOKER` (RLS preservada); escrita por RPCs `SECURITY DEFINER`
   auditadas; funções de ingestão e de mídia só para `service_role`.
@@ -109,3 +109,11 @@ Detalhes, testes e decisões em [RELATORIO_NOITE.md](RELATORIO_NOITE.md). Corre�
 - [HANDOFF.md](../HANDOFF.md): transição operacional (ainda descreve a Sprint 24; consulte este status primeiro).
 - [DECISOES.md](DECISOES.md), [ARQUITETURA.md](ARQUITETURA.md), [DOCUMENTATION_POLICY.md](DOCUMENTATION_POLICY.md).
 - [docs/sprints/](sprints/): relatórios imutáveis por sprint.
+
+## Publicado em produção em 2026-10-14 (ex-branch `feat/whatsapp-pessoal`, commit `965f695`)
+
+Preparação do WhatsApp para um número pessoal. Detalhes em [RELATORIO_WHATSAPP_PESSOAL.md](RELATORIO_WHATSAPP_PESSOAL.md); rollback em `docs/rollback/20260802005000_rollback.sql`.
+- **Chaves por conexão** (Configurações > WhatsApp, só o dono, auditadas): histórico ao conectar (0 a 15 dias), receber grupos (padrão desligado) e modo "só cadastrados" (padrão desligado; contador "N ignoradas").
+- Lista de transmissão, canal e Status nunca entram na conversa individual.
+- A conexão de produção (ainda **não pareada**) foi deixada pela migration com histórico 0, grupos desligados e modo "só cadastrados" ligado. **O QR code ainda não foi escaneado.**
+- Pendência: contatos `@lid` (WhatsApp novo, sem telefone real) viram contato com telefone falso com o modo desligado; tratar depende de um payload real da Evolution (campos alternativos de telefone).

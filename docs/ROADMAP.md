@@ -57,6 +57,7 @@ exportação de conversas/anexos/relatórios; evento de auditoria por resposta e
 > Possibilidades de expansão, não compromissos.
 
 - Importação de histórico mais profunda, se o provedor permitir (hoje depende do celular e vem uma vez só).
+- WhatsApp pessoal, próximos passos: tratar contatos `@lid` (usar o telefone real do payload da Evolution, a confirmar com um payload real), exclusão real de contato/conversa com bloqueio de número e reduzir a cópia de mensagens na Evolution/VPS (ver `RELATORIO_WHATSAPP_PESSOAL.md`).
 - Envio de mídia pelo CRM (hoje só recepção e visualização).
 - Ações comerciais adicionais além do fluxo de ganho/perda atual.
 - Instagram Direct.
