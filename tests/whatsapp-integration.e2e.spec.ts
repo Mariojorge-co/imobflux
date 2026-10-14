@@ -350,7 +350,7 @@ test.describe("Sprint 17 — WhatsApp Textual Integration E2E Test Suite", () =>
     };
 
     try {
-      const actionsPath = require.resolve("@/lib/conversations/actions");
+      const actionsPath = require.resolve("../lib/conversations/actions");
       delete require.cache[actionsPath];
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const freshActions = require("@/lib/conversations/actions");
@@ -389,7 +389,7 @@ test.describe("Sprint 17 — WhatsApp Textual Integration E2E Test Suite", () =>
     };
 
     try {
-      const actionsPath = require.resolve("@/lib/conversations/actions");
+      const actionsPath = require.resolve("../lib/conversations/actions");
       delete require.cache[actionsPath];
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const freshActions = require("@/lib/conversations/actions");
@@ -420,7 +420,7 @@ test.describe("Sprint 17 — WhatsApp Textual Integration E2E Test Suite", () =>
     };
 
     try {
-      const actionsPath = require.resolve("@/lib/conversations/actions");
+      const actionsPath = require.resolve("../lib/conversations/actions");
       delete require.cache[actionsPath];
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const freshActions = require("@/lib/conversations/actions");

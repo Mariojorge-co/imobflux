@@ -11,7 +11,7 @@ const nextCachePath = require.resolve("next/cache");
 require.cache[nextCachePath] = { id: nextCachePath, filename: nextCachePath, loaded: true, exports: { revalidatePath: () => undefined } } as never;
 const nextCacheModule = require("next/cache");
 // Instância nova do módulo de ações: outros testes substituem funções do módulo compartilhado e não as devolvem.
-delete require.cache[require.resolve("@/lib/conversations/actions")];
+delete require.cache[require.resolve("../lib/conversations/actions")];
 const actionsModule = require("@/lib/conversations/actions");
 const gateway = require("@/lib/supabase/gateway") as typeof import("@/lib/supabase/gateway");
 /* eslint-enable @typescript-eslint/no-require-imports */

@@ -117,3 +117,14 @@ Preparação do WhatsApp para um número pessoal. Detalhes em [RELATORIO_WHATSAP
 - Lista de transmissão, canal e Status nunca entram na conversa individual.
 - A conexão de produção (ainda **não pareada**) foi deixada pela migration com histórico 0, grupos desligados e modo "só cadastrados" ligado. **O QR code ainda não foi escaneado.**
 - Pendência: contatos `@lid` (WhatsApp novo, sem telefone real) viram contato com telefone falso com o modo desligado; tratar depende de um payload real da Evolution (campos alternativos de telefone).
+
+## Checklist de publicação (antes de qualquer merge ou push na `main`)
+
+O CI do GitHub roda em **Node 22**; o desenvolvimento local costuma usar Node 24. Já houve falha só no CI por diferença entre as duas versões (`require.resolve("@/...")` em teste), então rode **nas duas versões**:
+
+1. `npm run lint`, `npm run typecheck` e `npm run test:unit` com **Node 24** (o local).
+2. Os mesmos três com **Node 22**, sem instalar nada: `npx -y node@22 node_modules/eslint/bin/eslint.js`, `npx -y node@22 node_modules/typescript/bin/tsc --noEmit` e `npx -y node@22 node_modules/@playwright/test/cli.js test -c playwright.unit.config.ts`.
+3. Build com as variáveis falsas do CI (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_CLIENT_KEY` e `SUPABASE_ADMIN_KEY` com valores de mentira): `npm run build`.
+4. Em testes, use caminho relativo em `require.resolve(...)` (o apelido `@/` só funciona em `require(...)` e `import`).
+5. Mudança de banco: suíte pgTAP do zero e, em produção, backup, `migration list --linked`, `db push --linked --dry-run` e validação somente leitura (migrations primeiro, app depois).
+6. Depois do push: conferir o resultado do CI no GitHub (e-mail ou aba Actions) e o deploy da Vercel até "Ready".
