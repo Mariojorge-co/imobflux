@@ -17,10 +17,13 @@ listas/canais; o `@lid` fica como pendência (abaixo). Com o modo "só cadastrad
 - **Histórico zero, como configurar (sua pergunta):** escolhi a opção mais simples e segura, **uma chave por conexão**
   (`history_window_days`, 0 a 15, padrão 15) **mais** um seletor na tela Configurações > WhatsApp, visível **antes** do QR code.
   A migration já grava **0** na conexão de produção que existe hoje (nunca pareada: `configured`, sem histórico), de forma
-  explícita e documentada no cabeçalho da migration. Qualquer outra conexão continua com 15. Depois do pareamento a janela fica
+  explícita e documentada no cabeçalho da migration, **junto com o modo "só cadastrados" LIGADO** (decisão do dono, para não
+  depender de lembrar) e grupos desligados. Qualquer outra conexão continua com 15. Depois do pareamento a janela fica
   trancada (é no pareamento que o WhatsApp envia o histórico).
-- **Modo "só cadastrados" (`ingest_only_known_contacts`):** padrão FALSE. **Não** liguei na migration (você pediu padrão FALSE);
-  você liga na tela antes do QR code. **Recomendação forte: ligar antes de escanear.**
+- **Modo "só cadastrados" (`ingest_only_known_contacts`):** padrão da coluna FALSE (qualquer outro uso preserva o comportamento
+  atual, leads novos criam contato). A migration liga TRUE **apenas** na conexão existente ainda não pareada (mesma condição do
+  histórico 0: `configured`, sem pareamento e sem histórico). O dono desliga pela tela quando quiser. Teste de banco cobre as
+  três situações (nunca pareada recebe os padrões; a que já importou histórico e as já pareadas não são tocadas).
 - **O que conta como "cadastrado":** número que existe em Contatos e **não está arquivado**. Contato arquivado volta a ser
   desconhecido (arquivar passa a ser uma forma de silenciar um número enquanto o modo está ligado). Ponto de contato sem
   contato (ex-participante de grupo) é desconhecido.
@@ -65,7 +68,7 @@ teste (o padrão passou a ser desligado), e 3 contagens fixas de funções `SECU
 ## Resultado dos testes
 | Verificação | Resultado |
 |---|---|
-| pgTAP, banco **novo e limpo**, todas as migrations do zero | **32 arquivos, 959 testes, PASS** (75 são do arquivo novo `whatsapp_personal_filters`) |
+| pgTAP, banco **novo e limpo**, todas as migrations do zero | **32 arquivos, 962 testes, PASS** (78 são do arquivo novo `whatsapp_personal_filters`) |
 | Testes unitários | **377 passando** (eram 351; +26) |
 | `lint`, `typecheck`, `build` | sem erros |
 | E2E no navegador (app compilado + Supabase local, `next start`) | **28/28**: tela antes do QR, grupo ignorado, transmissão e Status ignorados, desconhecido ignorado (recebido e enviado por mim), cadastrado aceito (inclusive sem o 9º dígito), histórico janela 0 descartado, "N ignoradas" na tela, sem aviso falso de importação, auditoria, celular sem rolagem lateral |
@@ -78,9 +81,9 @@ teste (o padrão passou a ser desligado), e 3 contagens fixas de funções `SECU
    `ingest_groups = false`, `ingest_only_known_contacts = false`.
 3. Merge (`--ff-only` da `feat/whatsapp-pessoal` na `main`, que hoje está 1 commit à frente do remoto com a documentação) e push;
    acompanhar o deploy da Vercel.
-4. Em produção, **antes de escanear o QR code**: abrir Configurações > WhatsApp, **ligar o modo de teste**, conferir que grupos
-   estão desligados e o histórico está em "Não importar nenhum histórico", **cadastrar em Contatos o número de teste** e só
-   então clicar em "Conectar WhatsApp". Suspender/remover o atendente de teste (para ninguém mais enxergar conversas).
+4. Em produção, **antes de escanear o QR code**: abrir Configurações > WhatsApp e conferir que o modo de teste já está ligado
+   (a migration liga), grupos desligados e histórico em "Não importar nenhum histórico"; **cadastrar em Contatos o número de
+   teste** e só então clicar em "Conectar WhatsApp". Suspender/remover o atendente de teste (para ninguém mais enxergar conversas).
 5. Observação: o app antigo (main atual) continua funcionando com o banco novo, mas o app novo **depende** da migration (a
    tela de filtros e a ação chamam `update_whatsapp_ingest_settings`); migrations primeiro, app depois.
 
@@ -93,4 +96,5 @@ teste (o padrão passou a ser desligado), e 3 contagens fixas de funções `SECU
 - Medidas 6 (exclusão real de contato/conversa e bloqueio de número) e 7 (copia de mensagens na Evolution/VPS): ficam para
   depois, como combinado. Lembrete: mensagens também ficam no Postgres da Evolution na VPS.
 - Mensagens de lista de transmissão/Status não são contadas (só descartadas).
+- Os valores que a migration gravou na conexão existente ficam nas colunas mesmo após o rollback (sem efeito sem as funções novas).
 - A janela de histórico é por conexão; um próximo pareamento (nova conexão) volta ao padrão 15 se nada for escolhido na tela.

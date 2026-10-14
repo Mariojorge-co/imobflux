@@ -14,9 +14,10 @@
 -- Também: lista de transmissão, canal e Status ('@broadcast', '@newsletter') nunca viram conversa individual.
 --
 -- DADOS EXISTENTES: a conexão de produção ainda NÃO foi pareada (status 'configured', sem histórico), então
--- recebe history_window_days = 0 aqui, de forma explícita (é o número pessoal; nada de histórico). Conexões já
--- pareadas e as demais ficam com 15. O modo "só números cadastrados" fica DESLIGADO por padrão: o dono liga em
--- Configurações > WhatsApp antes de escanear o QR code.
+-- recebe aqui, de forma explícita (é o número pessoal do dono): history_window_days = 0 (nada de histórico),
+-- ingest_only_known_contacts = TRUE (modo de teste: só números já cadastrados) e ingest_groups continua FALSE.
+-- O dono desliga o modo de teste em Configurações > WhatsApp quando quiser. Conexões já pareadas, as que já
+-- importaram histórico e as futuras ficam com os padrões da coluna (15 dias, grupos e modo desligados).
 --
 -- Esta migration só adiciona colunas e cria/substitui funções; nenhum dado é apagado.
 
@@ -33,7 +34,8 @@ alter table public.channel_connections
         check (jsonb_typeof(ignored_counts) = 'object');
 
 update public.channel_connections
-set history_window_days = 0
+set history_window_days = 0,
+    ingest_only_known_contacts = true
 where provider = 'whatsapp'
   and status = 'configured'
   and activated_at is null

@@ -4,6 +4,8 @@
 -- anterior (003800 e 004200) e remove as funções novas. As COLUNAS (history_window_days, ingest_groups,
 -- ingest_only_known_contacts, ignored_counts) ficam: são inofensivas sem a migration e apagá-las perderia a
 -- configuração do dono. Para removê-las de vez, descomente o bloco final (apaga os valores).
+-- Os valores que a migration gravou na conexão existente (janela 0, modo só cadastrados) ficam nas colunas; sem as funções novas
+-- eles não têm efeito. Para o comportamento antigo de verdade, o rollback abaixo basta.
 -- Efeito no uso: volta a gravar grupos e a importar 15 dias de histórico, e o modo "só cadastrados" deixa de existir.
 -- O app desta branch continua abrindo (as colunas ainda existem), mas a tela de filtros não terá efeito.
 -- Se a migration for considerada revertida: supabase migration repair --status reverted 20260802005000

@@ -2,7 +2,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions, auth, pg_catalog;
 
-select plan(75);
+select plan(78);
 
 -- ─── Fixtures: OWNER + ATTENDANT, duas conexões (uma ativa já pareada, uma ainda não pareada) ──────
 insert into auth.users (id, email)
@@ -529,6 +529,37 @@ select is(
     (select public.ingest_whatsapp_text_message('instancia-que-nao-existe', 'x-1', '123@s.whatsapp.net', false, '', 'oi', now())->>'reason'),
     'invalid_phone',
     'telefone inválido em instância desconhecida continua só "ignorado"'
+);
+
+-- ─── Dados existentes: conexão nunca pareada recebe os padrões do número pessoal ─────────────────────────────
+-- (a migration roda o comando abaixo uma vez sobre as linhas que já existiam; aqui o mesmo comando é aplicado
+-- a três linhas de teste: nunca pareada, já com histórico e ativa)
+insert into public.channel_connections (id, workspace_id, provider, external_account_id, status, history_import_status)
+values
+    ('b5000004-0000-4000-8000-0000000000a1', 'b5000002-0000-4000-8000-000000000001', 'whatsapp', 'pers-never-paired', 'configured', null),
+    ('b5000004-0000-4000-8000-0000000000a2', 'b5000002-0000-4000-8000-000000000001', 'whatsapp', 'pers-had-history', 'configured', 'completed');
+update public.channel_connections
+set history_window_days = 0,
+    ingest_only_known_contacts = true
+where provider = 'whatsapp'
+  and status = 'configured'
+  and activated_at is null
+  and history_import_status is null
+  and external_account_id in ('pers-never-paired', 'pers-had-history');
+select results_eq(
+    $$select history_window_days::int, ingest_groups, ingest_only_known_contacts from public.channel_connections where external_account_id = 'pers-never-paired'$$,
+    $$values (0, false, true)$$,
+    'conexão nunca pareada: histórico 0, grupos desligados, modo "só cadastrados" ligado'
+);
+select results_eq(
+    $$select history_window_days::int, ingest_groups, ingest_only_known_contacts from public.channel_connections where external_account_id = 'pers-had-history'$$,
+    $$values (15, false, false)$$,
+    'conexão que já importou histórico não é tocada'
+);
+select results_eq(
+    $$select history_window_days::int, ingest_only_known_contacts from public.channel_connections where id = 'b5000004-0000-4000-8000-000000000001'$$,
+    $$values (7, false)$$,
+    'conexão já pareada (as demais) não é tocada'
 );
 
 select * from finish();
