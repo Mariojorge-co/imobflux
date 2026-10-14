@@ -326,8 +326,8 @@ test.describe("Server Action sendMessageAction Unit Tests", () => {
 
     expect(res).toEqual({
       success: false,
-      error: "Falha ao enviar mensagem via WhatsApp",
-      code: "GATEWAY_ERROR",
+      error: "O WhatsApp recusou o envio (código HTTP_500). A mensagem não foi enviada. Se continuar, avise o responsável técnico com este código.",
+      code: "EVOLUTION_REJECTED",
     });
     expect(gatewayCalledCount).toBe(1);
     expect(reconcileCalls.length).toBe(1);
@@ -361,7 +361,7 @@ test.describe("Server Action sendMessageAction Unit Tests", () => {
 
       expect(res).toEqual({
         success: false,
-        error: "O WhatsApp ainda não está conectado ao ImobFlux. A mensagem não foi enviada.",
+        error: "A integração com o WhatsApp não está configurada neste ambiente (servidor da Evolution). A mensagem não foi enviada.",
         code: "GATEWAY_NOT_CONFIGURED",
       });
       expect(reconcileCalls.map((call) => call.args.p_target_status)).toEqual(["failed"]);

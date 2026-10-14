@@ -25,6 +25,7 @@ import {
 import * as serverModule from "@/lib/supabase/server";
 import * as adminModule from "@/lib/supabase/admin";
 import * as gatewayModule from "@/lib/supabase/gateway";
+import { connectionLookupFromAdmin, resolveSendInstance } from "@/lib/conversations/send-instance";
 import { classifyGatewayOutcome } from "@/lib/conversations/gateway-outcome";
 import { assignmentErrorMessage } from "@/lib/conversations/assignment";
 import { taskErrorMessage } from "@/lib/tasks/model";
@@ -391,13 +392,17 @@ export async function sendMessageAction(
     const messageId = queueObj.message_id as string;
     const recipientTarget = queueObj.recipient_target as string;
 
-    const gatewayResult = await gatewayModule.sendEvolutionTextMessage(
-      undefined,
-      recipientTarget,
-      textContent,
-    );
-
     const admin = adminModule.createAdminSupabaseClient();
+
+    // A instância vem da conexão do próprio workspace no banco (id devolvido pela RPC de enfileirar, nunca
+    // do navegador); EVOLUTION_INSTANCE_NAME é só reserva. Sem conexão ativa, nada é enviado.
+    const resolved = await resolveSendInstance(
+      connectionLookupFromAdmin(admin),
+      queueObj.channel_connection_id as string | undefined,
+    );
+    const gatewayResult = resolved.ok
+      ? await gatewayModule.sendEvolutionTextMessage(resolved.instance, recipientTarget, textContent)
+      : { success: false as const, code: resolved.code, error: "Instância do WhatsApp indisponível" };
 
     // Só o aceite real do gateway conta como envio. O único contorno (dev/demo, nunca em
     // produção) vale para "WhatsApp não configurado"; falhas reais nunca viram "enviada".
@@ -415,6 +420,16 @@ export async function sendMessageAction(
 
       if (reconcileError) {
         console.error("Erro ao reconciliar status para sent:", reconcileError);
+        // 23505: o eco da própria mensagem (webhook fromMe) chegou antes e já ocupa este identificador externo.
+        // Sem tentar de novo a mensagem ficaria "na fila" para sempre; marca como enviada sem o identificador.
+        if (reconcileError.code === "23505") {
+          const { error: retryError } = await admin.rpc("reconcile_outgoing_text_message", {
+            p_message_id: messageId,
+            p_target_status: "sent",
+            p_external_message_id: undefined,
+          });
+          if (retryError) console.error("Erro ao reconciliar status para sent (sem identificador externo):", retryError);
+        }
       }
 
       revalidatePath(`/conversas/${conversationId}`);
@@ -430,6 +445,8 @@ export async function sendMessageAction(
         ...(message ? { message } : {}),
       };
     } else {
+      // Só o código curto vai para o log (nunca texto da mensagem, número, corpo da Evolution ou segredo).
+      console.error("Falha no envio pelo WhatsApp:", { code: outcome.code, gateway: gatewayResult.success ? null : gatewayResult.code ?? null, messageId });
       const { error: reconcileError } = await admin.rpc(
         "reconcile_outgoing_text_message",
         {

@@ -120,6 +120,9 @@ export function MessageForm({
             });
           }
         } else {
+          // Falha: a próxima tentativa (clique do usuário) é uma mensagem nova, com chave nova. A que falhou
+          // continua marcada como falha e nunca é reenviada sozinha; assim o reenvio não esbarra em "falhou antes".
+          activeIdempotencyKeyRef.current = null;
           if (result.code === "UNAUTHORIZED") {
             setFeedback({
               type: "error",
@@ -129,7 +132,7 @@ export function MessageForm({
             setFeedback({
               type: "error",
               message:
-                "Esta mensagem falhou em uma tentativa anterior. Altere o texto ou envie novamente.",
+                "Esta mensagem falhou em uma tentativa anterior. Clique em enviar de novo para tentar outra vez.",
             });
           } else {
             setFeedback({

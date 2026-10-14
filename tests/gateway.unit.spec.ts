@@ -121,11 +121,10 @@ test.describe("Evolution API Gateway Unit Tests", () => {
     expect(capturedHeaders.apikey).toBe("secret_key_123");
     expect(capturedHeaders["Content-Type"]).toBe("application/json");
 
+    // Contrato v2 da Evolution (v2.3.7): corpo plano { number, text } (o { textMessage: { text } } é do v1).
     expect(capturedBody).toEqual({
       number: "5582988880000",
-      textMessage: {
-        text: "Mensagem de teste de contrato",
-      },
+      text: "Mensagem de teste de contrato",
     });
   });
 

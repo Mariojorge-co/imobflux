@@ -5,11 +5,29 @@ export type SendEvolutionTextMessageResult =
   | { success: false; error: string; code: string };
 
 /**
- * Normaliza e formata o telefone para o padrão numérico esperado pela Evolution API (ex: 5582988880000).
+ * Formata o destino no padrão numérico esperado pela Evolution API (ex: 5582988880000).
+ *
+ * Aceita dois formatos de entrada:
+ * - JID do WhatsApp (o que a conversa guarda em external_thread_id, ex.: "5582988880000@s.whatsapp.net"
+ *   ou "5582988880000:12@s.whatsapp.net"): o JID JÁ traz o código do país, então os dígitos são usados
+ *   como vieram. Isso preserva o celular antigo sem o 9º dígito (12 dígitos) e números internacionais de
+ *   10/11 dígitos (ex.: EUA), que NÃO podem ganhar o prefixo 55. Grupo, lista de transmissão, canal e
+ *   identificador @lid não são destinos individuais: devolvem null.
+ * - Telefone digitado (com ou sem máscara): 10/11 dígitos nacionais ganham o 55; 12/13 com 55 passam como estão.
  */
 export function formatPhoneForEvolution(toPhone: string): string | null {
   if (!toPhone || typeof toPhone !== "string") {
     return null;
+  }
+
+  const at = toPhone.indexOf("@");
+  if (at >= 0) {
+    const domain = toPhone.slice(at + 1).trim().toLowerCase();
+    if (domain !== "s.whatsapp.net" && domain !== "c.us") {
+      return null;
+    }
+    const local = toPhone.slice(0, at).split(":")[0].trim();
+    return /^[1-9][0-9]{7,14}$/.test(local) ? local : null;
   }
 
   const digits = toPhone.replace(/\D/g, "");
@@ -30,8 +48,19 @@ export function formatPhoneForEvolution(toPhone: string): string | null {
   return null;
 }
 
+/** Identificador externo devolvido pela Evolution v2: `key.id` (aceita também o envelope `data.key.id`). */
+function externalIdFrom(responseData: unknown): string | null {
+  const payload = responseData as { key?: { id?: unknown }; data?: { key?: { id?: unknown } } } | null;
+  const id = payload?.key?.id ?? payload?.data?.key?.id;
+  return typeof id === "string" && id.trim() !== "" ? id : null;
+}
+
 /**
  * Envia uma mensagem de texto simples para um destinatário através da Evolution API v2.
+ * Contrato v2: POST /message/sendText/{instância} com `{ number, text }` e resposta com `key.id`.
+ *
+ * Os erros devolvem só um código curto (`HTTP_<status>`, `TIMEOUT`, ...) e uma frase fixa: nunca o corpo
+ * da resposta da Evolution, o texto da mensagem, o número, a chave de acesso nem o endereço do servidor.
  */
 export async function sendEvolutionTextMessage(
   instanceName?: string,
@@ -50,6 +79,8 @@ export async function sendEvolutionTextMessage(
     };
   }
 
+  // O nome da instância vem da conexão do workspace (resolvida pelo chamador); a variável de ambiente
+  // EVOLUTION_INSTANCE_NAME é só reserva.
   const activeInstance = instanceName?.trim() || process.env.EVOLUTION_INSTANCE_NAME?.trim();
   if (!activeInstance) {
     return {
@@ -85,7 +116,7 @@ export async function sendEvolutionTextMessage(
   }
 
   const baseUrl = apiUrl.replace(/\/+$/, "");
-  const targetUrl = `${baseUrl}/message/sendText/${activeInstance}`;
+  const targetUrl = `${baseUrl}/message/sendText/${encodeURIComponent(activeInstance)}`;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -99,9 +130,7 @@ export async function sendEvolutionTextMessage(
       },
       body: JSON.stringify({
         number: formattedPhone,
-        textMessage: {
-          text: textContent,
-        },
+        text: textContent,
       }),
       signal: controller.signal,
     });
@@ -127,10 +156,8 @@ export async function sendEvolutionTextMessage(
       };
     }
 
-    const payload = responseData as { key?: { id?: string } };
-    const externalMessageId = payload?.key?.id;
-
-    if (!externalMessageId || typeof externalMessageId !== "string") {
+    const externalMessageId = externalIdFrom(responseData);
+    if (!externalMessageId) {
       return {
         success: false,
         error: "Resposta da Evolution API não continha o ID externo da mensagem",

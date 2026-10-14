@@ -10,12 +10,12 @@ test("aceite real do gateway é a única fonte de sucesso em qualquer ambiente",
 });
 
 test("produção nunca contorna 'gateway não configurado', mesmo com flag de demo", () => {
-  for (const code of ["MISSING_ENV_CONFIG", "MISSING_INSTANCE"]) {
+  for (const [code, expected] of [["MISSING_ENV_CONFIG", "GATEWAY_NOT_CONFIGURED"], ["MISSING_INSTANCE", "NO_INSTANCE"]]) {
     const outcome = classifyGatewayOutcome(
       { success: false, code },
       { NODE_ENV: "production", NEXT_PUBLIC_DEMO_MODE: "true" },
     );
-    expect(outcome).toMatchObject({ deliver: false, code: "GATEWAY_NOT_CONFIGURED" });
+    expect(outcome).toMatchObject({ deliver: false, code: expected });
   }
 });
 
@@ -29,13 +29,19 @@ test("contorno local só existe em desenvolvimento ou demo fora de produção", 
 
 test("falhas reais nunca viram envio, nem em desenvolvimento, e têm mensagem honesta", () => {
   const env = { NODE_ENV: "development", NEXT_PUBLIC_DEMO_MODE: "true" };
-  for (const code of ["HTTP_400", "HTTP_500", "INVALID_JSON_RESPONSE", "MISSING_EXTERNAL_ID", "INVALID_PHONE", "UNKNOWN", undefined]) {
+  const expected: Array<[string | undefined, string]> = [
+    ["HTTP_400", "EVOLUTION_REJECTED"], ["HTTP_401", "EVOLUTION_REJECTED"], ["HTTP_500", "EVOLUTION_REJECTED"],
+    ["TIMEOUT", "GATEWAY_TIMEOUT"], ["NETWORK_ERROR", "GATEWAY_NETWORK"], ["INVALID_PHONE", "INVALID_RECIPIENT"],
+    ["WHATSAPP_DISCONNECTED", "WHATSAPP_DISCONNECTED"],
+    ["INVALID_JSON_RESPONSE", "GATEWAY_ERROR"], ["MISSING_EXTERNAL_ID", "GATEWAY_ERROR"], ["UNKNOWN", "GATEWAY_ERROR"], [undefined, "GATEWAY_ERROR"],
+  ];
+  for (const [code, outcomeCode] of expected) {
     const outcome = classifyGatewayOutcome({ success: false, code }, env);
-    expect(outcome).toMatchObject({ deliver: false, code: "GATEWAY_ERROR" });
+    expect(outcome).toMatchObject({ deliver: false, code: outcomeCode });
   }
-  expect(classifyGatewayOutcome({ success: false, code: "TIMEOUT" }, env)).toMatchObject({
+  expect(classifyGatewayOutcome({ success: false, code: "NETWORK_ERROR" }, env)).toMatchObject({
     deliver: false,
-    error: "Não foi possível falar com o WhatsApp agora. A mensagem não foi enviada.",
+    error: "Não foi possível falar com o WhatsApp agora (falha de rede). A mensagem não foi enviada. Tente novamente em instantes.",
   });
 });
 

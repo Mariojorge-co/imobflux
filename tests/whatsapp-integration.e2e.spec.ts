@@ -369,7 +369,7 @@ test.describe("Sprint 17 — WhatsApp Textual Integration E2E Test Suite", () =>
       expect(capturedApiKey).toBe("test_api_key_xyz");
       expect(capturedPayload).toEqual({
         number: "5582988881111",
-        textMessage: { text: "Mensagem E2E enviada pelo CRM" },
+        text: "Mensagem E2E enviada pelo CRM",
       });
     } finally {
       globalThis.fetch = realFetch;
