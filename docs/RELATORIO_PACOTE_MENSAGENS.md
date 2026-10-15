@@ -59,7 +59,7 @@ Segurança: `SECURITY DEFINER` com `search_path = ''`; `service_role`/`anon` sem
 
 ## Pendências e limitações conhecidas
 
-- **Formato real dos eventos de edição/exclusão/reação** precisa ser confirmado com celular real (roteiro abaixo, passos 11 a 15). Se a Evolution entregar outra forma, o ajuste é só em `lib/conversations/webhook.ts` (`parseSpecialMessage`).
+- **Formato real dos eventos de edição/exclusão/reação** precisa ser confirmado com celular real (roteiro abaixo, passos 6, 9, 10 e 12). Se a Evolution entregar outra forma, o ajuste é só em `lib/conversations/webhook.ts` (`parseSpecialMessage`).
 - Reações recebidas aparecem em até ~15 s sem recarregar (a tabela de reações não está no Realtime; a conversa confere a cada 15 s). Edição/exclusão/mensagem nova são imediatas.
 - Editar **legenda** de arquivo não é suportado (a tela não oferece; o banco recusa).
 - Citação de mensagem que não existe no ImobFlux (anterior à conexão) mostra só o trecho que veio no evento.
