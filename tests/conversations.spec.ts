@@ -303,6 +303,8 @@ test.describe.serial("conversations module", () => {
     const paginatedMessages = history.locator('[data-message-id^="e0000001-0000-4000-8000-"]');
     const btn = page.getByRole("button", { name: "Carregar anteriores" });
 
+    // O clique só vale depois de a página hidratar.
+    await expect(page.locator('[data-testid="conversation-column"][data-ready="true"]')).toBeVisible();
     await expect(paginatedMessages).toHaveCount(50);
     await expect(paginatedMessages.first()).toContainText("Mensagem paginada 50");
     await expect(paginatedMessages.last()).toContainText("Mensagem paginada 1");

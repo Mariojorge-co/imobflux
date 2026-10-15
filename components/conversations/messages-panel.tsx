@@ -157,6 +157,11 @@ export function MessagesPanel({
   const pendingScrollToBottomRef = useRef(false);
   // Espelhos em ref (para laços assíncronos) e o conjunto de mensagens que o servidor já devolveu: só estas podem
   // sumir da tela quando deixam de vir (escondidas por outra pessoa); uma mensagem recém-enviada nunca some por engano.
+  // Marca a coluna da conversa como "pronta" quando a página terminou de hidratar (os cliques só valem depois disso).
+  const columnRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    columnRef.current?.setAttribute("data-ready", "true");
+  }, []);
   const messagesRef = useRef<ConversationMessage[]>(initialMessages);
   const hasOlderRef = useRef(initialHasOlder);
   const seenServerIdsRef = useRef(new Set(initialMessages.map((message) => message.id)));
@@ -826,7 +831,7 @@ export function MessagesPanel({
   return (
     <div className="flex h-full min-w-0 w-full overflow-hidden">
       {/* Coluna Principal da Conversa (também é a área de soltar arquivos) */}
-      <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-background" data-testid="conversation-column" {...dropZone.handlers}>
+      <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-background" data-testid="conversation-column" ref={columnRef} {...dropZone.handlers}>
         {dropZone.dragging ? (
           <div
             aria-hidden="true"

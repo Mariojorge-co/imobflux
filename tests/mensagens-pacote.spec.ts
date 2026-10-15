@@ -37,6 +37,8 @@ const messageId = (text: string, conversation = main) =>
 async function open(page: Page, conversation = main) {
   await page.goto(`/conversas/${conversation}`);
   await expect(page.getByLabel("Digitar mensagem de texto")).toBeVisible();
+  // Os cliques só valem depois de a página hidratar.
+  await expect(page.locator('[data-testid="conversation-column"][data-ready="true"]')).toBeVisible();
 }
 
 async function menu(page: Page, text: string): Promise<Locator> {
