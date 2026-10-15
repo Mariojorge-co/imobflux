@@ -156,9 +156,14 @@ Detalhes em [RELATORIO_RESPOSTAS_RAPIDAS.md](RELATORIO_RESPOSTAS_RAPIDAS.md); ro
   - Suíte `email-auth-flow` (cópia `imobflux-auth-disposable`) ainda não executada; rodar antes de mexer em autenticação ou convite.
   - Conferir o CI (Node 22) no GitHub e o Ready da Vercel depois do push.
 
-## Em revisão (NÃO publicado): branch `feat/pacote-arquivos-prazos`
+## Publicado em produção em 2026-10-15 (ex-branch `feat/pacote-arquivos-prazos`): arquivos, fila, prazos e grupos
 
-Envio de arquivos pelo WhatsApp, fila de envio não bloqueante, prazos configuráveis (pausa por conversa), grupos e conversa consigo mesmo. Detalhes, contrato da Evolution, decisões, roteiro de teste e riscos em [RELATORIO_PACOTE_ARQUIVOS_PRAZOS.md](RELATORIO_PACOTE_ARQUIVOS_PRAZOS.md).
-- **4 migrations só locais** (`20260802005300`–`005600`), todas com rollback testado em `docs/rollback/`. **Publicar migrations primeiro (Trava A) e o app depois (Trava B).**
-- Antes de publicar: rodar o checklist abaixo e conferir CI e Vercel por CLI (`gh run list`, `vercel ls`).
-- Pendências conhecidas: eco de arquivo antes da confirmação pode gerar linha duplicada no banco (a tela esconde); varredura de uploads órfãos manual (`npm run sweep:uploads`); só um envio real prova o comportamento da Evolution com arquivos grandes.
+Detalhes, contrato da Evolution, decisões, roteiro de teste real e riscos em [RELATORIO_PACOTE_ARQUIVOS_PRAZOS.md](RELATORIO_PACOTE_ARQUIVOS_PRAZOS.md); rollbacks em `docs/rollback/20260802005300…005600_rollback.sql`.
+- **Migrations `005300` a `005600` aplicadas em produção (Trava A)** e app publicado (Trava B): auditoria com categorias novas; envio de arquivos (funções de fila, auditoria e varredura); prazos configuráveis e pausa por conversa; conversa consigo mesmo no modo "só cadastrados".
+- **Envio de arquivos pelo WhatsApp**: clipe, arrastar e soltar, colar; upload direto ao Storage privado (25 MB, até 10 por vez); tipo validado pelo conteúdo; executáveis/scripts bloqueados; legenda, "como documento", progresso, tentar de novo.
+- **Fila de envio**: a caixa não bloqueia; envio sequencial por conversa na ordem; falha só marca aquela mensagem; nunca reenvia sozinho.
+- **Prazos**: Configurações > Prazos (só o dono); pausar até o cliente falar de novo / desativar por conversa; grupo e conversa consigo mesmo nunca têm prazo; Prioridades lê todas as conversas e agrupa o follow-up por nível (6/24/72 h por padrão).
+- **Grupos**: leitura de grupos segue desligada por padrão; Configurações > Grupos e botão Liberar/Restringir no cabeçalho; nome do grupo corrigido na lista.
+- Vídeo com o mesmo limite de tamanho da foto; auditoria com rótulos próprios.
+- **Pendências**: teste real do envio de arquivos (a Evolution/WhatsApp foram simulados nos testes); eco de arquivo antes da confirmação pode gerar linha duplicada no banco (a tela esconde); varredura de uploads órfãos manual (`npm run sweep:uploads`); teste `conversations › OWNER carrega inbox` instável no ambiente local; e as pendências de produto do [ROADMAP.md](ROADMAP.md): contatos do Google, `@lid`, exclusão real e bloqueio de número, reduzir cópia de mensagens na Evolution, lembretes ativos de tarefa, backup automático da VPS, acabamento visual, acompanhamento de financiamento e agenda de visitas.
+- Conferir o CI (Node 22) e o Ready da Vercel por CLI depois do push (`gh run list`, `vercel ls`).

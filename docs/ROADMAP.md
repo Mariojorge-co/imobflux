@@ -18,16 +18,24 @@ Planejamento da evolução do **ImobFlux**. Estado atual em [STATUS_PROJETO.md](
   - Kanban no celular (abas por etapa) e estados vazios guiados;
   - importação de histórico recente do WhatsApp (15 dias), marcada e fora do SLA, com aviso de falha;
   - CI no GitHub (lint, tipos, unitários, build, migrations e pgTAP) e testes sem duplicação.
+- **Em uso real (outubro/2026)**: Evolution API hospedada na VPS, número pareado, envio e recebimento de texto e mídia, histórico, SLA e privacidade testados com número real.
+- **Pacote de Conversas, respostas rápidas e envio de arquivos (outubro/2026)**: desempenho da troca de conversa, SLA único, reabertura, envio otimista e mídia compacta; respostas rápidas com variáveis, painel e atalho "/"; **envio de arquivos pelo WhatsApp** (clipe, arrastar, colar; imagens, vídeo, áudio, PDF, Office, texto, compactados; até 25 MB; bloqueio de executáveis); **fila de envio** que não trava a caixa e preserva a ordem; **prazos configuráveis** (Configurações > Prazos) com pausa/desativação por conversa; grupos liberados um a um (Configurações > Grupos); conversa consigo mesmo; foto e vídeo compactos; auditoria com rótulos próprios (`RELATORIO_RESPOSTAS_RAPIDAS.md`, `RELATORIO_PACOTE_ARQUIVOS_PRAZOS.md`).
 
 ---
 
-## Próximas prioridades (para uso real)
+## Próximas prioridades
 
-1. **Hospedar a Evolution API** (VPS Contabo, Debian 12) e **configurar o Vercel**
-   (`EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_WEBHOOK_SECRET` + redeploy).
-   Passo a passo em [DEPLOY_EVOLUTION_VPS.md](DEPLOY_EVOLUTION_VPS.md). Prioridade: **ALTA**.
-2. **Teste com número real**: pareamento, envio/recebimento, mídia, histórico (medir o que o celular envia),
-   SLA e privacidade. Roteiro na seção 8 do mesmo documento. Prioridade: **ALTA**.
+A Evolution está hospedada e o teste com número real foi feito. Pendências priorizadas (nenhuma em andamento):
+
+1. **Teste real do envio de arquivos** (foto, PDF, .rar, vídeo, 24 MB, 26 MB recusado, .exe bloqueado, 3 mensagens seguidas) — roteiro em [RELATORIO_PACOTE_ARQUIVOS_PRAZOS.md](RELATORIO_PACOTE_ARQUIVOS_PRAZOS.md). Prioridade: **ALTA**.
+2. **Backup automático da VPS** (Evolution/Postgres/Redis). Prioridade: **ALTA**.
+3. **Tratar contatos `@lid`** (usar o telefone real do payload da Evolution; depende de um payload real).
+4. **Exclusão real de contato/conversa e bloqueio de número.**
+5. **Reduzir a cópia de mensagens na Evolution/VPS** (ver `RELATORIO_WHATSAPP_PESSOAL.md`).
+6. **Lembretes ativos de tarefa** (notificações).
+7. **Contatos do Google** (importar/sincronizar).
+8. **Acabamento visual** (rodada de ajustes de interface).
+9. **Acompanhamento de financiamento** e **agenda de visitas** (novos módulos comerciais).
 
 ## Pendências do documento de MVP
 
@@ -57,7 +65,7 @@ exportação de conversas/anexos/relatórios; evento de auditoria por resposta e
 > Possibilidades de expansão, não compromissos.
 
 - Importação de histórico mais profunda, se o provedor permitir (hoje depende do celular e vem uma vez só).
-- WhatsApp pessoal, próximos passos: tratar contatos `@lid` (usar o telefone real do payload da Evolution, a confirmar com um payload real), exclusão real de contato/conversa com bloqueio de número e reduzir a cópia de mensagens na Evolution/VPS (ver `RELATORIO_WHATSAPP_PESSOAL.md`).
-- Envio de mídia pelo CRM (hoje só recepção e visualização).
+- Gravação de áudio pelo microfone (nota de voz), envio de arquivos em grupos e envio em massa (fora do pacote de arquivos).
+- Agendar a varredura de uploads órfãos do envio de arquivos (hoje manual: `npm run sweep:uploads`).
 - Ações comerciais adicionais além do fluxo de ganho/perda atual.
 - Instagram Direct.
