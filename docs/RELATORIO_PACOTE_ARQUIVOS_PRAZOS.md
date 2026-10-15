@@ -65,8 +65,14 @@ Fonte: `EvolutionAPI/evolution-api` tag `2.3.7` (`sendMessage.dto.ts`, `sendMess
 13. **`maxDuration = 60`** na página da conversa (o envio de arquivo espera a Evolution baixar e entregar o arquivo). Depende do plano da Vercel permitir 60 s.
 14. **Contagens de inventário do pgTAP** foram atualizadas (75 funções definer públicas, 92 no total, 15 tabelas com `updated_at`).
 
-## Testes
-(Preenchido ao final do checklist — ver seção "Resultado do checklist" abaixo.)
+## Testes (checklist completo do STATUS_PROJETO.md)
+- **Lint, tipos e unitários**: limpos em **Node 24 e Node 22**; 522 testes unitários (novos: fila de envio, bolhas/eco, validação de arquivos por conteúdo, ações de envio com Storage/Evolution simulados, contrato do `sendMedia`, prazos/limites/pausa, rótulos de auditoria). **Build** de produção com as variáveis falsas do CI: ok (rotas novas `/configuracoes/prazos` e `/configuracoes/grupos`).
+- **pgTAP completo**: 39 arquivos, **1196 testes** passam (novos: `audit_new_categories` 9, `outgoing_media` 35, `sla_settings` 59, `self_conversation_ingest` 13, `groups_visibility` 18; cada um visto vermelho antes de verde). 4 contagens de inventário atualizadas.
+- **Suítes de navegador (cópia descartável, Supabase local, Evolution simulada)**: todas as suítes passam: 113 testes na execução completa; 3 deles precisaram ser tratados: dois testes antigos dependiam das regras que esta entrega muda de propósito (Prioridades com corte fixo de 24 h/50 conversas e os níveis antigos de follow-up) e foram atualizados; o terceiro (paginação do histórico) é instável no ambiente e passou na repetição. Novos E2E: fila de envio (2), envio de arquivos (11), prazos (7), grupos e conversa consigo mesmo (7).
+- **App atual (`f6e7e30`) contra o banco novo** (as 4 migrations aplicadas): todas as suítes de navegador do app atual passam (80 + 13 do arquivo `conversations`, repetido porque o teste "OWNER carrega inbox…" é instável **também no banco antigo**, 1 falha em 2 execuções sem as migrations novas). Os testes pgTAP do app atual passam 100% contra o banco com rollback e, contra o banco novo, só falham as 4 contagens de inventário.
+- **Verificação visual** em 1440 px e 390 px: bandeja de arquivos, menu de prazo, bolha "enviando…", Configurações > Prazos, Configurações > Grupos e Prioridades (ajustes feitos: grupos legíveis no celular e bandeja limitada a 35% da altura).
+- **Rollbacks** das 4 migrations aplicados em ordem inversa: esquema volta idêntico ao da 005200.
+
 
 ## Roteiro de teste real em produção (depois da publicação)
 1. **Foto** pelo clipe: miniatura, legenda, enviar; chega no WhatsApp do cliente; bolha vira "enviada". Repetir arrastando e colando (Ctrl+V).
