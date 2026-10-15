@@ -489,10 +489,11 @@ test.describe("Pacote de mensagens", () => {
   test("busca na conversa: destaca, conta, setas, carrega mensagens antigas e não acha escondidas", async ({ page }) => {
     // 120 mensagens antigas só com a palavra rara no começo do histórico.
     runLocalSql(`
-      insert into public.messages (workspace_id, channel_connection_id, conversation_id, external_message_id, direction, origin, sender_contact_point_id, text_content, status, occurred_at)
+      insert into public.messages (workspace_id, channel_connection_id, conversation_id, external_message_id, direction, origin, sender_contact_point_id, text_content, status, occurred_at, external_created_at, received_at)
       select c.workspace_id, c.channel_connection_id, c.id, 'bulk-' || n, 'incoming', 'whatsapp',
              (select m.sender_contact_point_id from public.messages m where m.conversation_id = c.id and m.direction = 'incoming' limit 1),
-             case when n = 1 then 'documento raro de escritura' else 'mensagem de enchimento ' || n end, 'received', now() - interval '3 days' + (n || ' minutes')::interval
+             case when n = 1 then 'documento raro de escritura' else 'mensagem de enchimento ' || n end, 'received', now() - interval '3 days' + (n || ' minutes')::interval,
+             now() - interval '3 days' + (n || ' minutes')::interval, now() - interval '3 days' + (n || ' minutes')::interval
       from public.conversations c, generate_series(1, 120) as n where c.id = '${second}';
     `);
     await open(page, second);
