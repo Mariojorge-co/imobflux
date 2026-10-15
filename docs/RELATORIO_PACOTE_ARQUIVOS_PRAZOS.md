@@ -93,3 +93,22 @@ Fonte: `EvolutionAPI/evolution-api` tag `2.3.7` (`sendMessage.dto.ts`, `sendMess
 - **Uploads órfãos** ficam no Storage até a varredura (`npm run sweep:uploads -- --apply`); sem agendamento automático (pendência).
 - Recebimento de **mídias grandes** continua como antes (não alterado).
 - Atalho de prazo: grupos/`@lid` e a leitura de grupos seguem como estavam (desligada por padrão).
+
+## Trava A (banco) — executada em 2026-10-15 (migrations 20260802005300 a 005600)
+
+Autorizada pelo dono, só o banco; o app **não** foi publicado (Trava B pendente, separada).
+
+**Verificações antes de aplicar**
+1. As 5 funções recriadas (`get_audit_events`, `get_conversations_inbox`, `get_conversation_item`, `get_kanban_board`, `ingest_whatsapp_text_message`) têm assinatura e retorno `jsonb` **idênticos** antes e depois (005200 × final). A comparação de esquema mostra só 10 linhas alteradas: a lista de categorias do filtro de auditoria (amplia); as duas linhas de `sla_*` em lista e cabeçalho (agora nulas em grupo, conversa consigo mesmo e prazo pausado/desativado) e o acréscimo de campos no JSON; o trecho do próprio número em `ingest_whatsapp_text_message`. O app atual ignora os campos novos e já trata `sla_*` nulo. Única diferença visível para o app atual: grupos deixam de mostrar a tarja de prazo (regra pedida).
+2. Bucket `whatsapp-media` em produção (somente leitura): **privado**, `file_size_limit = 26214400` (25 MB), sem restrição de tipo MIME (o tipo é decidido pelo servidor, por extensão e conteúdo), **0 policies** em `storage.objects`. No código: (a) o caminho é `<workspace>/<conversa>/out/<uuid>` gerado no servidor, nunca o nome do arquivo; (b) a URL de upload é assinada para um único caminho (a de outro caminho é recusada, testado) e expira pelo padrão do Supabase (2 h; não configurável nessa chamada); (c) arquivo reprovado na validação (tipo por conteúdo, tamanho, executável) é apagado do Storage na hora (`remove`), e o descarte pela bandeja também. Uma legenda acima de 1024 caracteres é recusada antes de inspecionar e deixa o arquivo para a varredura de órfãos.
+3. As 4 migrations não têm nenhum INSERT/UPDATE/DELETE fora de função; as tabelas novas nascem vazias com RLS ligado.
+
+**Produção**
+1. Backup (esquema 412 KB + dados 144 KB, fora do repositório); `migration list`: só as 4 pendentes; `db push --dry-run` listou só elas; `db push --linked` aplicou sem erro (52 → 56 de 56, sem pendências).
+2. Validação somente leitura:
+   - Funções novas: definer com `search_path=""` (exceto `get_sla_conversations`, invoker, de propósito); `authenticated` executa as de uso do app; `list_orphan_outbound_uploads` e `record_outgoing_media_sent` só `service_role`; `anon` nunca.
+   - `workspace_sla_settings`: RLS ligada, 1 policy de leitura, `anon` sem leitura, `authenticated` sem INSERT, **0 linhas**. Colunas novas em `conversations`: `sla_mode` (`'active'`, não nulo) e `sla_paused_at`; 0 conversas fora do modo ativo.
+   - Contagens das 14 tabelas existentes medidas imediatamente antes e depois do push: **idênticas**.
+   - Esquema de produção antes × depois (dump): só as 10 linhas alteradas acima (sem remoções fora delas) e o restante adições.
+   - Telas do app atual lidas como o dono em transação somente leitura (sem login, sem escrita): Conversas (5 itens, campos antigos e novos), cabeçalho da conversa, Kanban (6 etapas) e Prioridades (painel e 4 conversas com prazo) respondem sem erro.
+3. Backup apagado (sem cópias restantes). `EVOLUTION_INSTANCE_NAME` na Vercel mantida (não tocada).
