@@ -22,6 +22,7 @@ import { buildPendingMessage, mergeMessages } from "@/lib/conversations/message-
 import { enqueueTextSend } from "@/lib/conversations/send-queue";
 import { extractQuoted, parseEvolutionWebhookPayload } from "@/lib/conversations/webhook";
 import type { ConversationMessage } from "@/lib/conversations/data";
+import { categoryOf, describeAuditEvent, type AuditEventRow } from "@/lib/audit/labels";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const gatewayModule = require("@/lib/supabase/gateway");
@@ -423,5 +424,31 @@ test.describe("Pacote de mensagens — chamadas à Evolution", () => {
     expect(await actionsGateway.deleteEvolutionMessageForEveryone("inst", "sem-arroba", "M")).toMatchObject({ code: "INVALID_PHONE" });
     delete process.env.EVOLUTION_API_URL;
     expect(await actionsGateway.sendEvolutionReaction("inst", "5582988880000@s.whatsapp.net", "M", false, "👍")).toMatchObject({ code: "MISSING_ENV_CONFIG" });
+  });
+});
+
+test.describe("Pacote de mensagens — auditoria", () => {
+  const event = (action: string, metadata: Record<string, unknown> = {}): AuditEventRow => ({
+    id: "11111111-1111-4111-8111-111111111111",
+    occurred_at: "2026-10-15T12:00:00.000Z",
+    action,
+    target_type: "message",
+    target_id: "11111111-1111-4111-8111-111111111111",
+    result: "success",
+    actor_type: "member",
+    actor_member_id: null,
+    actor_name: "Ana",
+    metadata,
+  });
+
+  test("editar, apagar, esconder, restaurar, encaminhar e notas têm rótulo próprio e nunca mostram texto de mensagem", () => {
+    const actions = ["message.edited", "message.deleted_for_everyone", "message.hidden", "message.restored", "message.forwarded", "conversation.note_edited", "conversation.note_deleted"];
+    for (const action of actions) {
+      const view = describeAuditEvent(event(action, { source: "crm", text: "texto privado do cliente", note_id: "x" }));
+      expect(view.title).not.toBe(action);
+      expect(JSON.stringify(view)).not.toContain("texto privado");
+    }
+    expect(categoryOf("message.edited")).toBe("message");
+    expect(categoryOf("conversation.note_deleted")).toBe("conversation");
   });
 });
