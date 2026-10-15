@@ -896,3 +896,46 @@ export async function reassignConversationAction(
       p_to_member_id: toMemberId,
     }));
 }
+
+
+export type SlaModeResult =
+  | { success: true; sla_mode: "active" | "paused" | "disabled"; sla_paused_at: string | null; sla_applies: boolean }
+  | { success: false; error: string };
+
+const SLA_MODE_ERRORS: Record<string, string> = {
+  sla_not_authorized: "Você não tem acesso a esta conversa.",
+  sla_not_applicable: "Grupos e a conversa com você mesmo nunca têm prazo.",
+  conversation_not_available: "Esta conversa não está mais disponível.",
+  sla_mode_invalid: "Opção de prazo inválida.",
+};
+
+/**
+ * Server Action: pausa (até o cliente falar de novo), desativa (permanente) ou reativa o prazo de UMA conversa.
+ * Quem tem acesso à conversa pode; o banco audita e decide se há prazo (uma regra só para todas as telas).
+ */
+export async function setConversationSlaModeAction(
+  conversationId: string,
+  mode: "active" | "paused" | "disabled",
+): Promise<SlaModeResult> {
+  if (!UUID_REGEX.test(conversationId) || !["active", "paused", "disabled"].includes(mode)) {
+    return { success: false, error: SLA_MODE_ERRORS.sla_mode_invalid };
+  }
+  try {
+    const supabase = await serverModule.createServerSupabaseClient();
+    const { data, error } = await supabase.rpc("set_conversation_sla_mode", { p_conversation_id: conversationId, p_mode: mode });
+    if (error) {
+      const known = Object.keys(SLA_MODE_ERRORS).find((code) => error.message?.includes(code));
+      return { success: false, error: known ? SLA_MODE_ERRORS[known] : "Não foi possível alterar o prazo desta conversa." };
+    }
+    const result = data as { sla_mode: "active" | "paused" | "disabled"; sla_paused_at: string | null; sla_applies?: boolean };
+    return {
+      success: true,
+      sla_mode: result.sla_mode,
+      sla_paused_at: result.sla_paused_at ?? null,
+      sla_applies: result.sla_applies ?? result.sla_mode === "active",
+    };
+  } catch (error) {
+    console.error("Erro em setConversationSlaModeAction:", (error as { code?: string } | null)?.code ?? "desconhecido");
+    return { success: false, error: "Falha ao alterar o prazo desta conversa." };
+  }
+}

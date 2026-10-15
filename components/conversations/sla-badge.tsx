@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AlertCircle, Hourglass, MessageCircleWarning } from "lucide-react";
+import { useSlaSettings } from "@/components/conversations/sla-settings-context";
 import { SLA_TONE_CLASS, describeSlaFor } from "@/lib/conversations/sla-display";
 
 type SlaBadgeProps = {
@@ -17,13 +18,14 @@ type SlaBadgeProps = {
 /** Indicador de SLA: cor + ícone + texto (nunca só cor). Recalcula a cada minuto. */
 export function SlaBadge({ direction, lastActivityAt, closed = false, variant = "compact", className = "" }: SlaBadgeProps) {
   const [, setTick] = useState(0);
+  const settings = useSlaSettings();
 
   useEffect(() => {
     const timer = window.setInterval(() => setTick((value) => value + 1), 60_000);
     return () => window.clearInterval(timer);
   }, []);
 
-  const sla = closed ? null : describeSlaFor(direction, lastActivityAt);
+  const sla = closed ? null : describeSlaFor(direction, lastActivityAt, settings);
   if (!sla) return null;
 
   const Icon = sla.teamWaiting ? (sla.urgent ? AlertCircle : MessageCircleWarning) : Hourglass;

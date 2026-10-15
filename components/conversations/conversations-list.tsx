@@ -281,6 +281,7 @@ export function ConversationsList({
             ...(detail.isUnread === undefined
               ? {}
               : { is_unread: detail.isUnread }),
+            ...(detail.sla ?? {}),
             ...(detail.message
               ? {
                   last_activity_at: detail.message.occurred_at,
@@ -496,7 +497,7 @@ type ConversationCardProps = {
 };
 
 import { SlaBadge } from "@/components/conversations/sla-badge";
-import { conversationPatchFromMessage, isConversationClosed } from "@/lib/conversations/sla-display";
+import { conversationHasSla, conversationPatchFromMessage, isConversationClosed } from "@/lib/conversations/sla-display";
 
 function ConversationCard({ item, isSelected, onClick, onPrefetch }: ConversationCardProps) {
   const displayName = item.participant_name ?? "Participante desconhecido";
@@ -546,13 +547,20 @@ function ConversationCard({ item, isSelected, onClick, onPrefetch }: Conversatio
         ) : null}
 
         <div className="mt-1 flex min-w-0 items-center gap-1">
-          <SlaBadge
-            className="max-w-full"
-            closed={isConversationClosed(item)}
-            direction={item.sla_direction}
-            lastActivityAt={item.sla_at}
-            variant="full"
-          />
+          {isGroup ? (
+            // Grupo nunca mostra prazo: só uma marca neutra (o indicador de não lida fica ao lado do nome).
+            <span className="inline-flex shrink-0 items-center rounded-pill border border-border bg-neutral-soft px-2 py-0.5 text-caption font-medium text-text-muted" data-testid="group-mark">
+              Grupo
+            </span>
+          ) : (
+            <SlaBadge
+              className="max-w-full"
+              closed={isConversationClosed(item) || !conversationHasSla(item)}
+              direction={item.sla_direction}
+              lastActivityAt={item.sla_at}
+              variant="full"
+            />
+          )}
         </div>
       </div>
     </button>

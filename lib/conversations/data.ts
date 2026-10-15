@@ -41,6 +41,12 @@ export type ConversationListItem = {
    */
   sla_direction?: string | null;
   sla_at?: string | null;
+  /** Prazo da conversa: ativo, pausado até o cliente falar de novo, ou desativado. */
+  sla_mode?: string | null;
+  sla_paused_at?: string | null;
+  /** O banco decidiu se há prazo (grupo, conversa consigo mesmo e pausa/desativação = false). */
+  sla_applies?: boolean | null;
+  is_self?: boolean | null;
   /** Cursores do próximo lote — retornados pela RPC */
   next_cursor_ts: string | null;
   next_cursor_id: string | null;

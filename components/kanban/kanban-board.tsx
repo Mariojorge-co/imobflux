@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Columns3, MessageCircle, Plus, X } from "lucide-react";
+import { useSlaSettings } from "@/components/conversations/sla-settings-context";
 import { describeSlaFor } from "@/lib/conversations/sla-display";
 import {
   archiveOpportunityAction,
@@ -45,6 +46,7 @@ export function KanbanBoard({
   userRole = "owner",
 }: KanbanBoardProps) {
   const router = useRouter();
+  const slaSettings = useSlaSettings();
   const [stages, setStages] = useState<KanbanStage[]>(initialStages);
   const [prevInitialStages, setPrevInitialStages] = useState(initialStages);
   const [pendingCardIds, setPendingCardIds] = useState<Set<string>>(new Set());
@@ -415,7 +417,7 @@ export function KanbanBoard({
         >
           {stages.map((stage) => {
             const urgent = stage.cards.filter(
-              (card) => card.last_msg_at && describeSlaFor(card.last_msg_direction, card.last_msg_at)?.urgent,
+              (card) => card.last_msg_at && describeSlaFor(card.last_msg_direction, card.last_msg_at, slaSettings)?.urgent,
             ).length;
             const selected = stage.id === activeStage?.id;
             return (

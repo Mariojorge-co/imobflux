@@ -1774,6 +1774,30 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: Json
       }
+      get_sla_settings: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      update_sla_settings: {
+        Args: {
+          p_team_green: number
+          p_team_yellow: number
+          p_team_orange: number
+          p_team_red: number
+          p_followup1: number
+          p_followup2: number
+          p_followup3: number
+        }
+        Returns: Json
+      }
+      set_conversation_sla_mode: {
+        Args: { p_conversation_id: string; p_mode: string }
+        Returns: Json
+      }
+      get_sla_conversations: {
+        Args: { p_limit?: number }
+        Returns: Json
+      }
       queue_outgoing_media_message: {
         Args: {
           p_conversation_id: string

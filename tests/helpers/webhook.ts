@@ -22,6 +22,8 @@ export type WebhookTextInput = {
   pushName?: string;
   participant?: string;
   subject?: string;
+  /** Hora da mensagem (segundos desde 1970); padrão: agora. */
+  timestamp?: number;
 };
 
 export function textPayload(input: WebhookTextInput): Record<string, unknown> {
@@ -33,7 +35,7 @@ export function textPayload(input: WebhookTextInput): Record<string, unknown> {
       pushName: input.pushName ?? "Cliente Teste",
       ...(input.subject ? { subject: input.subject } : {}),
       message: { conversation: input.text },
-      messageTimestamp: Math.floor(Date.now() / 1000),
+      messageTimestamp: input.timestamp ?? Math.floor(Date.now() / 1000),
     },
   };
 }

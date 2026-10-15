@@ -22,9 +22,9 @@ import {
 } from "@/components/prioridades";
 import { requireActiveAccess } from "@/lib/auth/dal";
 import { getPrioridadesDashboard } from "@/lib/prioridades/data";
-import { getConversationsList } from "@/lib/conversations/data";
-import { calculateSLA } from "@/lib/conversations/sla";
-import { isConversationClosed } from "@/lib/conversations/sla-display";
+import { getSlaConversations } from "@/lib/conversations/sla-conversations-data";
+import { getSlaSettings } from "@/lib/conversations/sla-settings-data";
+import { calculateSLA, formatLimit } from "@/lib/conversations/sla";
 import type { PriorityClient, PrioritySummaryId } from "@/types/prioridades";
 
 const summaryIcons = {
@@ -36,18 +36,23 @@ const summaryIcons = {
 
 export default async function PrioridadesPage() {
   await requireActiveAccess();
-  const [data, conversations] = await Promise.all([
+  const [data, slaConversations, settings] = await Promise.all([
     getPrioridadesDashboard(),
-    getConversationsList({ limit: 50 }),
+    getSlaConversations(),
+    getSlaSettings(),
   ]);
 
-  // Separação operacional estrita: EQUIPE DEVENDO RESPOSTA vs AGUARDANDO CLIENTE
+  // Separação operacional estrita: EQUIPE DEVENDO RESPOSTA vs AGUARDANDO CLIENTE (follow-up).
+  // O banco já deixou de fora grupos, conversa consigo mesmo, encerradas e conversas com prazo pausado/desativado.
   const teamWaitingClients: PriorityClient[] = [];
-  const clientWaitingClients: PriorityClient[] = [];
+  const followupGroups: Array<{ level: 1 | 2 | 3; clients: PriorityClient[] }> = [
+    { level: 3, clients: [] },
+    { level: 2, clients: [] },
+    { level: 1, clients: [] },
+  ];
 
-  for (const conv of conversations) {
-    // Encerrada (arquivada) não tem contador nem conta como atrasada; resposta que falhou não conta como resposta.
-    const sla = isConversationClosed(conv) ? null : calculateSLA(conv.sla_direction ?? null, conv.sla_at ?? null);
+  for (const conv of slaConversations) {
+    const sla = calculateSLA(conv.sla_direction, conv.sla_at, settings);
     if (!sla) continue;
 
     const clientObj: PriorityClient = {
@@ -55,7 +60,7 @@ export default async function PrioridadesPage() {
       display_name: conv.participant_name || "Contato",
       classification: "lead",
       created_at: conv.started_at,
-      updated_at: conv.last_activity_at,
+      updated_at: conv.sla_at,
       conversation_id: conv.conversation_id,
       sla_text: sla.badgeText,
       sla_level: sla.level,
@@ -63,8 +68,9 @@ export default async function PrioridadesPage() {
 
     if (sla.type === "team_waiting") {
       teamWaitingClients.push(clientObj);
-    } else if (sla.type === "client_waiting" && sla.minutesWaiting >= 24 * 60) {
-      clientWaitingClients.push(clientObj);
+    } else if (sla.followupLevel >= 1) {
+      // O painel só mostra conversas que já passaram do 1º nível de follow-up configurado.
+      followupGroups.find((group) => group.level === sla.followupLevel)?.clients.push(clientObj);
     }
   }
 
@@ -73,7 +79,10 @@ export default async function PrioridadesPage() {
     || (left.conversation_id ?? left.id).localeCompare(right.conversation_id ?? right.id);
 
   teamWaitingClients.sort(oldestFirst);
-  clientWaitingClients.sort(oldestFirst);
+  for (const group of followupGroups) group.clients.sort(oldestFirst);
+  const clientWaitingCount = followupGroups.reduce((total, group) => total + group.clients.length, 0);
+  const followupLimits: Record<1 | 2 | 3, number> = { 1: settings.followup1, 2: settings.followup2, 3: settings.followup3 };
+  const followupTitle: Record<1 | 2 | 3, string> = { 1: "Atenção", 2: "Atrasado", 3: "Muito atrasado" };
 
   const dueFollowups = data.due_followups;
 
@@ -115,22 +124,36 @@ export default async function PrioridadesPage() {
           <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 font-semibold text-base">
             <Hourglass size={20} />
             <SectionTitle id="aguardando-cliente">
-              Aguardando Cliente / Follow-up ({clientWaitingClients.length})
+              Aguardando Cliente / Follow-up ({clientWaitingCount})
             </SectionTitle>
           </div>
 
-          {clientWaitingClients.length === 0 ? (
-            <EmptyState className="items-start p-4 text-left" description="Não há conversas paradas há 24 horas." icon={Hourglass} title="Nenhum cliente em espera" />
+          {clientWaitingCount === 0 ? (
+            <EmptyState
+              className="items-start p-4 text-left"
+              description={`Nenhuma conversa parada há mais de ${formatLimit(settings.followup1)}.`}
+              icon={Hourglass}
+              title="Nenhum cliente em espera"
+            />
           ) : (
-            <Card className="divide-y divide-border overflow-hidden" padding="none">
-              {clientWaitingClients.map((client) => (
-                <PriorityClientItem
-                  client={client}
-                  key={client.id}
-                  labelOverride="Mensagem enviada pela equipe"
-                />
+            <div className="space-y-3">
+              {followupGroups.filter((group) => group.clients.length > 0).map((group) => (
+                <div data-testid={`followup-level-${group.level}`} key={group.level}>
+                  <p className="mb-1 text-caption font-semibold uppercase tracking-wide text-text-muted">
+                    {followupTitle[group.level]} · mais de {formatLimit(followupLimits[group.level])} ({group.clients.length})
+                  </p>
+                  <Card className="divide-y divide-border overflow-hidden" padding="none">
+                    {group.clients.map((client) => (
+                      <PriorityClientItem
+                        client={client}
+                        key={client.id}
+                        labelOverride="Mensagem enviada pela equipe"
+                      />
+                    ))}
+                  </Card>
+                </div>
               ))}
-            </Card>
+            </div>
           )}
         </section>
       </div>

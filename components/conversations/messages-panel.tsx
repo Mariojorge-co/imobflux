@@ -17,6 +17,7 @@ import {
 import { MessageForm } from "@/components/conversations/message-form";
 import { Button, Drawer, Input, ModalDialog } from "@/components/ui";
 import { SlaBadge } from "@/components/conversations/sla-badge";
+import { SlaControl, type SlaMode } from "@/components/conversations/sla-control";
 import { resolveOpportunityTargets } from "@/lib/conversations/opportunity-targets";
 import { AttachmentView } from "@/components/conversations/attachment-view";
 import { isStickerMessage } from "@/lib/conversations/sticker";
@@ -37,7 +38,7 @@ import { useOutgoingFiles } from "@/components/conversations/use-outgoing-files"
 import { useFileDrop } from "@/components/conversations/use-file-drop";
 import { failPendingMessage, isDismissedFailure, mergeMessages, outgoingStatusLabel, removePendingMessage, type DismissedFailure } from "@/lib/conversations/message-merge";
 import { retryMediaQueued, sendTextQueued } from "@/lib/conversations/send-client";
-import { conversationPatchFromMessage, isConversationClosed } from "@/lib/conversations/sla-display";
+import { conversationHasSla, conversationPatchFromMessage, isConversationClosed, pickSlaMessage } from "@/lib/conversations/sla-display";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 type MessagesPanelProps = {
@@ -227,6 +228,20 @@ export function MessagesPanel({
     setMessages((previous) => removePendingMessage(previous, pendingId));
     if (persisted) handleMessagePersisted(persisted);
   }, [handleMessagePersisted]);
+
+  // Prazo da conversa mudou (pausa/desativação/reativação): cabeçalho e lista se atualizam na hora, sem recarregar.
+  const handleSlaChanged = useCallback((result: { sla_mode: SlaMode; sla_paused_at: string | null; sla_applies: boolean }) => {
+    const base = result.sla_applies ? pickSlaMessage(messages) : null;
+    const sla = {
+      sla_mode: result.sla_mode,
+      sla_paused_at: result.sla_paused_at,
+      sla_applies: result.sla_applies,
+      sla_direction: base?.direction ?? null,
+      sla_at: base?.occurred_at ?? null,
+    };
+    setLiveConversation((previous) => ({ ...previous, ...sla }));
+    emitConversationClientUpdate({ conversationId: conversation.conversation_id, sla });
+  }, [conversation.conversation_id, messages]);
 
   // Falhou: a bolha continua na conversa como "não enviada", com o motivo e "Tentar de novo".
   const handleMessageFailed = useCallback((pendingId: string, reason: string, _code?: string, persisted?: ConversationMessage) => {
@@ -525,13 +540,29 @@ export function MessagesPanel({
                 {displayPhone && (
                   <p className="truncate text-caption text-text-muted">{displayPhone}</p>
                 )}
-                <SlaBadge
-                  className="max-w-full truncate"
-                  closed={isConversationClosed(liveConversation)}
-                  direction={liveConversation.sla_direction}
-                  lastActivityAt={liveConversation.sla_at}
-                  variant="full"
-                />
+                {isGroup ? (
+                  // Grupo nunca mostra prazo: só uma marca neutra.
+                  <span className="inline-flex shrink-0 items-center rounded-pill border border-border bg-neutral-soft px-2 py-0.5 text-caption font-medium text-text-muted" data-testid="group-mark">
+                    Grupo
+                  </span>
+                ) : (
+                  <>
+                    <SlaBadge
+                      className="max-w-full truncate"
+                      closed={isConversationClosed(liveConversation) || !conversationHasSla(liveConversation)}
+                      direction={liveConversation.sla_direction}
+                      lastActivityAt={liveConversation.sla_at}
+                      variant="full"
+                    />
+                    {liveConversation.is_self ? null : (
+                      <SlaControl
+                        conversationId={conversation.conversation_id}
+                        mode={(liveConversation.sla_mode ?? "active") as SlaMode}
+                        onChanged={handleSlaChanged}
+                      />
+                    )}
+                  </>
+                )}
               </div>
             </div>
           </div>
