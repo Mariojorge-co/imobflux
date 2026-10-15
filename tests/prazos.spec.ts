@@ -128,20 +128,21 @@ test.describe("Prazos: pausa por conversa, limites configuráveis, grupos e conv
     await page.getByRole("link", { name: /Prazos/ }).click();
     await expect(page.getByRole("heading", { name: "Prazos" })).toBeVisible();
     await expect(page.getByTestId("followup-preview")).toContainText("6 h");
-    await expect(page.getByLabel("1º nível (amarelo)")).toHaveValue("6");
+    await expect(page.getByLabel("1º nível (amarelo)", { exact: true })).toHaveValue("6");
 
     // valor inválido (nível menor que o anterior): recusado com mensagem clara
-    await page.getByLabel("2º nível (laranja)").fill("2");
+    await page.getByLabel("2º nível (laranja)", { exact: true }).fill("2");
+    await page.getByLabel("Unidade de 2º nível (laranja)").selectOption("h"); // 2 h < 6 h do 1º nível
     await page.getByRole("button", { name: "Salvar prazos" }).click();
     await expect(page.getByTestId("sla-settings-error")).toContainText("cada nível precisa ser maior");
     expect(Number(queryLocalSql("select count(*) from public.workspace_sla_settings;"))).toBe(0);
 
     // follow-up: 1º nível passa para 1 dia (24 h); 2º, 2 dias; 3º, 4 dias
-    await page.getByLabel("2º nível (laranja)").fill("2");
+    await page.getByLabel("2º nível (laranja)", { exact: true }).fill("2");
     await page.getByLabel("Unidade de 2º nível (laranja)").selectOption("d");
-    await page.getByLabel("3º nível (vermelho)").fill("4");
+    await page.getByLabel("3º nível (vermelho)", { exact: true }).fill("4");
     await page.getByLabel("Unidade de 3º nível (vermelho)").selectOption("d");
-    await page.getByLabel("1º nível (amarelo)").fill("1");
+    await page.getByLabel("1º nível (amarelo)", { exact: true }).fill("1");
     await page.getByLabel("Unidade de 1º nível (amarelo)").selectOption("d");
     await page.getByRole("button", { name: "Salvar prazos" }).click();
     await expect(page.getByTestId("sla-settings-saved")).toBeVisible();
@@ -151,20 +152,24 @@ test.describe("Prazos: pausa por conversa, limites configuráveis, grupos e conv
     // a conversa de 20 h deixa de aparecer; o texto vazio acompanha o limite configurado
     await page.goto("/prioridades");
     const followup = page.getByRole("region", { name: /Aguardando Cliente/ });
-    await expect(followup).toContainText("Nenhuma conversa parada há mais de 24 h");
-    await expect(followup.getByTestId("followup-level-1")).toHaveCount(0);
+    await expect(followup).not.toContainText("5582988887802"); // a de 20 h saiu: o 1º nível agora é 24 h
+    await expect(followup.getByTestId("followup-level-1")).toContainText("mais de 24 h");
+    // Sem nenhuma conversa em espera, o texto vazio acompanha o limite configurado.
+    queryLocalSql("update public.conversations set operational_status = 'archived', archived_at = now() where operational_status = 'active';");
+    await page.reload();
+    await expect(page.getByRole("region", { name: /Aguardando Cliente/ })).toContainText("Nenhuma conversa parada há mais de 24 h");
+    queryLocalSql("update public.conversations set operational_status = 'active', archived_at = null where operational_status = 'archived';");
 
-    // "Cliente aguardando" também usa os limites novos: 30 min amarelo → muda a cor da conversa de 2 h
+    // "Cliente aguardando" também usa os limites novos: com verde até 3 h, a conversa de 2 h fica verde (no padrão era vermelha)
     await page.goto("/configuracoes/prazos");
-    await page.getByLabel("Verde até").fill("30");
-    await page.getByLabel("Amarelo até").fill("60");
-    await page.getByLabel("Laranja até").fill("90");
-    await page.getByLabel("Vermelho até").fill("120");
-    await page.getByLabel("Unidade de Vermelho até").selectOption("min");
+    // verde até 3 h, amarelo 4 h, laranja 5 h, vermelho 6 h
+    for (const [label, hours] of [["Verde até", "3"], ["Amarelo até", "4"], ["Laranja até", "5"], ["Vermelho até", "6"]] as const) {
+      await page.getByLabel(`Unidade de ${label}`).selectOption("h");
+      await page.getByLabel(label, { exact: true }).fill(hours);
+    }
     await page.getByRole("button", { name: "Salvar prazos" }).click();
     await expect(page.getByTestId("sla-settings-saved")).toBeVisible();
     await page.goto(`/conversas/${late}`);
-    // Mensagem do cliente chegou há poucos minutos (webhook dos passos anteriores): dentro do verde configurado.
     await expect(card(page, late).getByTestId("sla-badge")).toHaveAttribute("data-sla-tone", "green");
 
     // restaurar padrões
