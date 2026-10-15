@@ -26,9 +26,15 @@ export function collapseEchoDuplicates(messages: ConversationMessage[]): Convers
   return messages.filter((message) => {
     if (message.direction !== "outgoing" || message.origin !== "whatsapp" || message.is_history) return true;
     const text = normalizedText(message);
-    if (!text || message.has_attachments) return true;
+    if (!text) return true;
     const at = new Date(message.occurred_at).getTime();
-    return !crm.some((own) => normalizedText(own) === text && Math.abs(new Date(own.occurred_at).getTime() - at) <= ECHO_WINDOW_MS);
+    // Arquivo: o eco só some se a nossa também tem arquivo (o rótulo do arquivo é o mesmo nos dois lados).
+    return !crm.some(
+      (own) =>
+        normalizedText(own) === text &&
+        Boolean(own.has_attachments) === Boolean(message.has_attachments) &&
+        Math.abs(new Date(own.occurred_at).getTime() - at) <= ECHO_WINDOW_MS,
+    );
   });
 }
 

@@ -141,7 +141,11 @@ test.describe("arquivos enviados: limites e tipos", () => {
     expect(mediaTypeFor("image", true)).toBe("document");
     expect(mediaTypeFor("image", false)).toBe("image");
     expect(mediaTypeFor("video", true)).toBe("video");
+    // Os rótulos são os mesmos que o webhook grava para o eco da própria mensagem (para o eco não duplicar).
     expect(mediaLabel("document", "a.pdf")).toBe("📄 Documento: a.pdf");
+    expect(mediaLabel("image", "foto.png")).toBe("📷 Imagem");
+    expect(mediaLabel("video", "v.mp4")).toBe("🎬 Vídeo");
+    expect(mediaLabel("audio", "a.mp3")).toBe("🎧 Áudio");
     expect(formatFileSize(500)).toBe("500 B");
     expect(formatFileSize(1536)).toBe("1,5 KB");
     expect(formatFileSize(24 * 1024 * 1024)).toBe("24,0 MB");

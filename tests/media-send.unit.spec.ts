@@ -228,7 +228,7 @@ test.describe("sendOutgoingMediaAction", () => {
     const calls2 = install({ stored: { bytes: JPEG_HEAD, total: 4000 } });
     await send({ fileName: "foto.jpg" });
     expect(calls2.gateway[0]).toMatchObject({ mediatype: "image" });
-    expect(calls2.rpc[0].args.p_text_content).toBe("🖼️ Imagem: foto.jpg");
+    expect(calls2.rpc[0].args.p_text_content).toBe("📷 Imagem");
   });
 
   test("falha da Evolution: falha classificada, mensagem marcada como falhou e NADA sensível vaza (URL assinada, nome, caminho)", async () => {

@@ -223,6 +223,14 @@ test.describe("bolhas: falha, eco e duplicação", () => {
     expect(merged.map((message) => message.id)).toEqual(["real-1", "pending-2"]);
   });
 
+  test("o eco de um ARQUIVO (mesmo rótulo, com anexo) também não vira bolha duplicada; eco sem anexo de texto igual continua separado", () => {
+    const own = base({ id: "real-1", status: "sent", text_content: "📄 Documento: a.pdf", has_attachments: true });
+    const echo = base({ id: "echo-1", origin: "whatsapp", status: "sent", text_content: "📄 Documento: a.pdf", has_attachments: true, occurred_at: "2026-10-15T12:00:02.000Z" });
+    expect(mergeMessages([own], [echo]).map((message) => message.id)).toEqual(["real-1"]);
+    const textOnlyEcho = { ...echo, id: "echo-2", has_attachments: false };
+    expect(mergeMessages([own], [textOnlyEcho]).map((message) => message.id).sort()).toEqual(["echo-2", "real-1"]);
+  });
+
   test("o eco do webhook (origem whatsapp, mesmo texto e instante) não vira bolha duplicada", () => {
     const own = base({ id: "real-1", status: "sent" });
     const echo = base({ id: "echo-1", origin: "whatsapp", status: "sent", occurred_at: "2026-10-15T12:00:02.000Z" });

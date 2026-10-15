@@ -210,16 +210,16 @@ export function mediaTypeFor(kind: MediaKind, asDocument: boolean): MediaKind {
   return kind === "image" && asDocument ? "document" : kind;
 }
 
-const LABEL_PREFIX: Record<MediaKind, string> = {
-  image: "🖼️ Imagem",
-  video: "🎬 Vídeo",
-  audio: "🎵 Áudio",
-  document: "📄 Documento",
-};
-
-/** Texto da mensagem quando não há legenda (a conversa e a lista mostram isto). */
+/**
+ * Texto da mensagem quando não há legenda (a conversa e a lista mostram isto). Segue EXATAMENTE o rótulo que o
+ * recebimento do webhook grava para o eco da própria mensagem ("📷 Imagem", "🎬 Vídeo", "🎧 Áudio" e "📄 Documento: nome"):
+ * assim o eco que a Evolution devolve é reconhecido como a mesma mensagem e não aparece em duplicidade.
+ */
 export function mediaLabel(kind: MediaKind, fileName: string): string {
-  return `${LABEL_PREFIX[kind]}: ${fileName}`;
+  if (kind === "image") return "📷 Imagem";
+  if (kind === "video") return "🎬 Vídeo";
+  if (kind === "audio") return "🎧 Áudio";
+  return `📄 Documento: ${fileName}`;
 }
 
 /** Tamanho legível ("1,2 MB"). */
