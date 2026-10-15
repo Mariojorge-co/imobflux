@@ -313,8 +313,12 @@ test.describe("Pacote de mensagens", () => {
     });
     await page.reload();
     await expect(reactions).toContainText("❤️");
-    await reactions.getByRole("button", { name: /🔥/ }).click();
-    await expect(reactions).not.toContainText("🔥");
+    // Logo depois do reload a página ainda pode estar hidratando: repete o clique até a reação sumir.
+    await expect(async () => {
+      const chip = reactions.getByRole("button", { name: /🔥/ });
+      if ((await chip.count()) > 0) await chip.click({ timeout: 2_000 });
+      await expect(reactions).not.toContainText("🔥", { timeout: 3_000 });
+    }).toPass({ timeout: 25_000 });
     expect(requestsTo("/message/sendReaction/").at(-1)?.body.reaction).toBe("");
     await expect(reactions).toContainText("❤️");
   });
