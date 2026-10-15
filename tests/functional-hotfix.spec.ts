@@ -64,7 +64,7 @@ test.describe("Hotfix funcional de conversas e prioridades", () => {
     expect(runtimeErrors.filter((text) => /revalidatePath|render/i.test(text))).toEqual([]);
   });
 
-  test("prioridades aplica 24h e ordena as duas filas do mais antigo", async ({ page }) => {
+  test("prioridades usa o 1º nível de follow-up (6 h por padrão), agrupa por urgência e ordena do mais antigo", async ({ page }) => {
     runLocalSql(`
       update public.messages set occurred_at = now() - interval '1 minute';
 
@@ -100,13 +100,17 @@ test.describe("Hotfix funcional de conversas e prioridades", () => {
     );
 
     const client = page.locator('section[aria-labelledby="aguardando-cliente"]');
-    await expect(client.getByText("Otavio Augusto Rezende", { exact: true })).toHaveCount(0);
+    // Abaixo do 1º nível (6 h) não entra; com 1439 min (quase 24 h) já está no 1º nível.
     const clientNames = await client.locator("h3").allInnerTexts();
     expect(clientNames).toEqual([
-      "Camila Rocha Lima",
-      "Heitor Alencar Mendes",
-      "Larissa Beatriz Siqueira",
-      "Isabela Maria Freitas",
+      "Camila Rocha Lima", // 5 dias  → 3º nível (72 h)
+      "Heitor Alencar Mendes", // 4 dias → 3º nível
+      "Larissa Beatriz Siqueira", // 2 dias → 2º nível (24 h)
+      "Isabela Maria Freitas", // 24 h → 2º nível
+      "Otavio Augusto Rezende", // 1439 min → 1º nível
     ]);
+    await expect(client.getByTestId("followup-level-3")).toContainText("mais de 72 h");
+    await expect(client.getByTestId("followup-level-2")).toContainText("mais de 24 h");
+    await expect(client.getByTestId("followup-level-1")).toContainText("mais de 6 h");
   });
 });

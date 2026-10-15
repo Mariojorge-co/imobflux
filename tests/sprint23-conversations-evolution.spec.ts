@@ -85,7 +85,7 @@ test.describe("Sprint 23 — Conversas 2.0 & Evolução Operacional", () => {
     expect(sla36h?.badgeText).toContain("1 dia");
   });
 
-  test("2. Cálculo de SLA: Cliente devendo resposta (<3h, ~1 dia, ~2 dias, >2 dias)", () => {
+  test("2. Cálculo de SLA: Cliente devendo resposta (recente < 6 h; follow-up em 3 níveis: 6 h, 24 h e 72 h)", () => {
     const now = Date.now();
 
     // 1h -> Recente
@@ -93,18 +93,20 @@ test.describe("Sprint 23 — Conversas 2.0 & Evolução Operacional", () => {
     expect(sla1h?.type).toBe("client_waiting");
     expect(sla1h?.level).toBe("recent");
 
-    // 24h -> Aguardando cliente
+    // 6h -> 1º nível de follow-up (padrão do workspace)
+    const sla6h = calculateSLA("outgoing", new Date(now - 6 * 3600 * 1000).toISOString());
+    expect(sla6h?.level).toBe("followup_1");
+
+    // 24h e 48h -> 2º nível
     const sla24h = calculateSLA("outgoing", new Date(now - 24 * 3600 * 1000).toISOString());
-    expect(sla24h?.level).toBe("waiting_client");
-
-    // 48h (~2 dias) -> Atenção
+    expect(sla24h?.level).toBe("followup_2");
     const sla48h = calculateSLA("outgoing", new Date(now - 48 * 3600 * 1000).toISOString());
-    expect(sla48h?.level).toBe("attention");
+    expect(sla48h?.level).toBe("followup_2");
 
-    // 72h (>2 dias) -> Candidato a Follow-up
+    // 72h -> 3º nível
     const sla72h = calculateSLA("outgoing", new Date(now - 72 * 3600 * 1000).toISOString());
-    expect(sla72h?.level).toBe("followup_candidate");
-    expect(sla72h?.badgeText).toContain("Follow-up");
+    expect(sla72h?.level).toBe("followup_3");
+    expect(sla72h?.badgeText).toContain("follow-up");
   });
 
   test("3. E2E: Navegação Direta de Prioridades para Conversa", async ({ page }) => {
