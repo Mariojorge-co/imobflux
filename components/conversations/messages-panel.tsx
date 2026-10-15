@@ -359,19 +359,20 @@ export function MessagesPanel({
   }, [conversation.conversation_id, effectiveOpportunityId, noteContextKey]);
 
   // Carrega o lote de mensagens mais antigo. Usa refs para poder ser chamado em laço (busca até achar uma mensagem antiga).
-  const loadOlderPromiseRef = useRef<Promise<void> | null>(null);
-  const loadOlderBatch = useCallback(async () => {
-    const current = messagesRef.current;
-    const oldest = current.find((message) => !isPendingMessage(message));
-    if (!oldest) {
+  const loadOlderPromiseRef = useRef<Promise<string[]> | null>(null);
+  // Cursor da mensagem mais antiga que o servidor já entregou: atualizado na hora (sem esperar a tela redesenhar), para que
+  // dois pedidos seguidos nunca usem o mesmo cursor.
+  const oldestCursorRef = useRef<MessagesCursor | null>(
+    initialMessages[0] ? { occurred_at: initialMessages[0].occurred_at, id: initialMessages[0].id } : null,
+  );
+  const loadOlderBatch = useCallback(async (): Promise<string[]> => {
+    const oldest = messagesRef.current.find((message) => !isPendingMessage(message));
+    const cursor: MessagesCursor | null = oldestCursorRef.current ?? (oldest ? { occurred_at: oldest.occurred_at, id: oldest.id } : null);
+    if (!cursor) {
       hasOlderRef.current = false;
       setHasOlder(false);
-      return;
+      return [];
     }
-    const cursor: MessagesCursor = {
-      occurred_at: oldest.occurred_at,
-      id: oldest.id,
-    };
 
     setIsLoadingOlder(true);
     try {
@@ -382,6 +383,7 @@ export function MessagesPanel({
       const existingIds = new Set(messagesRef.current.map((message) => message.id));
       const uniqueOlder = page.messages.filter((message) => !existingIds.has(message.id));
       for (const message of page.messages) seenServerIdsRef.current.add(message.id);
+      if (page.messages[0]) oldestCursorRef.current = { occurred_at: page.messages[0].occurred_at, id: page.messages[0].id };
 
       if (uniqueOlder.length > 0 && listRef.current) {
         pendingScrollAdjustmentRef.current = {
@@ -400,13 +402,14 @@ export function MessagesPanel({
       const more = page.hasMore && uniqueOlder.length > 0;
       hasOlderRef.current = more;
       setHasOlder(more);
+      return page.messages.map((message) => message.id);
     } finally {
       setIsLoadingOlder(false);
     }
   }, [conversation.conversation_id]);
 
   // Um lote por vez: quem pedir enquanto outro lote carrega espera o MESMO lote (não devolve cedo sem ter carregado nada).
-  const handleLoadOlder = useCallback((): Promise<void> => {
+  const handleLoadOlder = useCallback((): Promise<string[]> => {
     if (loadOlderPromiseRef.current) return loadOlderPromiseRef.current;
     const run = loadOlderBatch().finally(() => {
       loadOlderPromiseRef.current = null;
@@ -541,9 +544,14 @@ export function MessagesPanel({
       }
       if (!hasOlderRef.current) break;
       setSearchSeeking(true);
-      await handleLoadOlder();
-      // Espera o React desenhar o lote carregado antes de procurar de novo.
-      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const loaded = await handleLoadOlder();
+      // Espera o React desenhar o lote carregado: se a mensagem procurada veio neste lote, espera até 3 s por ela na tela;
+      // senão, só dois quadros (o próximo lote é pedido em seguida).
+      const arrived = kind === "message" && loaded.includes(id);
+      for (let frame = 0; frame < (arrived ? 60 : 2); frame += 1) {
+        await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+        if (arrived && listRef.current?.querySelector(selector)) break;
+      }
       if (token !== revealTokenRef.current) return "cancelled";
     }
     if (token !== revealTokenRef.current) return "cancelled";
