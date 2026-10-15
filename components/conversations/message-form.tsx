@@ -368,7 +368,7 @@ export function MessageForm({
         <button
           aria-pressed={activeTab === "message"}
           className={[
-            "flex min-h-8 items-center gap-1.5 rounded-control px-3 font-medium transition-colors",
+            "flex min-h-8 items-center gap-1.5 whitespace-nowrap rounded-control px-2 font-medium transition-colors sm:px-3",
             activeTab === "message"
               ? "bg-primary/10 text-primary"
               : "text-text-muted hover:text-text",
@@ -379,14 +379,14 @@ export function MessageForm({
           }}
           type="button"
         >
-          <MessageSquare size={13} />
+          <MessageSquare className="hidden sm:block" size={13} />
           <span>Mensagem</span>
         </button>
 
         <button
           aria-pressed={activeTab === "note"}
           className={[
-            "flex min-h-8 items-center gap-1.5 rounded-control px-3 font-medium transition-colors",
+            "flex min-h-8 items-center gap-1.5 whitespace-nowrap rounded-control px-2 font-medium transition-colors sm:px-3",
             activeTab === "note"
               ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
               : "text-text-muted hover:text-text",
@@ -397,7 +397,7 @@ export function MessageForm({
           }}
           type="button"
         >
-          <FileText size={13} />
+          <FileText className="hidden sm:block" size={13} />
           <span>Nota interna</span>
         </button>
 
@@ -405,7 +405,7 @@ export function MessageForm({
           <button
             aria-expanded={panelOpen}
             aria-haspopup="dialog"
-            className="flex min-h-8 items-center gap-1.5 rounded-control px-2.5 font-medium text-text-muted transition-colors hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            className="flex min-h-8 items-center gap-1 whitespace-nowrap rounded-control px-2 font-medium text-text-muted transition-colors hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             data-testid="quick-replies-button"
             onClick={() => {
               quick.ensureLoaded();
@@ -518,7 +518,7 @@ export function MessageForm({
             placeholder={
               activeTab === "note"
                 ? "Escreva uma nota interna (visível APENAS no CRM, nunca enviada ao cliente)..."
-                : "Digite sua mensagem (Enter envia, Shift+Enter nova linha, / respostas rápidas)..."
+                : "Digite sua mensagem (Enter envia, / respostas rápidas)..."
             }
             ref={textareaRef}
             rows={1}
