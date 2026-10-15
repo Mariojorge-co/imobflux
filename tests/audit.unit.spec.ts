@@ -30,7 +30,7 @@ test.describe("Auditoria: rótulos e detalhes", () => {
   });
 
   test("toda categoria do filtro tem pelo menos uma ação rotulada", () => {
-    const known = ["team.member_removed", "conversation.assigned", "opportunity.stage_changed", "contact.created", "group.owner_only_enabled", "task.created", "export.contacts", "whatsapp.channel_connected", "bootstrap.completed"];
+    const known = ["team.member_removed", "conversation.assigned", "opportunity.stage_changed", "contact.created", "group.owner_only_enabled", "task.created", "export.contacts", "whatsapp.channel_connected", "bootstrap.completed", "quick_reply.created", "quick_reply.category_deleted", "quick_reply.examples_added", "sla.conversation_paused", "sla.conversation_disabled", "sla.conversation_enabled", "sla.limits_changed", "message.file_sent", "group.team_visibility_enabled"];
     for (const category of AUDIT_CATEGORIES) {
       expect(known.some((action) => categoryOf(action) === category.value)).toBe(true);
     }

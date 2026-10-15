@@ -9,6 +9,9 @@ export const AUDIT_CATEGORIES = [
   { value: "export", label: "Exportações" },
   { value: "whatsapp", label: "WhatsApp" },
   { value: "bootstrap", label: "Conta" },
+  { value: "quick_reply", label: "Respostas rápidas" },
+  { value: "sla", label: "Prazos" },
+  { value: "message", label: "Mensagens" },
 ] as const;
 
 export type AuditCategory = (typeof AUDIT_CATEGORIES)[number]["value"];
@@ -21,6 +24,11 @@ const ACTION_LABELS: Record<string, string> = {
   "team.member_deactivated": "Acesso do funcionário desativado",
   "team.member_reactivated": "Funcionário reativado",
   "team.member_removed": "Funcionário removido",
+  "sla.conversation_paused": "Prazo da conversa pausado até o cliente falar de novo",
+  "sla.conversation_disabled": "Prazo da conversa desativado",
+  "sla.conversation_enabled": "Prazo da conversa reativado",
+  "sla.limits_changed": "Limites de prazo alterados",
+  "message.file_sent": "Arquivo enviado ao cliente",
   "quick_reply.created": "Resposta rápida criada",
   "quick_reply.updated": "Resposta rápida editada",
   "quick_reply.deleted": "Resposta rápida apagada",
