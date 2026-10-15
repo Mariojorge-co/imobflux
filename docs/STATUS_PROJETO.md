@@ -143,10 +143,15 @@ Detalhes, números de desempenho, testes e roteiro em [RELATORIO_CONVERSAS_PACOT
 - **Verificação do CI:** confirmar no GitHub (Actions ou e-mail) que o job "Lint, tipos, testes unitários e build" (Node 22) e o de banco ficaram verdes depois do push, e a Vercel em "Ready".
 - Em aberto, sem relação com esta entrega: contatos `@lid`, exclusão real de contato/conversa e custo do `get_conversations_inbox` com volume maior (item M2).
 
-## Em revisão (NÃO publicado): branch `feat/respostas-rapidas`
+## Publicado em produção em 2026-10-15 (ex-branch `feat/respostas-rapidas`): respostas rápidas
 
-Respostas rápidas + foto 180/220 px + correção do teste `team-management`. Detalhes em [RELATORIO_RESPOSTAS_RAPIDAS.md](RELATORIO_RESPOSTAS_RAPIDAS.md); rollback em `docs/rollback/20260802005200_rollback.sql`.
-- Migration `20260802005200_quick_replies.sql`: **aplicada em produção em 2026-10-15 (Trava A)**; pgTAP local 34 arquivos/1062 verdes. **Trava B (app) pendente**, aguarda "autorizo" (lint/tipos/unitários em Node 22 e 24 antes do push; conferir CI e Vercel depois).
-- Verificado: lint/tipos/unitários (452) em Node 24 e 22, build com variáveis falsas, navegador 90/90 (inclui `team-management` 3/3).
-- A pendência "team-management atendente em grupo liberado" estava **resolvida**: era teste desatualizado (contato protegido prevalece em grupo, migration 003600), não bug.
-- Ainda não executada: suíte `email-auth-flow` (cópia `imobflux-auth-disposable`).
+Detalhes em [RELATORIO_RESPOSTAS_RAPIDAS.md](RELATORIO_RESPOSTAS_RAPIDAS.md); rollback da migration em `docs/rollback/20260802005200_rollback.sql`.
+- **Respostas rápidas publicadas:** painel (⚡ na caixa de mensagem), atalho "/", variáveis, aviso de `{{campo}}` ao enviar, caixa de mensagem maior (40%/60% da tela), gestão em `/configuracoes/respostas-rapidas` (aberta a todos os membros). Usar nunca envia.
+- Migration `20260802005200_quick_replies.sql` aplicada em produção (Trava A) e app publicado (Trava B). As tabelas começam vazias; os exemplos entram só pelo botão "Adicionar exemplos".
+- Foto na conversa: máximo 220 px (desktop) / 180 px (celular) no maior lado.
+- Teste `team-management` (atendente em grupo liberado) corrigido: era teste desatualizado (contato protegido prevalece em grupo, migration 003600), não bug.
+- **Pendências:**
+  - Eventos de auditoria de respostas rápidas aparecem como "Outros" na tela de Auditoria (o filtro por categoria é validado numa função de banco; ampliar exige nova migration).
+  - Vídeo na conversa ainda no limite antigo (220/280 px); só a foto foi reduzida.
+  - Suíte `email-auth-flow` (cópia `imobflux-auth-disposable`) ainda não executada; rodar antes de mexer em autenticação ou convite.
+  - Conferir o CI (Node 22) no GitHub e o Ready da Vercel depois do push.
