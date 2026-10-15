@@ -75,6 +75,37 @@ export async function POST(request: Request) {
       }
     }
 
+    // Edição, exclusão e reação feitas pelo cliente ou pelo celular: o banco aplica (idempotente) e ignora o que não conhece.
+    // Erro do banco devolve 500 para a Evolution tentar de novo.
+    if (result.status === "edit" || result.status === "revoke" || result.status === "reaction") {
+      const admin = createAdminSupabaseClient();
+      const { data: actionResult, error: actionError } =
+        result.status === "edit"
+          ? await admin.rpc("ingest_whatsapp_message_edit", {
+              p_external_account_id: result.instance,
+              p_external_message_id: result.externalMessageId,
+              p_new_text: result.newText,
+              p_edited_at: result.editedAt ?? undefined,
+            })
+          : result.status === "revoke"
+            ? await admin.rpc("ingest_whatsapp_message_delete", {
+                p_external_account_id: result.instance,
+                p_external_message_id: result.externalMessageId,
+              })
+            : await admin.rpc("ingest_whatsapp_reaction", {
+                p_external_account_id: result.instance,
+                p_target_external_id: result.targetExternalId,
+                p_reactor_jid: result.reactorJid,
+                p_from_me: result.fromMe,
+                p_emoji: result.emoji,
+              });
+      if (actionError) {
+        console.error(`Erro ao aplicar ${result.status} do WhatsApp via RPC (código):`, actionError.code ?? "desconhecido");
+        return NextResponse.json({ error: "Erro interno no processamento do webhook" }, { status: 500 });
+      }
+      return NextResponse.json(actionResult ?? { status: "success" }, { status: 200 });
+    }
+
     if (result.status === "ignored") {
       return NextResponse.json(
         { status: "ignored", reason: result.reason },
@@ -121,9 +152,20 @@ export async function POST(request: Request) {
       );
     }
 
+    // Resposta (citação) recebida: liga a mensagem nova à original. É secundário: se falhar, a mensagem já está salva
+    // e só fica sem o cartão de citação (não vale pedir reentrega).
+    const ingested = rpcResult as { status?: string; message_id?: string } | null;
+    if (result.quoted && ingested?.message_id && (ingested.status === "success" || ingested.status === "duplicate")) {
+      const { error: quoteError } = await supabase.rpc("set_incoming_message_reply", {
+        p_message_id: ingested.message_id,
+        p_quoted_external_id: result.quoted.externalId,
+        p_snapshot: { text: result.quoted.text, has_media: result.quoted.hasMedia },
+      });
+      if (quoteError) console.error("Erro ao ligar a citação recebida (código):", quoteError.code ?? "desconhecido");
+    }
+
     // Mídia: registra os metadados do anexo na mensagem recém-ingerida (idempotente, então
     // também cobre reentregas). Falha aqui retorna 500 para o provedor poder reenviar.
-    const ingested = rpcResult as { status?: string; message_id?: string } | null;
     if (result.media && ingested?.message_id && (ingested.status === "success" || ingested.status === "duplicate")) {
       const { data: attachResult, error: attachError } = await supabase.rpc("attach_whatsapp_media", {
         p_message_id: ingested.message_id,

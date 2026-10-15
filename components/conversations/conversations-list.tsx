@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Archive, MessageCircle, Plus, TriangleAlert } from "lucide-react";
+import { Archive, MessageCircle, Pin, Plus, TriangleAlert } from "lucide-react";
 import { Avatar, Button, EmptyState, Input, ModalDialog, SearchInput } from "@/components/ui";
 import {
   refreshConversationsInboxAction,
@@ -281,6 +281,7 @@ export function ConversationsList({
             ...(detail.isUnread === undefined
               ? {}
               : { is_unread: detail.isUnread }),
+            ...(detail.isPinned === undefined ? {} : { is_pinned: detail.isPinned }),
             ...(detail.sla ?? {}),
             ...(detail.message
               ? {
@@ -294,10 +295,12 @@ export function ConversationsList({
           };
         });
 
-        if (!detail.message) return updated;
+        if (!detail.message && detail.isPinned === undefined) return updated;
+        // Fixadas (pessoais) sempre no topo; dentro de cada grupo, a atividade mais recente primeiro.
         return updated.sort(
           (left, right) =>
-            right.last_activity_at.localeCompare(left.last_activity_at)
+            Number(Boolean(right.is_pinned)) - Number(Boolean(left.is_pinned))
+            || right.last_activity_at.localeCompare(left.last_activity_at)
             || right.conversation_id.localeCompare(left.conversation_id),
         );
       });
@@ -536,6 +539,9 @@ function ConversationCard({ item, isSelected, onClick, onPrefetch }: Conversatio
           <span className="truncate text-sm font-medium text-text">
             {isGroup ? `👥 ${displayName}` : displayName}
           </span>
+          {item.is_pinned ? (
+            <Pin aria-label="Conversa fixada" className="shrink-0 text-text-muted" data-testid="pinned-mark" size={12} />
+          ) : null}
         </div>
           <span className="shrink-0 text-caption text-text-muted" suppressHydrationWarning>{timeLabel}</span>
         </div>

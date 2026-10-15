@@ -46,6 +46,9 @@ export type WebhookParseResult =
   | { status: "ignored"; reason: "unhandled_event" | "group_sender_missing" | "non_text_message_ignored" | "missing_timestamp" | "broadcast_or_channel" }
   | { status: "connection"; instance: string; state: "open" | "close" | null }
   | WebhookHistoryResult
+  | { status: "edit"; instance: string; externalMessageId: string; newText: string; editedAt: string | null }
+  | { status: "revoke"; instance: string; externalMessageId: string }
+  | { status: "reaction"; instance: string; targetExternalId: string; reactorJid: string; fromMe: boolean; emoji: string }
   | {
       status: "valid";
       instance: string;
@@ -60,7 +63,16 @@ export type WebhookParseResult =
       textContent: string;
       media: WebhookMedia | null;
       occurredAt: string;
+      /** O cliente (ou o celular) respondeu a esta mensagem: id dela no WhatsApp e o trecho que veio no evento. */
+      quoted: WebhookQuoted | null;
     };
+
+/** Mensagem citada numa resposta recebida. */
+export type WebhookQuoted = {
+  externalId: string;
+  text: string | null;
+  hasMedia: boolean;
+};
 
 interface EvolutionPayloadKey {
   remoteJid?: string;
@@ -76,13 +88,31 @@ type EvolutionMediaMessage = {
   caption?: unknown;
   fileLength?: unknown;
   ptt?: unknown;
+  contextInfo?: EvolutionContextInfo;
+};
+
+type EvolutionContextInfo = {
+  stanzaId?: unknown;
+  quotedMessage?: Record<string, unknown>;
+};
+
+type EvolutionProtocolMessage = {
+  type?: unknown;
+  key?: EvolutionPayloadKey;
+  editedMessage?: { conversation?: unknown; extendedTextMessage?: { text?: unknown } };
+  timestampMs?: unknown;
 };
 
 interface EvolutionMessageContent {
   conversation?: string;
   extendedTextMessage?: {
     text?: string;
+    contextInfo?: EvolutionContextInfo;
   };
+  reactionMessage?: { key?: EvolutionPayloadKey; text?: unknown };
+  protocolMessage?: EvolutionProtocolMessage;
+  /** Envelope de edição: a edição vem aninhada em `editedMessage.message.protocolMessage`. */
+  editedMessage?: { message?: { protocolMessage?: EvolutionProtocolMessage } };
   imageMessage?: EvolutionMediaMessage;
   documentMessage?: EvolutionMediaMessage;
   documentWithCaptionMessage?: { message?: { documentMessage?: EvolutionMediaMessage } };
@@ -228,11 +258,96 @@ export function parseEvolutionWebhookPayload(body: unknown): WebhookParseResult 
     return parseHistoryPayload(payload.instance, body as Record<string, unknown>, payload.data);
   }
 
-  if (payload.event !== "messages.upsert") {
+  // Exclusão que a Evolution anuncia como evento próprio: o alvo é o id da mensagem apagada.
+  if (payload.event === "messages.delete") {
+    const raw = payload.data as EvolutionPayloadData & { id?: unknown };
+    const id = cleanString(raw.key?.id) ?? cleanString(raw.id);
+    return id ? { status: "revoke", instance: payload.instance, externalMessageId: id } : { status: "ignored", reason: "non_text_message_ignored" };
+  }
+
+  if (payload.event !== "messages.upsert" && payload.event !== "messages.edited") {
     return { status: "ignored", reason: "unhandled_event" };
   }
 
   return parseMessageData(payload.instance, payload.data, { requireTimestamp: false });
+}
+
+const PROTOCOL_REVOKE = 0;
+const PROTOCOL_MESSAGE_EDIT = 14;
+
+function protocolKind(type: unknown): "revoke" | "edit" | null {
+  if (type === PROTOCOL_REVOKE || type === "REVOKE") return "revoke";
+  if (type === PROTOCOL_MESSAGE_EDIT || type === "MESSAGE_EDIT") return "edit";
+  return null;
+}
+
+/** Edição, exclusão e reação chegam como mensagens "especiais" dentro do mesmo evento de mensagem. */
+function parseSpecialMessage(
+  instance: string,
+  data: EvolutionPayloadData,
+): WebhookParseResult | null {
+  const message = data.message;
+  if (!message) return null;
+
+  const protocol = message.protocolMessage ?? message.editedMessage?.message?.protocolMessage;
+  if (protocol) {
+    const kind = protocolKind(protocol.type);
+    const targetId = cleanString(protocol.key?.id);
+    if (kind === "revoke" && targetId) return { status: "revoke", instance, externalMessageId: targetId };
+    if (kind === "edit" && targetId) {
+      const edited = protocol.editedMessage;
+      const newText = cleanString(edited?.conversation) ?? cleanString(edited?.extendedTextMessage?.text);
+      if (!newText) return { status: "ignored", reason: "non_text_message_ignored" };
+      const stamp = typeof protocol.timestampMs === "number" ? protocol.timestampMs : Number(protocol.timestampMs);
+      return {
+        status: "edit",
+        instance,
+        externalMessageId: targetId,
+        newText,
+        editedAt: Number.isFinite(stamp) && stamp > 0 ? new Date(stamp).toISOString() : null,
+      };
+    }
+    return { status: "ignored", reason: "non_text_message_ignored" };
+  }
+
+  const reaction = message.reactionMessage;
+  if (reaction) {
+    const key = data.key ?? {};
+    const targetId = cleanString(reaction.key?.id);
+    const remoteJid = cleanString(key.remoteJid);
+    if (!targetId || !remoteJid || remoteJid.endsWith("@g.us")) return { status: "ignored", reason: "non_text_message_ignored" };
+    const fromMe = Boolean(key.fromMe);
+    return {
+      status: "reaction",
+      instance,
+      targetExternalId: targetId,
+      reactorJid: fromMe ? "" : remoteJid,
+      fromMe,
+      // Texto vazio = a pessoa tirou a reação.
+      emoji: typeof reaction.text === "string" ? reaction.text.trim() : "",
+    };
+  }
+  return null;
+}
+
+/** Mensagem citada (resposta recebida): id dela no WhatsApp e um trecho do que foi citado. */
+export function extractQuoted(message: EvolutionMessageContent | undefined): WebhookQuoted | null {
+  if (!message) return null;
+  const context =
+    message.extendedTextMessage?.contextInfo
+    ?? message.imageMessage?.contextInfo
+    ?? message.videoMessage?.contextInfo
+    ?? message.documentMessage?.contextInfo
+    ?? message.audioMessage?.contextInfo;
+  const externalId = cleanString(context?.stanzaId);
+  if (!externalId) return null;
+  const quotedMessage = (context?.quotedMessage ?? {}) as Record<string, unknown>;
+  const extended = quotedMessage.extendedTextMessage as { text?: unknown } | undefined;
+  const image = quotedMessage.imageMessage as { caption?: unknown } | undefined;
+  const video = quotedMessage.videoMessage as { caption?: unknown } | undefined;
+  const text = cleanString(quotedMessage.conversation) ?? cleanString(extended?.text) ?? cleanString(image?.caption) ?? cleanString(video?.caption);
+  const hasMedia = ["imageMessage", "videoMessage", "audioMessage", "documentMessage", "stickerMessage"].some((name) => name in quotedMessage);
+  return { externalId, text: text ? text.slice(0, 200) : null, hasMedia };
 }
 
 /** Interpreta uma mensagem no formato da Evolution (ao vivo ou item do histórico). */
@@ -255,6 +370,12 @@ function parseMessageData(
   // Lista de transmissão, canal e Status nunca são conversa: o identificador de uma lista poderia passar por telefone.
   if (/@(broadcast|newsletter)$/.test(remoteJid)) {
     return { status: "ignored", reason: "broadcast_or_channel" };
+  }
+
+  // Edição, exclusão e reação não são mensagens novas (o histórico não as carrega).
+  if (!options.requireTimestamp) {
+    const special = parseSpecialMessage(instance, data);
+    if (special) return special;
   }
 
   const conversationType = remoteJid.endsWith("@g.us") ? "group" : "individual";
@@ -315,6 +436,7 @@ function parseMessageData(
     textContent,
     media: extracted ? { ...extracted.media, inlineBase64: extracted.media.inlineBase64 ?? cleanString(data.base64) } : null,
     occurredAt,
+    quoted: options.requireTimestamp ? null : extractQuoted(data.message),
   };
 }
 

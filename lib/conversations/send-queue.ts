@@ -1,5 +1,5 @@
 import type { ConversationMessage } from "@/lib/conversations/data";
-import { buildPendingMessage } from "@/lib/conversations/message-merge";
+import { buildPendingMessage, type ReplyRef } from "@/lib/conversations/message-merge";
 
 // Fila de envio por conversa: a caixa de mensagem fica livre na hora (a bolha aparece como "enviando…") e os envios
 // de UMA conversa saem do navegador para o servidor um de cada vez, na ordem em que foram pedidos. A falha de um não
@@ -55,7 +55,12 @@ export type SendHandlers = {
   onFailed: (pendingId: string, reason: string, code?: string, persisted?: ConversationMessage) => void;
 };
 
-export type SendFunction = (conversationId: string, text: string, idempotencyKey: string) => Promise<SendOutcome>;
+export type SendFunction = (
+  conversationId: string,
+  text: string,
+  idempotencyKey: string,
+  replyToMessageId?: string | null,
+) => Promise<SendOutcome>;
 
 export const CONNECTION_ERROR_MESSAGE = "Erro de conexão ao enviar. Verifique a internet e tente de novo.";
 
@@ -88,16 +93,21 @@ export function enqueueTextSend(input: {
   text: string;
   handlers: SendHandlers;
   send: SendFunction;
+  /** Responder: a mensagem citada. */
+  replyTo?: ReplyRef | null;
   /** Para testes: chave e hora fixas. */
   idempotencyKey?: string;
   now?: Date;
 }): { pending: ConversationMessage; done: Promise<void> } {
   const idempotencyKey = input.idempotencyKey ?? crypto.randomUUID();
-  const pending = buildPendingMessage({ idempotencyKey, text: input.text, now: input.now });
+  const pending = buildPendingMessage({ idempotencyKey, text: input.text, now: input.now, reply: input.replyTo });
   return enqueueSend({
     conversationId: input.conversationId,
     pending,
     handlers: input.handlers,
-    run: () => input.send(input.conversationId, input.text, idempotencyKey),
+    run: () =>
+      input.replyTo
+        ? input.send(input.conversationId, input.text, idempotencyKey, input.replyTo.messageId)
+        : input.send(input.conversationId, input.text, idempotencyKey),
   });
 }

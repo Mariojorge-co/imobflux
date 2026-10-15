@@ -1,4 +1,7 @@
-import type { ConversationMessage } from "@/lib/conversations/data";
+import type { ConversationMessage, ReplySnapshot } from "@/lib/conversations/data";
+
+/** A mensagem que está sendo respondida: id e resumo (para a citação aparecer já na bolha provisória). */
+export type ReplyRef = { messageId: string; snapshot: ReplySnapshot | null };
 
 /** Prefixo dos ids provisórios das mensagens que ainda estão sendo enviadas (bolha otimista). */
 export const PENDING_MESSAGE_PREFIX = "pending-";
@@ -90,8 +93,9 @@ export function buildPendingMediaMessage(input: {
   sizeBytes: number;
   previewUrl?: string | null;
   now?: Date;
+  reply?: ReplyRef | null;
 }): ConversationMessage {
-  const base = buildPendingMessage({ idempotencyKey: input.idempotencyKey, text: input.text, now: input.now });
+  const base = buildPendingMessage({ idempotencyKey: input.idempotencyKey, text: input.text, now: input.now, reply: input.reply });
   return {
     ...base,
     has_attachments: true,
@@ -114,7 +118,7 @@ export function failPendingMessage(messages: ConversationMessage[], pendingId: s
 }
 
 /** Mensagem provisória exibida como "enviando…" assim que o usuário clica em enviar. */
-export function buildPendingMessage(input: { idempotencyKey: string; text: string; now?: Date }): ConversationMessage {
+export function buildPendingMessage(input: { idempotencyKey: string; text: string; now?: Date; reply?: ReplyRef | null }): ConversationMessage {
   return {
     id: `${PENDING_MESSAGE_PREFIX}${input.idempotencyKey}`,
     direction: "outgoing",
@@ -127,6 +131,7 @@ export function buildPendingMessage(input: { idempotencyKey: string; text: strin
     attachments: [],
     internal_author_name: null,
     sender_display_name: null,
+    ...(input.reply ? { reply_to_message_id: input.reply.messageId, reply_snapshot: input.reply.snapshot } : {}),
   };
 }
 

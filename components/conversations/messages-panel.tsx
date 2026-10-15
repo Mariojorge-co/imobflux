@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
-import { Archive, ArchiveRestore, ArrowLeft, Info, Mail, Paperclip, Plus, RotateCw } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowLeft, Info, Mail, Pin, PinOff, Plus, Search } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -14,13 +14,31 @@ import {
   setConversationArchivedAction,
   setGroupTeamVisibilityAction,
 } from "@/lib/conversations/actions";
+import {
+  archiveInternalNoteAction,
+  deleteMessageForEveryoneAction,
+  editMessageAction,
+  hideMessageAction,
+  listConversationNotesAction,
+  reactToMessageAction,
+  searchConversationAction,
+  setConversationPinAction,
+  updateInternalNoteAction,
+  type ConversationSearchMatch,
+  type ThreadNote,
+} from "@/lib/conversations/message-actions";
 import { MessageForm } from "@/components/conversations/message-form";
+import { MessageBubble } from "@/components/conversations/message-bubble";
+import { NoteBubble } from "@/components/conversations/note-bubble";
+import { ForwardDialog } from "@/components/conversations/forward-dialog";
+import { ConversationSearch } from "@/components/conversations/conversation-search";
+import { ConfirmDialog } from "@/components/quick-replies/confirm-dialog";
 import { Button, Drawer, Input, ModalDialog } from "@/components/ui";
 import { SlaBadge } from "@/components/conversations/sla-badge";
 import { SlaControl, type SlaMode } from "@/components/conversations/sla-control";
 import { resolveOpportunityTargets } from "@/lib/conversations/opportunity-targets";
-import { AttachmentView } from "@/components/conversations/attachment-view";
-import { isStickerMessage } from "@/lib/conversations/sticker";
+import { copyableText, snapshotFromMessage, type Viewer } from "@/lib/conversations/message-ui";
+import type { ReplyRef } from "@/lib/conversations/message-merge";
 import type {
   ConversationContextData,
   ConversationListItem,
@@ -36,7 +54,7 @@ import type { ConversationAssignee, DirectoryMember } from "@/lib/conversations/
 import { emitConversationClientUpdate } from "@/lib/conversations/client-events";
 import { useOutgoingFiles } from "@/components/conversations/use-outgoing-files";
 import { useFileDrop } from "@/components/conversations/use-file-drop";
-import { failPendingMessage, isDismissedFailure, mergeMessages, outgoingStatusLabel, removePendingMessage, type DismissedFailure } from "@/lib/conversations/message-merge";
+import { failPendingMessage, isDismissedFailure, isPendingMessage, mergeMessages, removePendingMessage, type DismissedFailure } from "@/lib/conversations/message-merge";
 import { retryMediaQueued, sendTextQueued } from "@/lib/conversations/send-client";
 import { conversationHasSla, conversationPatchFromMessage, isConversationClosed, pickSlaMessage } from "@/lib/conversations/sla-display";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
@@ -55,6 +73,8 @@ type MessagesPanelProps = {
   canManagePrivacy?: boolean;
   assignees?: ConversationAssignee[];
   members?: DirectoryMember[];
+  /** Quem está logado (membro e papel): base das permissões de editar, apagar e notas na tela. */
+  viewer?: Viewer | null;
 };
 
 export function MessagesPanel({
@@ -70,14 +90,37 @@ export function MessagesPanel({
   canManagePrivacy = false,
   assignees = [],
   members = [],
+  viewer = null,
 }: MessagesPanelProps) {
   const [, startTransition] = useTransition();
   const [messages, setMessages] = useState<ConversationMessage[]>(initialMessages);
+  // Ações sobre mensagens (responder, editar, apagar, encaminhar) e notas no meio da conversa.
+  const [replyTo, setReplyTo] = useState<(ReplyRef & { author: string }) | null>(null);
+  const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
+  const [forwardTarget, setForwardTarget] = useState<ConversationMessage | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ kind: "hide" | "delete"; message: ConversationMessage } | null>(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [threadNotes, setThreadNotes] = useState<ThreadNote[]>([]);
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  // Busca dentro da conversa.
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchMatches, setSearchMatches] = useState<ConversationSearchMatch[]>([]);
+  const [searchTotal, setSearchTotal] = useState(0);
+  const [searchIndex, setSearchIndex] = useState(-1);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchSeeking, setSearchSeeking] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [liveConversation, setLiveConversation] = useState(conversation);
   const [dismissedFailed, setDismissedFailed] = useState<ReadonlyArray<DismissedFailure>>([]);
   const outgoing = useOutgoingFiles(conversation.conversation_id);
   const dropZone = useFileDrop({ enabled: conversation.conversation_type !== "group", onFiles: (files) => void outgoing.addFiles(files) });
   const visibleMessages = useMemo(() => messages.filter((message) => !isDismissedFailure(message, dismissedFailed)), [messages, dismissedFailed]);
+  const highlightTerm = searchOpen && searchQuery.trim().length >= 2 ? searchQuery.trim() : undefined;
+  // Mensagens e notas internas na mesma linha do tempo. As notas NÃO entram em `messages` (prazo, rascunho e envio nunca
+  // as veem): só aparecem aqui, na hora de desenhar.
+  const timeline = useMemo(() => buildTimeline(visibleMessages, threadNotes), [visibleMessages, threadNotes]);
   const [optimisticNotes, setOptimisticNotes] = useState<
     Record<string, ConversationContextData["notes"]>
   >({});
@@ -109,6 +152,17 @@ export function MessagesPanel({
   } | null>(null);
   const shouldAutoReadRef = useRef(Boolean(conversation.is_unread));
   const pendingScrollToBottomRef = useRef(false);
+  // Espelhos em ref (para laços assíncronos) e o conjunto de mensagens que o servidor já devolveu: só estas podem
+  // sumir da tela quando deixam de vir (escondidas por outra pessoa); uma mensagem recém-enviada nunca some por engano.
+  const messagesRef = useRef<ConversationMessage[]>(initialMessages);
+  const hasOlderRef = useRef(initialHasOlder);
+  const seenServerIdsRef = useRef(new Set(initialMessages.map((message) => message.id)));
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+  useEffect(() => {
+    hasOlderRef.current = hasOlder;
+  }, [hasOlder]);
 
   const selectedContextBase = opportunityContexts.find(
     (item) => item.active_opportunity?.opportunity_id === selectedOpportunityId,
@@ -297,25 +351,36 @@ export function MessagesPanel({
       effectiveOpportunityId,
     );
     setOptimisticNotes((previous) => ({ ...previous, [noteContextKey]: notes }));
+    // As mesmas notas aparecem no meio da conversa.
+    setThreadNotes(await listConversationNotesAction(conversation.conversation_id, effectiveOpportunityId));
   }, [conversation.conversation_id, effectiveOpportunityId, noteContextKey]);
 
+  // Carrega o lote de mensagens mais antigo. Usa refs para poder ser chamado em laço (busca até achar uma mensagem antiga).
+  const loadingOlderRef = useRef(false);
   const handleLoadOlder = useCallback(async () => {
-    if (isLoadingOlder || messages.length === 0) return;
-
-    const oldest = messages[0];
+    const current = messagesRef.current;
+    const oldest = current.find((message) => !isPendingMessage(message));
+    if (loadingOlderRef.current) return;
+    if (!oldest) {
+      hasOlderRef.current = false;
+      setHasOlder(false);
+      return;
+    }
     const cursor: MessagesCursor = {
       occurred_at: oldest.occurred_at,
       id: oldest.id,
     };
 
+    loadingOlderRef.current = true;
     setIsLoadingOlder(true);
     try {
       const page = await loadMoreMessagesAction(
         conversation.conversation_id,
         cursor,
       );
-      const existingIds = new Set(messages.map((message) => message.id));
+      const existingIds = new Set(messagesRef.current.map((message) => message.id));
       const uniqueOlder = page.messages.filter((message) => !existingIds.has(message.id));
+      for (const message of page.messages) seenServerIdsRef.current.add(message.id);
 
       if (uniqueOlder.length > 0 && listRef.current) {
         pendingScrollAdjustmentRef.current = {
@@ -331,11 +396,226 @@ export function MessagesPanel({
           ...previous,
         ];
       });
-      setHasOlder(page.hasMore && uniqueOlder.length > 0);
+      const more = page.hasMore && uniqueOlder.length > 0;
+      hasOlderRef.current = more;
+      setHasOlder(more);
     } finally {
+      loadingOlderRef.current = false;
       setIsLoadingOlder(false);
     }
-  }, [isLoadingOlder, messages, conversation.conversation_id]);
+  }, [conversation.conversation_id]);
+
+  // ─── Ações sobre mensagens ──────────────────────────────────────────────────────────────────────
+
+  const patchMessage = useCallback((id: string, patch: Partial<ConversationMessage>) => {
+    setMessages((previous) => previous.map((message) => (message.id === id ? { ...message, ...patch } : message)));
+  }, []);
+
+  const handleReply = useCallback((message: ConversationMessage) => {
+    const snapshot = snapshotFromMessage(message, liveConversation.participant_name);
+    setEditing(null);
+    setReplyTo({ messageId: message.id, snapshot, author: snapshot.author ?? "Contato" });
+  }, [liveConversation.participant_name]);
+
+  const handleStartEdit = useCallback((message: ConversationMessage) => {
+    setReplyTo(null);
+    setEditing({ id: message.id, text: message.text_content ?? "" });
+  }, []);
+
+  const handleSaveEdit = useCallback(async (id: string, text: string): Promise<{ success: boolean; error?: string }> => {
+    const result = await editMessageAction(id, text);
+    if (!result.success) return { success: false, error: result.error };
+    patchMessage(id, { text_content: result.text, edited_at: result.editedAt });
+    setEditing(null);
+    return { success: true };
+  }, [patchMessage]);
+
+  const handleReact = useCallback(async (message: ConversationMessage, emoji: string) => {
+    const result = await reactToMessageAction(message.id, emoji);
+    if (!result.success) {
+      setActionNotice(result.error);
+      return;
+    }
+    setMessages((previous) =>
+      previous.map((item) => {
+        if (item.id !== message.id) return item;
+        const others = (item.reactions ?? []).filter((reaction) => !reaction.mine);
+        return {
+          ...item,
+          reactions: result.emoji
+            ? [...others, { emoji: result.emoji, by: "member" as const, mine: true, name: null }]
+            : others,
+        };
+      }),
+    );
+  }, []);
+
+  const handleCopy = useCallback((message: ConversationMessage) => {
+    const text = copyableText(message);
+    if (!text) return;
+    navigator.clipboard?.writeText(text).catch(() => setActionNotice("Não foi possível copiar o texto."));
+  }, []);
+
+  const [confirmError, setConfirmError] = useState<string | null>(null);
+  const runConfirmedAction = useCallback(async () => {
+    if (!confirmAction) return;
+    const { kind, message } = confirmAction;
+    setConfirmBusy(true);
+    setConfirmError(null);
+    const result = kind === "hide" ? await hideMessageAction(message.id) : await deleteMessageForEveryoneAction(message.id);
+    setConfirmBusy(false);
+    if (!result.success) {
+      setConfirmError(result.error);
+      return;
+    }
+    if (kind === "hide") {
+      setMessages((previous) => previous.filter((item) => item.id !== message.id));
+    } else {
+      patchMessage(message.id, {
+        deleted_at: "deletedAt" in result ? String(result.deletedAt) : new Date().toISOString(),
+        deleted_source: "crm",
+        text_content: null,
+        has_attachments: false,
+        attachments: [],
+        reactions: [],
+      });
+    }
+    if (replyTo?.messageId === message.id) setReplyTo(null);
+    if (editing?.id === message.id) setEditing(null);
+    setConfirmAction(null);
+  }, [confirmAction, editing, patchMessage, replyTo]);
+
+  // ─── Notas internas no meio da conversa ─────────────────────────────────────────────────────────
+
+  const refreshThreadNotes = useCallback(async () => {
+    const notes = await listConversationNotesAction(conversation.conversation_id, effectiveOpportunityId);
+    setThreadNotes(notes);
+  }, [conversation.conversation_id, effectiveOpportunityId]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void refreshThreadNotes(), 0);
+    return () => window.clearTimeout(timer);
+  }, [refreshThreadNotes]);
+
+  const handleNoteEdit = useCallback(async (noteId: string, content: string) => {
+    const result = await updateInternalNoteAction(noteId, content);
+    if (result.success) await refreshThreadNotes();
+    return result.success ? { success: true } : { success: false, error: result.error };
+  }, [refreshThreadNotes]);
+
+  const handleNoteDelete = useCallback(async (noteId: string) => {
+    const result = await archiveInternalNoteAction(noteId);
+    if (result.success) {
+      setThreadNotes((previous) => previous.filter((note) => note.id !== noteId));
+      void reconcileVisibleNotes();
+    }
+    return result.success ? { success: true } : { success: false, error: result.error };
+  }, [reconcileVisibleNotes]);
+
+  // ─── Rolar até uma mensagem (citação e busca) ───────────────────────────────────────────────────
+
+  const revealTarget = useCallback(async (kind: "message" | "note", id: string): Promise<boolean> => {
+    const selector = kind === "note" ? `[data-note-id="${id}"]` : `[data-message-id="${id}"]`;
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      const element = listRef.current?.querySelector(selector);
+      if (element) {
+        stickToBottomRef.current = false;
+        element.scrollIntoView({ block: "center" });
+        setSearchSeeking(false);
+        setHighlightedId(id);
+        window.setTimeout(() => setHighlightedId((current) => (current === id ? null : current)), 2200);
+        return true;
+      }
+      if (!hasOlderRef.current) break;
+      setSearchSeeking(true);
+      await handleLoadOlder();
+      // Espera o React desenhar o lote carregado antes de procurar de novo.
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    }
+    setSearchSeeking(false);
+    return false;
+  }, [handleLoadOlder]);
+
+  const handleJumpToQuoted = useCallback(async (messageId: string) => {
+    const found = await revealTarget("message", messageId);
+    if (!found) setActionNotice("A mensagem original não está mais disponível nesta conversa.");
+  }, [revealTarget]);
+
+  // ─── Busca na conversa ──────────────────────────────────────────────────────────────────────────
+
+  const goToMatch = useCallback(async (matches: ConversationSearchMatch[], index: number) => {
+    const match = matches[index];
+    if (!match) return;
+    setSearchIndex(index);
+    const found = await revealTarget(match.kind, match.id);
+    if (!found) setSearchError("Esta mensagem não está mais disponível.");
+    else setSearchError(null);
+  }, [revealTarget]);
+
+  useEffect(() => {
+    if (!searchOpen) return;
+    const term = searchQuery.trim();
+    if (term.length < 2) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      setSearchLoading(true);
+      void (async () => {
+        const result = await searchConversationAction(conversation.conversation_id, term);
+        if (cancelled) return;
+        setSearchLoading(false);
+        if (!result.success) {
+          setSearchError(result.error);
+          setSearchMatches([]);
+          setSearchTotal(0);
+          setSearchIndex(-1);
+          return;
+        }
+        setSearchError(null);
+        setSearchMatches(result.matches);
+        setSearchTotal(result.total);
+        if (result.matches.length > 0) void goToMatch(result.matches, 0);
+        else setSearchIndex(-1);
+      })();
+    }, 300);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [searchOpen, searchQuery, conversation.conversation_id, goToMatch]);
+
+  const handleSearchQueryChange = useCallback((value: string) => {
+    setSearchQuery(value);
+    if (value.trim().length < 2) {
+      setSearchMatches([]);
+      setSearchTotal(0);
+      setSearchIndex(-1);
+      setSearchError(null);
+      setSearchLoading(false);
+    }
+  }, []);
+
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false);
+    setSearchQuery("");
+    setSearchMatches([]);
+    setSearchTotal(0);
+    setSearchIndex(-1);
+    setSearchError(null);
+    setHighlightedId(null);
+  }, []);
+
+  const handleTogglePin = () => {
+    startTransition(async () => {
+      const next = !liveConversation.is_pinned;
+      const result = await setConversationPinAction(conversation.conversation_id, next);
+      if (!result.success) {
+        setActionNotice(result.error);
+        return;
+      }
+      setLiveConversation((previous) => ({ ...previous, is_pinned: next }));
+      emitConversationClientUpdate({ conversationId: conversation.conversation_id, isPinned: next });
+    });
+  };
 
   const handleStageSelect = (newStageId: string) => {
     if (!activeOpp) return;
@@ -395,7 +675,21 @@ export function MessagesPanel({
         void (async () => {
           const page = await refreshConversationMessagesAction(conversation.conversation_id);
           if (disposed) return;
-          setMessages((previous) => mergeMessages(previous, page.messages));
+          // Some da tela o que o servidor já tinha devolvido e agora não devolve mais (mensagem escondida por outra pessoa).
+          const pageIds = new Set(page.messages.map((message) => message.id));
+          const oldestInPage = page.messages[0]?.occurred_at;
+          const vanished = new Set(
+            messagesRef.current
+              .filter(
+                (message) =>
+                  seenServerIdsRef.current.has(message.id)
+                  && !pageIds.has(message.id)
+                  && (!page.hasMore || (oldestInPage !== undefined && message.occurred_at >= oldestInPage)),
+              )
+              .map((message) => message.id),
+          );
+          for (const id of pageIds) seenServerIdsRef.current.add(id);
+          setMessages((previous) => mergeMessages(vanished.size > 0 ? previous.filter((message) => !vanished.has(message.id)) : previous, page.messages));
           const newest = page.messages.at(-1);
           if (newest) {
             setLiveConversation((previous) => ({
@@ -623,6 +917,35 @@ export function MessagesPanel({
               <Mail size={18} />
             </button>
 
+            {/* Buscar dentro desta conversa */}
+            <button
+              aria-label="Buscar nesta conversa"
+              aria-pressed={searchOpen}
+              className={[
+                "flex size-11 shrink-0 items-center justify-center rounded-control transition-colors hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:size-9",
+                searchOpen ? "bg-neutral-soft text-text" : "text-text-muted",
+              ].join(" ")}
+              data-testid="conversation-search-toggle"
+              onClick={() => (searchOpen ? closeSearch() : setSearchOpen(true))}
+              title="Buscar nesta conversa"
+              type="button"
+            >
+              <Search size={18} />
+            </button>
+
+            {/* Fixar no topo da lista (só para você) */}
+            <button
+              aria-label={liveConversation.is_pinned ? "Desafixar conversa" : "Fixar conversa no topo"}
+              aria-pressed={Boolean(liveConversation.is_pinned)}
+              className="hidden size-9 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-neutral-soft hover:text-text sm:flex"
+              data-testid="conversation-pin-toggle"
+              onClick={handleTogglePin}
+              title={liveConversation.is_pinned ? "Desafixar conversa" : "Fixar conversa no topo da sua lista"}
+              type="button"
+            >
+              {liveConversation.is_pinned ? <PinOff size={18} /> : <Pin size={18} />}
+            </button>
+
             <button
               aria-label={liveConversation.archived_at ? "Desarquivar conversa" : "Arquivar conversa"}
               className="hidden size-9 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-neutral-soft hover:text-text sm:flex"
@@ -664,6 +987,21 @@ export function MessagesPanel({
           </div>
         </div>
 
+        {searchOpen ? (
+          <ConversationSearch
+            error={searchError}
+            index={searchIndex}
+            loading={searchLoading}
+            onClose={closeSearch}
+            onNewer={() => void goToMatch(searchMatches, Math.max(0, searchIndex - 1))}
+            onOlder={() => void goToMatch(searchMatches, Math.min(searchMatches.length - 1, searchIndex + 1))}
+            onQueryChange={handleSearchQueryChange}
+            query={searchQuery}
+            seeking={searchSeeking}
+            total={searchTotal}
+          />
+        ) : null}
+
         {/* Histórico de Mensagens */}
         <div
           aria-label="Histórico de mensagens"
@@ -686,7 +1024,7 @@ export function MessagesPanel({
             </div>
           )}
 
-          {messages.length === 0 && !hasOlder && (
+          {messages.length === 0 && threadNotes.length === 0 && !hasOlder && (
             <div className="flex h-full flex-col items-center justify-center text-center">
               <p className="text-sm text-text-muted">
                 Esta conversa ainda não possui mensagens.
@@ -695,38 +1033,106 @@ export function MessagesPanel({
           )}
 
           <div className="flex flex-col gap-2" ref={contentRef}>
-            {visibleMessages.map((msg, idx) => {
-              const isOutgoing = msg.direction === "outgoing";
-              const showDateSeparator =
-                idx === 0 ||
-                !isSameDay(visibleMessages[idx - 1].occurred_at, msg.occurred_at);
+            {timeline.map((entry, idx) => {
+              const showDateSeparator = idx === 0 || !isSameDay(timeline[idx - 1].at, entry.at);
+              const highlighted = highlightedId === (entry.type === "note" ? entry.note.id : entry.message.id);
 
+              if (entry.type === "note") {
+                return (
+                  <div
+                    className={highlighted ? "rounded-xl ring-2 ring-primary/60" : undefined}
+                    data-note-id={entry.note.id}
+                    data-occurred-at={entry.at}
+                    key={entry.key}
+                  >
+                    {showDateSeparator && <DateSeparator dateString={entry.at} />}
+                    <NoteBubble
+                      highlight={highlightTerm}
+                      note={entry.note}
+                      onDelete={handleNoteDelete}
+                      onEdit={handleNoteEdit}
+                      viewer={viewer}
+                    />
+                  </div>
+                );
+              }
+
+              const msg = entry.message;
+              const previous = entry.previousMessage;
               return (
                 <div
+                  className={highlighted ? "rounded-xl ring-2 ring-primary/60" : undefined}
                   data-message-id={msg.id}
                   data-occurred-at={msg.occurred_at}
-                  key={msg.id}
+                  key={entry.key}
                 >
                   {showDateSeparator && (
                     <DateSeparator dateString={msg.occurred_at} />
                   )}
-                  {msg.is_history && !visibleMessages[idx - 1]?.is_history && (
+                  {msg.is_history && !previous?.is_history && (
                     <HistoryDivider kind="start" />
                   )}
-                  {!msg.is_history && visibleMessages[idx - 1]?.is_history && (
+                  {!msg.is_history && previous?.is_history && (
                     <HistoryDivider kind="end" />
                   )}
-                  <MessageBubble isOutgoing={isOutgoing} message={msg} onDiscard={handleDiscardFailed} onRetry={handleRetryMessage} />
+                  <MessageBubble
+                    highlight={highlightTerm}
+                    isGroup={isGroup}
+                    isOutgoing={msg.direction === "outgoing"}
+                    message={msg}
+                    onCopy={handleCopy}
+                    onDeleteForEveryone={(target) => {
+                      setConfirmError(null);
+                      setConfirmAction({ kind: "delete", message: target });
+                    }}
+                    onDiscard={handleDiscardFailed}
+                    onEdit={handleStartEdit}
+                    onForward={setForwardTarget}
+                    onHide={(target) => {
+                      setConfirmError(null);
+                      setConfirmAction({ kind: "hide", message: target });
+                    }}
+                    onJumpToQuoted={(id) => void handleJumpToQuoted(id)}
+                    onReact={(target, emoji) => void handleReact(target, emoji)}
+                    onReply={handleReply}
+                    onRetry={handleRetryMessage}
+                    viewer={viewer}
+                  />
                 </div>
               );
             })}
           </div>
         </div>
 
+        {actionNotice ? (
+          <div
+            className="flex shrink-0 items-start justify-between gap-2 border-t border-danger/30 bg-danger-soft px-3 py-1.5 text-caption font-medium text-danger sm:px-4"
+            data-testid="action-notice"
+            role="alert"
+          >
+            <span className="break-words">{actionNotice}</span>
+            <button
+              aria-label="Fechar aviso"
+              className="shrink-0 rounded-control px-1 hover:bg-surface/70"
+              onClick={() => setActionNotice(null)}
+              type="button"
+            >
+              ✕
+            </button>
+          </div>
+        ) : null}
+
         {/* Compositor Fixo */}
         <MessageForm
           conversationId={conversation.conversation_id}
           contactName={liveConversation.participant_name}
+          editing={editing}
+          onCancelEdit={() => setEditing(null)}
+          onCancelReply={() => setReplyTo(null)}
+          onNoteSaved={() => void refreshThreadNotes()}
+          onReplyConsumed={() => setReplyTo(null)}
+          onSaveEdit={handleSaveEdit}
+          replyTo={replyTo}
           onInternalNoteSaved={handleInternalNoteSaved}
           onMessagePersisted={handleMessagePersisted}
           onMessageFailed={handleMessageFailed}
@@ -737,6 +1143,30 @@ export function MessagesPanel({
           filesEnabled={!isGroup}
         />
       </div>
+
+      <ForwardDialog
+        currentConversationId={conversation.conversation_id}
+        message={forwardTarget}
+        onClose={() => setForwardTarget(null)}
+      />
+
+      <ConfirmDialog
+        confirmLabel={confirmAction?.kind === "hide" ? "Apagar para mim" : "Apagar para todos"}
+        description={
+          confirmAction?.kind === "hide"
+            ? "Isso esconde a mensagem no ImobFlux. Ela continua no WhatsApp."
+            : "A mensagem será apagada no WhatsApp do cliente e no ImobFlux (ela vira \"Esta mensagem foi apagada\"). O WhatsApp só permite isso até 48 horas depois do envio."
+        }
+        destructive
+        error={confirmError}
+        onCancel={() => {
+          if (!confirmBusy) setConfirmAction(null);
+        }}
+        onConfirm={() => void runConfirmedAction()}
+        open={confirmAction !== null}
+        pending={confirmBusy}
+        title={confirmAction?.kind === "hide" ? "Apagar para mim?" : "Apagar para todos?"}
+      />
 
       {/* Contexto da conversa sob demanda em todos os viewports. */}
       <Drawer
@@ -807,6 +1237,27 @@ export function MessagesPanel({
 
 // ─── Sub-componentes ──────────────────────────────────────────────────────────
 
+type TimelineEntry =
+  | { type: "message"; key: string; at: string; message: ConversationMessage; previousMessage: ConversationMessage | undefined }
+  | { type: "note"; key: string; at: string; note: ThreadNote };
+
+/** Mensagens e notas internas numa só linha do tempo, por hora. Cada mensagem sabe qual é a mensagem anterior (divisor do histórico). */
+function buildTimeline(messages: ConversationMessage[], notes: ThreadNote[]): TimelineEntry[] {
+  const raw = [
+    ...messages.map((message) => ({ sortKey: Date.parse(message.occurred_at), key: message.id, message, note: null as ThreadNote | null })),
+    ...notes.map((note) => ({ sortKey: Date.parse(note.created_at), key: `note-${note.id}`, message: null as ConversationMessage | null, note })),
+  ].sort((left, right) => left.sortKey - right.sortKey || left.key.localeCompare(right.key));
+
+  let previousMessage: ConversationMessage | undefined;
+  return raw.map((item): TimelineEntry => {
+    if (item.note) return { type: "note", key: item.key, at: item.note.created_at, note: item.note };
+    const message = item.message as ConversationMessage;
+    const entry: TimelineEntry = { type: "message", key: item.key, at: message.occurred_at, message, previousMessage };
+    previousMessage = message;
+    return entry;
+  });
+}
+
 function appendNotesToContext(
   context: ConversationContextData,
   notes: ConversationContextData["notes"],
@@ -865,130 +1316,6 @@ function HistoryDivider({ kind }: { kind: "start" | "end" }) {
           : "Mensagens ao vivo a partir daqui"}
       </span>
       <div className="h-px flex-1 border-t border-dashed border-border-strong" />
-    </div>
-  );
-}
-
-type MessageBubbleProps = {
-  message: ConversationMessage;
-  isOutgoing: boolean;
-  onRetry?: (message: ConversationMessage) => void;
-  onDiscard?: (message: ConversationMessage) => void;
-};
-
-function MessageBubble({ message, isOutgoing, onRetry, onDiscard }: MessageBubbleProps) {
-  // Tentar de novo: mensagem do CRM que falhou (a nova tentativa é uma nova mensagem). Arquivo só se já foi gravado
-  // no servidor (id real); senão só dá para remover a bolha.
-  const isLocalMedia = Boolean(message.attachments?.[0]?.id.startsWith("local-"));
-  const canRetry = Boolean(
-    onRetry && isOutgoing && message.status === "failed" && message.origin === "crm" && !message.is_history
-      && message.text_content?.trim() && !isLocalMedia,
-  );
-  const canDiscard = Boolean(onDiscard && isOutgoing && message.status === "failed" && isLocalMedia);
-  const deliveryState = outgoingStatusLabel(message);
-  const timeLabel = new Date(message.occurred_at).toLocaleTimeString("pt-BR", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
-  // Figurinha: pequena, sem fundo/bolha, sem legenda, só um horário discreto.
-  if (isStickerMessage(message) && message.attachments?.[0]) {
-    return (
-      <div className={["flex", isOutgoing ? "justify-end" : "justify-start"].join(" ")} data-testid="sticker-message">
-        <div className="flex max-w-[88%] flex-col gap-0.5">
-          <AttachmentView attachment={message.attachments[0]} isOutgoing={isOutgoing} messageText={message.text_content} />
-          <p className={["text-[11px] leading-none text-text-muted/70", isOutgoing ? "text-right" : "text-left"].join(" ")}>
-            {deliveryState === "sending" ? "Enviando…" : deliveryState === "failed" ? "Não enviada" : timeLabel}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className={[
-        "flex",
-        isOutgoing ? "justify-end" : "justify-start",
-      ].join(" ")}
-    >
-      <div
-        className={[
-          "max-w-[88%] rounded-2xl px-3 py-2 sm:max-w-[75%]",
-          isOutgoing
-            ? "rounded-br-sm bg-primary text-primary-foreground"
-            : "rounded-bl-sm bg-surface text-text shadow-sm ring-1 ring-border",
-          message.is_history ? "border border-dashed border-border-strong opacity-80" : "",
-        ].join(" ")}
-        data-history={message.is_history ? "true" : undefined}
-      >
-        {/* Identificação de autor interno no CRM (somente visível internamente) */}
-        {isOutgoing && message.internal_author_name && (
-          <p className="mb-0.5 text-caption font-semibold text-primary-foreground/80">
-            Enviado por {message.internal_author_name}
-          </p>
-        )}
-
-        {message.attachments?.length
-          ? message.attachments.map((attachment) => (
-              <AttachmentView attachment={attachment} isOutgoing={isOutgoing} key={attachment.id} messageText={message.text_content} />
-            ))
-          : message.has_attachments && (
-              <div
-                aria-label="Esta mensagem contém um anexo indisponível"
-                className={[
-                  "mb-1.5 flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs",
-                  isOutgoing
-                    ? "bg-white/10 text-primary-foreground/70"
-                    : "bg-neutral-soft text-text-muted",
-                ].join(" ")}
-              >
-                <Paperclip aria-hidden="true" size={12} strokeWidth={1.8} />
-                <span>Anexo indisponível</span>
-              </div>
-            )}
-
-        {message.text_content && (
-          <p className="whitespace-pre-wrap break-words text-sm">
-            {message.text_content}
-          </p>
-        )}
-
-        <p
-          className={[
-            "mt-1 text-right text-caption",
-            isOutgoing ? "text-primary-foreground/60" : "text-text-muted",
-          ].join(" ")}
-          data-testid={deliveryState ? `message-${deliveryState}` : undefined}
-        >
-          {deliveryState === "sending" ? "Enviando…" : deliveryState === "failed" ? "Não enviada" : timeLabel}
-        </p>
-        {deliveryState === "failed" ? (
-          <div className="mt-0.5 flex flex-wrap items-center justify-end gap-x-2 gap-y-0.5 text-caption text-primary-foreground/80" data-testid="message-failed-detail">
-            {message.send_error ? <span className="break-words">{message.send_error}</span> : null}
-            {canRetry ? (
-              <button
-                className="inline-flex min-h-8 items-center gap-1 rounded-control px-2 font-semibold underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-foreground"
-                data-testid="message-retry"
-                onClick={() => onRetry?.(message)}
-                type="button"
-              >
-                <RotateCw aria-hidden="true" size={12} /> Tentar de novo
-              </button>
-            ) : null}
-            {canDiscard ? (
-              <button
-                className="inline-flex min-h-8 items-center gap-1 rounded-control px-2 font-semibold underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-foreground"
-                data-testid="message-discard"
-                onClick={() => onDiscard?.(message)}
-                type="button"
-              >
-                Remover
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
     </div>
   );
 }

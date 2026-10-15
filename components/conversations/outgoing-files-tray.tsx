@@ -3,6 +3,7 @@
 import { FileText, Film, Music, X } from "lucide-react";
 import type { OutgoingFiles, OutgoingItem } from "@/components/conversations/use-outgoing-files";
 import { formatFileSize } from "@/lib/conversations/outgoing-files";
+import { captionKeyAction } from "@/lib/conversations/message-ui";
 
 function Thumb({ item }: { item: OutgoingItem }) {
   if (item.previewUrl) {
@@ -23,7 +24,7 @@ function Thumb({ item }: { item: OutgoingItem }) {
  * Bandeja de arquivos escolhidos, acima da caixa de mensagem: miniatura/ícone, nome, tamanho, barra de progresso do
  * upload, cancelar/remover, legenda opcional e (imagem) "enviar como documento".
  */
-export function OutgoingFilesTray({ files }: { files: OutgoingFiles }) {
+export function OutgoingFilesTray({ files, onSubmit }: { files: OutgoingFiles; onSubmit?: () => void }) {
   if (files.items.length === 0 && !files.notice) return null;
 
   return (
@@ -80,12 +81,21 @@ export function OutgoingFilesTray({ files }: { files: OutgoingFiles }) {
                 ) : null}
 
                 {item.status !== "error" && item.kind !== "audio" ? (
-                  <input
+                  // Legenda: Enter ENVIA (o mesmo que o botão Enviar), Shift+Enter quebra a linha.
+                  <textarea
                     aria-label={`Legenda de ${item.name}`}
-                    className="min-h-9 w-full rounded-control border border-border bg-surface px-2 text-caption text-text placeholder:text-text-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="min-h-9 w-full resize-none rounded-control border border-border bg-surface px-2 py-1.5 text-caption text-text placeholder:text-text-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    data-testid="outgoing-caption"
                     maxLength={1024}
                     onChange={(event) => files.setCaption(item.id, event.target.value)}
-                    placeholder="Legenda (opcional)"
+                    onKeyDown={(event) => {
+                      if (captionKeyAction({ key: event.key, shiftKey: event.shiftKey, isComposing: event.nativeEvent.isComposing }) === "send") {
+                        event.preventDefault();
+                        onSubmit?.();
+                      }
+                    }}
+                    placeholder="Legenda (opcional) — Enter envia, Shift+Enter quebra a linha"
+                    rows={Math.min(4, item.caption.split("\n").length)}
                     value={item.caption}
                   />
                 ) : null}

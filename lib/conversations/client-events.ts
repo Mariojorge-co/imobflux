@@ -5,6 +5,8 @@ export const CONVERSATION_CLIENT_UPDATE_EVENT = "imobflux:conversation-update";
 export type ConversationClientUpdate = {
   conversationId: string;
   isUnread?: boolean;
+  /** Fixou ou desafixou a conversa (fixação pessoal): a lista reordena na hora. */
+  isPinned?: boolean;
   message?: ConversationMessage;
   participantName?: string;
   /** Mudança do prazo da conversa (pausa/desativação/reativação), para a lista se atualizar sem recarregar. */

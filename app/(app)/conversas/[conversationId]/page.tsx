@@ -74,6 +74,7 @@ export default async function ConversationDetailPage({
       canManagePrivacy={access.role === "owner"}
       assignees={assignees}
       members={members}
+      viewer={{ memberId: access.memberId, role: access.role }}
     />
   );
 }

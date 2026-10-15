@@ -5,6 +5,7 @@ import * as adminModule from "@/lib/supabase/admin";
 import * as gatewayModule from "@/lib/supabase/gateway";
 import * as actionsGateway from "@/lib/supabase/gateway-actions";
 import { attachReply, isValidReplyId } from "@/lib/conversations/reply";
+import { MAX_VOICE_SECONDS } from "@/lib/conversations/voice";
 import { sendMessageAction } from "@/lib/conversations/actions";
 import { classifyGatewayOutcome } from "@/lib/conversations/gateway-outcome";
 import { resolveSendInstance } from "@/lib/conversations/send-instance";
@@ -455,9 +456,6 @@ export async function discardOutgoingUploadAction(input: { conversationId: strin
 }
 
 // ─── Áudio de voz (gravado no navegador) ──────────────────────────────────────────────────────────
-
-/** Duração máxima de uma gravação de voz, em segundos (10 minutos). */
-const MAX_VOICE_SECONDS = 600;
 
 const VOICE_FAMILIES: Record<string, { ext: string; mime: string }> = {
   webm: { ext: "webm", mime: "audio/webm" },

@@ -9,8 +9,11 @@ import {
   useState,
   type KeyboardEvent,
 } from "react";
-import { FileText, Maximize2, MessageSquare, Minimize2, Paperclip, Send, Zap } from "lucide-react";
+import { FileText, Lock, Maximize2, MessageSquare, Minimize2, Paperclip, Pencil, Send, X, Zap } from "lucide-react";
 import { OutgoingFilesTray } from "@/components/conversations/outgoing-files-tray";
+import { VoiceRecorder } from "@/components/conversations/voice-recorder";
+import { captionKeyAction, replyPreviewText } from "@/lib/conversations/message-ui";
+import type { ReplyRef } from "@/lib/conversations/message-merge";
 import type { OutgoingFiles } from "@/components/conversations/use-outgoing-files";
 import { ACCEPT_ATTRIBUTE } from "@/lib/conversations/outgoing-files";
 import { ConfirmDialog } from "@/components/quick-replies/confirm-dialog";
@@ -23,7 +26,7 @@ import { detectSlashTrigger, insertAtCursor, replaceSlashTrigger, type SlashTrig
 import type { QuickReply } from "@/lib/quick-replies/types";
 import { findUnresolvedVariables, resolveVariables, unresolvedWarning } from "@/lib/quick-replies/variables";
 import { saveInternalNoteAction } from "@/lib/conversations/actions";
-import { sendMediaQueued, sendTextQueued } from "@/lib/conversations/send-client";
+import { sendMediaQueued, sendTextQueued, sendVoiceQueued } from "@/lib/conversations/send-client";
 import type {
   ConversationContextData,
   ConversationMessage,
@@ -52,6 +55,17 @@ type MessageFormProps = {
   outgoing: OutgoingFiles;
   /** Arquivos só em conversa individual (grupos: sem envio de arquivos). */
   filesEnabled?: boolean;
+  /** Mensagem que está sendo respondida (cartão acima da caixa, com X). */
+  replyTo?: (ReplyRef & { author: string }) | null;
+  onCancelReply?: () => void;
+  /** A resposta foi enviada (ou entrou na fila): a tela limpa o cartão. */
+  onReplyConsumed?: () => void;
+  /** Editando uma mensagem enviada: o texto vai para a caixa e Enter salva em vez de enviar. */
+  editing?: { id: string; text: string } | null;
+  onSaveEdit?: (id: string, text: string) => Promise<{ success: boolean; error?: string }>;
+  onCancelEdit?: () => void;
+  /** Nota salva/ação de nota mudou algo na conversa (a tela recarrega as notas). */
+  onNoteSaved?: () => void;
 };
 
 export function MessageForm({
@@ -65,9 +79,17 @@ export function MessageForm({
   onMessageFailed,
   outgoing,
   filesEnabled = true,
+  replyTo = null,
+  onCancelReply,
+  onReplyConsumed,
+  editing = null,
+  onSaveEdit,
+  onCancelEdit,
+  onNoteSaved,
 }: MessageFormProps) {
   const [activeTab, setActiveTab] = useState<"message" | "note">("message");
   const [text, setText] = useState("");
+  const [voiceActive, setVoiceActive] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{
     type: "success" | "error" | "info";
@@ -202,10 +224,55 @@ export function MessageForm({
     quick.recordUse(reply.id);
   };
 
+  // Editar: o texto da mensagem vai para a caixa; Esc cancela (ao sair, a caixa volta ao rascunho vazio).
+  const editingId = editing?.id ?? null;
+  const editingText = editing?.text ?? "";
+  const [loadedEditId, setLoadedEditId] = useState<string | null>(null);
+  if (editingId !== loadedEditId) {
+    // Começou (ou terminou) uma edição: carrega o texto na caixa (ajuste de estado durante a renderização).
+    setLoadedEditId(editingId);
+    if (editingId) {
+      setActiveTab("message");
+      setText(editingText);
+      setFeedback(null);
+    }
+  }
+  useEffect(() => {
+    if (!editingId) return;
+    const timer = window.setTimeout(() => {
+      const element = textareaRef.current;
+      if (!element) return;
+      element.focus();
+      element.setSelectionRange(element.value.length, element.value.length);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [editingId]);
+
   const handleSubmit = async (options?: { skipConfirm?: boolean }) => {
     const trimmed = text.trim();
-    const hasFiles = activeTab === "message" && outgoing.readyCount > 0;
+    const hasFiles = activeTab === "message" && outgoing.readyCount > 0 && !editing;
     if (!trimmed && !hasFiles) return;
+
+    if (editing && onSaveEdit) {
+      if (isSubmitting) return;
+      if (trimmed.length > MAX_CHAR_LIMIT) {
+        setFeedback({ type: "error", message: `O texto excede o limite máximo de ${MAX_CHAR_LIMIT} caracteres.` });
+        return;
+      }
+      setIsSubmitting(true);
+      setFeedback(null);
+      try {
+        const result = await onSaveEdit(editing.id, trimmed);
+        if (result.success) setText("");
+        else setFeedback({ type: "error", message: result.error ?? "Não foi possível editar a mensagem." });
+      } catch {
+        setFeedback({ type: "error", message: "Erro de conexão ao editar a mensagem." });
+      } finally {
+        setIsSubmitting(false);
+        requestAnimationFrame(() => textareaRef.current?.focus());
+      }
+      return;
+    }
 
     if (activeTab === "message" && outgoing.uploading) {
       setFeedback({ type: "info", message: "Aguarde o envio dos arquivos terminar para enviar." });
@@ -245,6 +312,8 @@ export function MessageForm({
           onMessageFailed?.(pendingId, reason, code, persisted),
       };
       // Primeiro os arquivos (na ordem escolhida), depois o texto da caixa: tudo na mesma fila da conversa.
+      // A citação (resposta) vai só na primeira mensagem do lote.
+      let pendingReply = replyTo ? { messageId: replyTo.messageId, snapshot: replyTo.snapshot } : null;
       for (const file of outgoing.takeReady()) {
         void sendMediaQueued(
           conversationId,
@@ -259,9 +328,12 @@ export function MessageForm({
             previewUrl: file.previewUrl,
           },
           handlers,
+          pendingReply,
         );
+        pendingReply = null;
       }
-      if (trimmed) void sendTextQueued(conversationId, trimmed, handlers);
+      if (trimmed) void sendTextQueued(conversationId, trimmed, handlers, pendingReply);
+      if (replyTo) onReplyConsumed?.();
       requestAnimationFrame(() => textareaRef.current?.focus());
       return;
     }
@@ -276,6 +348,7 @@ export function MessageForm({
       if (result.success) {
         setText("");
         if (result.note) onInternalNoteSaved?.(result.note, opportunityId ?? null);
+        onNoteSaved?.();
       } else {
         setFeedback({
           type: "error",
@@ -326,10 +399,42 @@ export function MessageForm({
         }
       }
     }
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Escape" && !slashOpen) {
+      if (editing) {
+        e.preventDefault();
+        setText("");
+        onCancelEdit?.();
+        return;
+      }
+      if (replyTo) {
+        e.preventDefault();
+        onCancelReply?.();
+        return;
+      }
+    }
+    if (captionKeyAction({ key: e.key, shiftKey: e.shiftKey, isComposing: e.nativeEvent.isComposing }) === "send") {
       e.preventDefault();
       handleSubmit();
     }
+  };
+
+  // Gravação de voz pronta: entra na fila da conversa (com a citação, se houver).
+  const sendVoice = (voice: Parameters<typeof sendVoiceQueued>[1]) => {
+    setFeedback(null);
+    void sendVoiceQueued(
+      conversationId,
+      voice,
+      {
+        onSending: (pending) => onMessageSending?.(pending),
+        onSettled: (pendingId, persisted) => {
+          if (onMessageSettled) onMessageSettled(pendingId, persisted);
+          else if (persisted) onMessagePersisted?.(persisted);
+        },
+        onFailed: (pendingId, reason, code, persisted) => onMessageFailed?.(pendingId, reason, code, persisted),
+      },
+      replyTo ? { messageId: replyTo.messageId, snapshot: replyTo.snapshot } : null,
+    );
+    if (replyTo) onReplyConsumed?.();
   };
 
   const isTextEmpty = text.trim() === "";
@@ -436,7 +541,58 @@ export function MessageForm({
         </div>
       )}
 
-      {activeTab === "message" ? <OutgoingFilesTray files={outgoing} /> : null}
+      {/* Respondendo: cartão com a mensagem citada */}
+      {replyTo && !editing ? (
+        <div
+          className="mb-1.5 flex items-start gap-2 rounded-control border-l-4 border-primary bg-neutral-soft px-3 py-1.5"
+          data-testid="reply-card"
+        >
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-caption font-semibold text-primary">Respondendo a {replyTo.author}</p>
+            <p className="truncate text-caption text-text-muted">{replyPreviewText(replyTo.snapshot)}</p>
+          </div>
+          <button
+            aria-label="Cancelar resposta"
+            className="flex size-7 shrink-0 items-center justify-center rounded-control text-text-muted hover:bg-surface hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            data-testid="reply-cancel"
+            onClick={onCancelReply}
+            type="button"
+          >
+            <X aria-hidden="true" size={14} />
+          </button>
+        </div>
+      ) : null}
+
+      {/* Editando uma mensagem enviada */}
+      {editing ? (
+        <div className="mb-1.5 flex items-start gap-2 rounded-control border-l-4 border-warning bg-warning-soft px-3 py-1.5" data-testid="edit-banner">
+          <Pencil aria-hidden="true" className="mt-0.5 shrink-0 text-warning" size={14} />
+          <p className="min-w-0 flex-1 text-caption font-medium text-warning">
+            Editando mensagem. Enter salva, Esc cancela. O WhatsApp só aceita edição até 15 minutos depois do envio.
+          </p>
+          <button
+            aria-label="Cancelar edição"
+            className="flex size-7 shrink-0 items-center justify-center rounded-control text-warning hover:bg-surface/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            data-testid="edit-cancel"
+            onClick={() => {
+              setText("");
+              onCancelEdit?.();
+            }}
+            type="button"
+          >
+            <X aria-hidden="true" size={14} />
+          </button>
+        </div>
+      ) : null}
+
+      {/* Nota interna: aviso fixo de que o cliente não vê */}
+      {activeTab === "note" ? (
+        <p className="mb-1.5 flex items-center gap-1.5 rounded-control bg-amber-500/10 px-3 py-1 text-caption font-medium text-amber-800 dark:text-amber-300" data-testid="note-hint">
+          <Lock aria-hidden="true" size={12} /> Nota interna: só a equipe vê. Nunca é enviada ao cliente.
+        </p>
+      ) : null}
+
+      {activeTab === "message" && !editing ? <OutgoingFilesTray files={outgoing} onSubmit={() => void handleSubmit()} /> : null}
 
       <input
         accept={ACCEPT_ATTRIBUTE}
@@ -468,9 +624,12 @@ export function MessageForm({
       >
         <button
           aria-label="Anexar arquivo"
-          className="flex size-11 shrink-0 items-center justify-center rounded-control border border-border text-text-muted transition-colors hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
+          className={[
+            "size-11 shrink-0 items-center justify-center rounded-control border border-border text-text-muted transition-colors hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50",
+            voiceActive ? "hidden" : "flex",
+          ].join(" ")}
           data-testid="attach-button"
-          disabled={activeTab !== "message" || !filesEnabled}
+          disabled={activeTab !== "message" || !filesEnabled || Boolean(editing)}
           onClick={() => fileInputRef.current?.click()}
           title={!filesEnabled ? "Arquivos só em conversas individuais" : activeTab === "message" ? "Anexar arquivo (ou arraste para a conversa, ou cole com Ctrl+V)" : "Arquivos só em mensagens ao cliente"}
           type="button"
@@ -478,7 +637,7 @@ export function MessageForm({
           <Paperclip aria-hidden="true" size={18} />
         </button>
 
-        <div className="relative flex-1">
+        <div className={["relative flex-1", voiceActive ? "hidden" : ""].join(" ")}>
           <label className="sr-only" htmlFor={inputId}>
             {activeTab === "note" ? "Nota interna" : "Mensagem de texto"}
           </label>
@@ -507,7 +666,7 @@ export function MessageForm({
             className={[
               "min-h-11 w-full resize-none rounded-control border bg-background px-3 py-2 text-body text-text placeholder:text-text-muted focus:outline-none focus:ring-2 disabled:opacity-50",
               activeTab === "note"
-                ? "border-amber-500/40 focus:border-amber-500 focus:ring-amber-500"
+                ? "border-amber-500/50 bg-amber-50 focus:border-amber-500 focus:ring-amber-500 dark:bg-amber-500/10"
                 : "border-border focus:border-primary focus:ring-primary",
             ].join(" ")}
             id={inputId}
@@ -552,16 +711,28 @@ export function MessageForm({
           )}
         </div>
 
+        {activeTab === "message" && !editing && filesEnabled ? (
+          <VoiceRecorder
+            disabled={isSubmitting}
+            onActiveChange={setVoiceActive}
+            onNotice={(message) => setFeedback({ type: "error", message })}
+            onSend={sendVoice}
+          />
+        ) : null}
+
         <button
           aria-label={
             isSubmitting
               ? "Processando..."
-              : activeTab === "note"
-                ? "Salvar nota interna"
-                : "Enviar mensagem"
+              : editing
+                ? "Salvar edição"
+                : activeTab === "note"
+                  ? "Salvar nota interna"
+                  : "Enviar mensagem"
           }
           className={[
-            "flex size-11 shrink-0 items-center justify-center gap-2 rounded-control p-0 text-body font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 sm:h-auto sm:w-auto sm:min-w-11 sm:px-4 sm:py-2.5",
+            voiceActive ? "hidden" : "flex",
+            "size-11 shrink-0 items-center justify-center gap-2 rounded-control p-0 text-body font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 sm:h-auto sm:w-auto sm:min-w-11 sm:px-4 sm:py-2.5",
             activeTab === "note"
               ? "bg-amber-600 text-white hover:bg-amber-700"
               : "bg-primary text-primary-foreground hover:bg-primary/90",
@@ -574,9 +745,11 @@ export function MessageForm({
           <span className="hidden sm:inline">
             {isSubmitting
               ? "Processando..."
-              : activeTab === "note"
-                ? "Salvar nota"
-                : "Enviar"}
+              : editing
+                ? "Salvar"
+                : activeTab === "note"
+                  ? "Salvar nota"
+                  : "Enviar"}
           </span>
         </button>
       </form>
