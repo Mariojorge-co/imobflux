@@ -550,7 +550,7 @@ test.describe("Pacote de mensagens", () => {
     // O autor edita.
     await note.getByTestId("note-edit").click();
     await attendant.getByLabel("Editar nota interna").fill("Cliente prefere visita no domingo");
-    await note.getByTestId("note-save").click();
+    await attendant.getByTestId("note-save").click();
     await expect(attendant.getByTestId("internal-note").filter({ hasText: "visita no domingo" })).toBeVisible();
     await expect(attendant.getByTestId("internal-note").filter({ hasText: "visita no domingo" })).toContainText("editada");
 
