@@ -207,7 +207,7 @@ test.describe("Pacote de mensagens", () => {
     await expect(history(page).getByTestId("message-deleted")).toHaveCount(1);
   });
 
-  test("apagar para mim: confirmação, some para toda a equipe, o WhatsApp não é tocado", async ({ page, browser }) => {
+  test("apagar para mim: confirmação, some para toda a equipe, o WhatsApp não é tocado", async ({ page }) => {
     await open(page);
     await send(page, "Esconda esta aqui");
     const before = fake.requests.length;
@@ -219,13 +219,11 @@ test.describe("Pacote de mensagens", () => {
     expect(fake.requests.length - before).toBe(0);
     expect(queryLocalSql(`select hidden_at is not null from public.messages where id = '${messageId("Esconda esta aqui")}';`)).toBe("t");
 
-    // A outra pessoa da equipe também não vê.
-    const context = await browser.newContext();
-    const other = await context.newPage();
-    await loginAsDemoAttendant(other);
-    await open(other);
-    await expect(history(other).getByText("Esconda esta aqui")).toHaveCount(0);
-    await context.close();
+    // A outra pessoa da equipe também não vê (entra a atendente na mesma janela).
+    await loginAsDemoAttendant(page);
+    await open(page);
+    await expect(history(page).getByText("Esconda esta aqui")).toHaveCount(0);
+    await expect(page.getByTestId("hidden-messages-toggle")).toHaveCount(0);
   });
 
   test("exclusão e edição feitas no celular/cliente chegam pelo webhook", async ({ page, request }) => {
@@ -334,10 +332,9 @@ test.describe("Pacote de mensagens", () => {
     await dialog.getByTestId("forward-option").click();
     await dialog.getByTestId("forward-search").fill("");
     // Limite de 5: a sexta opção fica bloqueada.
-    await expect(dialog.getByTestId("forward-option").first()).toBeVisible();
     const options = dialog.getByTestId("forward-option");
+    await expect.poll(() => options.count()).toBeGreaterThanOrEqual(6);
     const total = await options.count();
-    expect(total).toBeGreaterThanOrEqual(6);
     for (let index = 0; index < total; index += 1) {
       const option = options.nth(index);
       if ((await dialog.getByTestId("forward-selected").locator("li").count()) >= 5) break;
@@ -455,7 +452,7 @@ test.describe("Pacote de mensagens", () => {
     await expect(page.locator("#msg-send-feedback")).toContainText("permissão foi negada");
   });
 
-  test("não lida e fixar: marcar como não lida e abrir limpa; fixar vai ao topo, limite de 5, só para mim", async ({ page, browser }) => {
+  test("não lida e fixar: marcar como não lida e abrir limpa; fixar vai ao topo, limite de 5, só para mim", async ({ page }) => {
     await open(page);
     await page.getByRole("button", { name: "Marcar como não lida" }).click();
     await expect(page.locator(`#conv-card-${main} [title="Não lida"]`)).toBeVisible();
@@ -470,12 +467,11 @@ test.describe("Pacote de mensagens", () => {
     await expect(page.locator('[id^="conv-card-"]').first()).toHaveAttribute("id", `conv-card-${second}`);
 
     // Fixação pessoal: a outra pessoa não vê o pin.
-    const context = await browser.newContext();
-    const other = await context.newPage();
-    await loginAsDemoAttendant(other);
-    await other.goto("/conversas");
-    await expect(other.locator('[data-testid="pinned-mark"]')).toHaveCount(0);
-    await context.close();
+    await loginAsDemoAttendant(page);
+    await page.goto("/conversas");
+    await expect(page.locator('[id^="conv-card-"]').first()).toBeVisible();
+    await expect(page.locator('[data-testid="pinned-mark"]')).toHaveCount(0);
+    await loginAsDemoOwner(page);
 
     // Limite de 5.
     const ids = queryLocalSql("select id from public.conversations where conversation_type = 'individual' and id <> '" + second + "' order by created_at limit 4;").split("\n");
@@ -525,10 +521,9 @@ test.describe("Pacote de mensagens", () => {
     await expect(page.getByTestId("conversation-search")).toHaveCount(0);
   });
 
-  test("nota interna: estilo próprio, nunca vai ao WhatsApp, não conta no prazo, autor edita, dono apaga qualquer, entra na busca", async ({ page, browser }) => {
+  test("nota interna: estilo próprio, nunca vai ao WhatsApp, não conta no prazo, autor edita, dono apaga qualquer, entra na busca", async ({ page }) => {
     // Como atendente, escreve a nota.
-    const context = await browser.newContext();
-    const attendant = await context.newPage();
+    const attendant = page;
     await loginAsDemoAttendant(attendant);
     await open(attendant);
     const slaBefore = queryLocalSql(`select coalesce(last_activity_at::text, '') from public.conversations where id = '${main}';`);
@@ -557,9 +552,9 @@ test.describe("Pacote de mensagens", () => {
     await attendant.getByTestId("conversation-search-toggle").click();
     await attendant.getByTestId("conversation-search-input").fill("domingo");
     await expect(attendant.getByTestId("conversation-search-count")).toContainText("1 de 1", { timeout: 15_000 });
-    await context.close();
 
     // O dono vê a nota, mas não edita (não é o autor); apaga.
+    await loginAsDemoOwner(page);
     await open(page);
     const ownerView = page.getByTestId("internal-note").filter({ hasText: "visita no domingo" });
     await expect(ownerView).toBeVisible();
