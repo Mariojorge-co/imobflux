@@ -401,8 +401,10 @@ test.describe("Sprint 17 — WhatsApp Textual Integration E2E Test Suite", () =>
       );
 
       expect(res.success).toBe(false);
-      expect(res.code).toBe("GATEWAY_ERROR");
-      expect(res.error).toBe("Falha ao enviar mensagem via WhatsApp");
+      // HTTP 503 da Evolution: falha distinta "recusou o envio", com o código curto e sem o corpo da resposta
+      expect(res.code).toBe("EVOLUTION_REJECTED");
+      expect(res.error).toContain("HTTP_503");
+      expect(res.error).not.toContain("Serviço indisponível");
     } finally {
       globalThis.fetch = realFetch;
     }
