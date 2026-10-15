@@ -42,24 +42,41 @@ export function mergeMessages(previous: ConversationMessage[], incoming: Convers
   for (const message of incoming) byId.set(message.id, message);
 
   const all = [...byId.values()].sort(byTime);
-  const queuedReal = all.filter((message) => !isPendingMessage(message) && message.direction === "outgoing" && message.origin === "crm" && message.status === "queued");
+  // A provisória ("enviando…" ou "não enviada") é substituída, uma para uma, pela versão que o servidor já gravou
+  // ("na fila" ou "falhou"): assim nunca aparecem duas bolhas da mesma mensagem. O motivo da falha, que só a
+  // provisória conhecia, passa para a versão gravada.
+  const stored = all.filter((message) => !isPendingMessage(message) && message.direction === "outgoing" && message.origin === "crm" && (message.status === "queued" || message.status === "failed"));
   const used = new Set<string>();
+  const reasons = new Map<string, string>();
   const withoutDuplicatedPending = all.filter((message) => {
     if (!isPendingMessage(message)) return true;
     const text = normalizedText(message);
     const at = new Date(message.occurred_at).getTime();
-    const match = queuedReal.find((own) => !used.has(own.id) && normalizedText(own) === text && Math.abs(new Date(own.occurred_at).getTime() - at) <= ECHO_WINDOW_MS);
+    const match = stored.find(
+      (own) =>
+        !used.has(own.id) &&
+        (message.status === "failed" ? own.status === "failed" : own.status === "queued") &&
+        normalizedText(own) === text &&
+        Math.abs(new Date(own.occurred_at).getTime() - at) <= ECHO_WINDOW_MS,
+    );
     if (!match) return true;
     used.add(match.id);
+    if (message.send_error) reasons.set(match.id, message.send_error);
     return false;
   });
+  const withReasons = withoutDuplicatedPending.map((message) => (reasons.has(message.id) ? { ...message, send_error: reasons.get(message.id) } : message));
 
-  return collapseEchoDuplicates(withoutDuplicatedPending);
+  return collapseEchoDuplicates(withReasons);
 }
 
 /** Tira uma mensagem provisória (enviada com sucesso, falhou ou cancelada). */
 export function removePendingMessage(messages: ConversationMessage[], pendingId: string): ConversationMessage[] {
   return messages.filter((message) => message.id !== pendingId);
+}
+
+/** Marca uma provisória como "não enviada", guardando o motivo para mostrar na bolha. */
+export function failPendingMessage(messages: ConversationMessage[], pendingId: string, reason: string): ConversationMessage[] {
+  return messages.map((message) => (message.id === pendingId ? { ...message, status: "failed", send_error: reason } : message));
 }
 
 /** Mensagem provisória exibida como "enviando…" assim que o usuário clica em enviar. */
@@ -85,4 +102,16 @@ export function outgoingStatusLabel(message: Pick<ConversationMessage, "directio
   if (message.status === "sending" || message.status === "queued") return "sending";
   if (message.status === "failed") return "failed";
   return null;
+}
+
+/** Uma falha que a pessoa já refez ("tentar de novo"): fica escondida mesmo que a versão gravada chegue depois. */
+export type DismissedFailure = { id: string; text: string; at: string };
+
+export function isDismissedFailure(message: ConversationMessage, dismissed: ReadonlyArray<DismissedFailure>): boolean {
+  if (dismissed.length === 0 || message.direction !== "outgoing" || message.origin !== "crm") return false;
+  if (dismissed.some((item) => item.id === message.id)) return true;
+  if (message.status !== "failed") return false;
+  const text = normalizedText(message);
+  const at = new Date(message.occurred_at).getTime();
+  return dismissed.some((item) => item.text.replace(/s+/g, " ").trim() === text && Math.abs(new Date(item.at).getTime() - at) <= ECHO_WINDOW_MS);
 }

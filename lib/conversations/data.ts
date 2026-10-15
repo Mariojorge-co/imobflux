@@ -92,6 +92,8 @@ export type ConversationMessage = {
   attachments?: ConversationMessageAttachment[];
   internal_author_name?: string | null;
   sender_display_name?: string | null;
+  /** Só no navegador: motivo da falha de uma mensagem que nem chegou a ser gravada (bolha "não enviada"). */
+  send_error?: string | null;
 };
 
 /** Cursor para paginação de mensagens. */

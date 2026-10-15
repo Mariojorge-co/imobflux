@@ -19,15 +19,12 @@ import { searchForSlash } from "@/lib/quick-replies/filter";
 import { detectSlashTrigger, insertAtCursor, replaceSlashTrigger, type SlashTrigger } from "@/lib/quick-replies/insert";
 import type { QuickReply } from "@/lib/quick-replies/types";
 import { findUnresolvedVariables, resolveVariables, unresolvedWarning } from "@/lib/quick-replies/variables";
-import {
-  saveInternalNoteAction,
-  sendMessageAction,
-} from "@/lib/conversations/actions";
+import { saveInternalNoteAction } from "@/lib/conversations/actions";
+import { sendTextQueued } from "@/lib/conversations/send-client";
 import type {
   ConversationContextData,
   ConversationMessage,
 } from "@/lib/conversations/data";
-import { buildPendingMessage } from "@/lib/conversations/message-merge";
 
 const MAX_CHAR_LIMIT = 4096;
 const COUNTER_SHOW_THRESHOLD = 3500;
@@ -46,6 +43,8 @@ type MessageFormProps = {
   onMessageSending?: (message: ConversationMessage) => void;
   /** Fim do envio: remove a bolha provisória e, se deu certo, entrega a mensagem gravada. */
   onMessageSettled?: (pendingId: string, persisted?: ConversationMessage) => void;
+  /** Falha do envio: a bolha fica "não enviada" com o motivo e a opção de tentar de novo. */
+  onMessageFailed?: (pendingId: string, reason: string, code?: string) => void;
 };
 
 export function MessageForm({
@@ -56,6 +55,7 @@ export function MessageForm({
   onMessagePersisted,
   onMessageSending,
   onMessageSettled,
+  onMessageFailed,
 }: MessageFormProps) {
   const [activeTab, setActiveTab] = useState<"message" | "note">("message");
   const [text, setText] = useState("");
@@ -65,8 +65,6 @@ export function MessageForm({
     message: string;
   } | null>(null);
 
-  const activeIdempotencyKeyRef = useRef<string | null>(null);
-  const pendingIdRef = useRef<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Respostas rápidas: painel, atalho "/", caixa expandida e confirmação de campos em branco.
@@ -82,13 +80,6 @@ export function MessageForm({
 
   const reactId = useId();
   const inputId = typeof reactId === "string" ? reactId : "input-message-text";
-
-  const getOrCreateIdempotencyKey = useCallback(() => {
-    if (!activeIdempotencyKeyRef.current) {
-      activeIdempotencyKeyRef.current = crypto.randomUUID();
-    }
-    return activeIdempotencyKeyRef.current;
-  }, []);
 
   // A caixa começa com 1 linha e cresce com o texto até ~40% da altura da tela (depois rola por dentro). "Expandir" leva a
   // ~60%. Uma resposta longa inserida nunca fica cortada: a altura acompanha o conteúdo.
@@ -156,9 +147,6 @@ export function MessageForm({
   );
 
   const handleTextChange = (newText: string, caret?: number) => {
-    if (newText !== text) {
-      activeIdempotencyKeyRef.current = null;
-    }
     setText(newText);
     if (feedback) {
       setFeedback(null);
@@ -198,7 +186,6 @@ export function MessageForm({
       window.setTimeout(() => textareaRef.current?.focus(), 0);
       return;
     }
-    activeIdempotencyKeyRef.current = null;
     pendingCaretRef.current = result.caret;
     setText(result.value);
     setFeedback(null);
@@ -207,16 +194,7 @@ export function MessageForm({
 
   const handleSubmit = async (options?: { skipConfirm?: boolean }) => {
     const trimmed = text.trim();
-    if (!trimmed || isSubmitting) return;
-
-    // Mensagem com {{campo}} ainda aberto: pede confirmação antes de enviar ao cliente.
-    if (activeTab === "message" && !options?.skipConfirm) {
-      const pendingFields = findUnresolvedVariables(trimmed);
-      if (pendingFields.length > 0) {
-        setUnresolved(pendingFields);
-        return;
-      }
-    }
+    if (!trimmed) return;
 
     if (trimmed.length > MAX_CHAR_LIMIT) {
       setFeedback({
@@ -226,87 +204,50 @@ export function MessageForm({
       return;
     }
 
+    if (activeTab === "message") {
+      // Mensagem com {{campo}} ainda aberto: pede confirmação antes de enviar ao cliente.
+      if (!options?.skipConfirm) {
+        const pendingFields = findUnresolvedVariables(trimmed);
+        if (pendingFields.length > 0) {
+          setUnresolved(pendingFields);
+          return;
+        }
+      }
+
+      // Envio sem travar a caixa: a bolha "enviando…" aparece na hora, a caixa é limpa e liberada, e o envio entra na
+      // fila da conversa (um de cada vez, na ordem). Se falhar, a bolha vira "não enviada" com o motivo e "Tentar de
+      // novo"; o texto não volta para a caixa e nada é reenviado sozinho.
+      setFeedback(null);
+      setText("");
+      void sendTextQueued(conversationId, trimmed, {
+        onSending: (pending) => onMessageSending?.(pending),
+        onSettled: (pendingId, persisted) => {
+          if (onMessageSettled) onMessageSettled(pendingId, persisted);
+          else if (persisted) onMessagePersisted?.(persisted);
+        },
+        onFailed: (pendingId, reason, code) => onMessageFailed?.(pendingId, reason, code),
+      });
+      requestAnimationFrame(() => textareaRef.current?.focus());
+      return;
+    }
+
+    if (isSubmitting) return;
     setIsSubmitting(true);
     setFeedback(null);
 
     try {
-      if (activeTab === "note") {
-        // Envio de NOTA INTERNA (nunca vai pro WhatsApp)
-        const result = await saveInternalNoteAction(
-          conversationId,
-          trimmed,
-          opportunityId,
-        );
-        if (result.success) {
-          setText("");
-          if (result.note) onInternalNoteSaved?.(result.note, opportunityId ?? null);
-        } else {
-          setFeedback({
-            type: "error",
-            message: result.error || "Falha ao salvar nota interna.",
-          });
-        }
-      } else {
-        // Envio de MENSAGEM normal ao cliente
-        const idempotencyKey = getOrCreateIdempotencyKey();
-        // A bolha aparece na hora ("enviando…") e a caixa é limpa; se falhar, o texto volta para a caixa.
-        const pending = buildPendingMessage({ idempotencyKey, text: trimmed });
-        pendingIdRef.current = pending.id;
-        onMessageSending?.(pending);
+      // Envio de NOTA INTERNA (nunca vai pro WhatsApp)
+      const result = await saveInternalNoteAction(conversationId, trimmed, opportunityId);
+      if (result.success) {
         setText("");
-        const result = await sendMessageAction(
-          conversationId,
-          trimmed,
-          idempotencyKey,
-        );
-
-        if (result.success) {
-          activeIdempotencyKeyRef.current = null;
-          pendingIdRef.current = null;
-          if (onMessageSettled) onMessageSettled(pending.id, result.message);
-          else if (result.message) onMessagePersisted?.(result.message);
-
-          if (result.status === "duplicate") {
-            setFeedback({
-              type: "info",
-              message: "Mensagem já registrada.",
-            });
-          }
-        } else {
-          // Falha: a próxima tentativa (clique do usuário) é uma mensagem nova, com chave nova. A que falhou
-          // continua marcada como falha e nunca é reenviada sozinha; assim o reenvio não esbarra em "falhou antes".
-          activeIdempotencyKeyRef.current = null;
-          pendingIdRef.current = null;
-          onMessageSettled?.(pending.id);
-          setText((current) => (current === "" ? trimmed : current));
-          if (result.code === "UNAUTHORIZED") {
-            setFeedback({
-              type: "error",
-              message: "Sessão expirada. Por favor, faça login novamente.",
-            });
-          } else if (result.code === "PREVIOUSLY_FAILED") {
-            setFeedback({
-              type: "error",
-              message:
-                "Esta mensagem falhou em uma tentativa anterior. Clique em enviar de novo para tentar outra vez.",
-            });
-          } else {
-            setFeedback({
-              type: "error",
-              message:
-                result.error ||
-                "Falha ao enviar mensagem. Tente novamente mais tarde.",
-            });
-          }
-        }
+        if (result.note) onInternalNoteSaved?.(result.note, opportunityId ?? null);
+      } else {
+        setFeedback({
+          type: "error",
+          message: result.error || "Falha ao salvar nota interna.",
+        });
       }
     } catch {
-      if (pendingIdRef.current) {
-        onMessageSettled?.(pendingIdRef.current);
-        pendingIdRef.current = null;
-        activeIdempotencyKeyRef.current = null;
-        setText((current) => (current === "" ? trimmed : current));
-      }
       setFeedback({
         type: "error",
         message: "Erro de conexão ao processar a requisição.",

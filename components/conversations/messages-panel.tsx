@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
-import { Archive, ArchiveRestore, ArrowLeft, Info, Mail, Paperclip, Plus } from "lucide-react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
+import { Archive, ArchiveRestore, ArrowLeft, Info, Mail, Paperclip, Plus, RotateCw } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -33,7 +33,8 @@ import { ClientContextPanel } from "@/components/conversations/client-context-pa
 import { AssigneesBar } from "@/components/conversations/assignees-bar";
 import type { ConversationAssignee, DirectoryMember } from "@/lib/conversations/assignment";
 import { emitConversationClientUpdate } from "@/lib/conversations/client-events";
-import { mergeMessages, outgoingStatusLabel, removePendingMessage } from "@/lib/conversations/message-merge";
+import { failPendingMessage, isDismissedFailure, mergeMessages, outgoingStatusLabel, removePendingMessage, type DismissedFailure } from "@/lib/conversations/message-merge";
+import { sendTextQueued } from "@/lib/conversations/send-client";
 import { conversationPatchFromMessage, isConversationClosed } from "@/lib/conversations/sla-display";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
@@ -70,6 +71,8 @@ export function MessagesPanel({
   const [, startTransition] = useTransition();
   const [messages, setMessages] = useState<ConversationMessage[]>(initialMessages);
   const [liveConversation, setLiveConversation] = useState(conversation);
+  const [dismissedFailed, setDismissedFailed] = useState<ReadonlyArray<DismissedFailure>>([]);
+  const visibleMessages = useMemo(() => messages.filter((message) => !isDismissedFailure(message, dismissedFailed)), [messages, dismissedFailed]);
   const [optimisticNotes, setOptimisticNotes] = useState<
     Record<string, ConversationContextData["notes"]>
   >({});
@@ -220,6 +223,23 @@ export function MessagesPanel({
     setMessages((previous) => removePendingMessage(previous, pendingId));
     if (persisted) handleMessagePersisted(persisted);
   }, [handleMessagePersisted]);
+
+  // Falhou: a bolha continua na conversa como "não enviada", com o motivo e "Tentar de novo".
+  const handleMessageFailed = useCallback((pendingId: string, reason: string) => {
+    setMessages((previous) => failPendingMessage(previous, pendingId, reason));
+  }, []);
+
+  // "Tentar de novo" é uma NOVA mensagem (nova chave) na fila da conversa; a que falhou sai da tela. Nada é reenviado sozinho.
+  const handleRetryMessage = useCallback((failed: ConversationMessage) => {
+    const text = failed.text_content?.trim();
+    if (!text) return;
+    setDismissedFailed((previous) => [...previous, { id: failed.id, text, at: failed.occurred_at }]);
+    void sendTextQueued(conversation.conversation_id, text, {
+      onSending: handleMessageSending,
+      onSettled: handleMessageSettled,
+      onFailed: handleMessageFailed,
+    });
+  }, [conversation.conversation_id, handleMessageFailed, handleMessageSending, handleMessageSettled]);
 
   const handleInternalNoteSaved = useCallback((
     note: ConversationContextData["notes"][number],
@@ -619,11 +639,11 @@ export function MessagesPanel({
           )}
 
           <div className="flex flex-col gap-2" ref={contentRef}>
-            {messages.map((msg, idx) => {
+            {visibleMessages.map((msg, idx) => {
               const isOutgoing = msg.direction === "outgoing";
               const showDateSeparator =
                 idx === 0 ||
-                !isSameDay(messages[idx - 1].occurred_at, msg.occurred_at);
+                !isSameDay(visibleMessages[idx - 1].occurred_at, msg.occurred_at);
 
               return (
                 <div
@@ -634,13 +654,13 @@ export function MessagesPanel({
                   {showDateSeparator && (
                     <DateSeparator dateString={msg.occurred_at} />
                   )}
-                  {msg.is_history && !messages[idx - 1]?.is_history && (
+                  {msg.is_history && !visibleMessages[idx - 1]?.is_history && (
                     <HistoryDivider kind="start" />
                   )}
-                  {!msg.is_history && messages[idx - 1]?.is_history && (
+                  {!msg.is_history && visibleMessages[idx - 1]?.is_history && (
                     <HistoryDivider kind="end" />
                   )}
-                  <MessageBubble isOutgoing={isOutgoing} message={msg} />
+                  <MessageBubble isOutgoing={isOutgoing} message={msg} onRetry={handleRetryMessage} />
                 </div>
               );
             })}
@@ -653,6 +673,7 @@ export function MessagesPanel({
           contactName={liveConversation.participant_name}
           onInternalNoteSaved={handleInternalNoteSaved}
           onMessagePersisted={handleMessagePersisted}
+          onMessageFailed={handleMessageFailed}
           onMessageSending={handleMessageSending}
           onMessageSettled={handleMessageSettled}
           opportunityId={effectiveOpportunityId}
@@ -793,9 +814,15 @@ function HistoryDivider({ kind }: { kind: "start" | "end" }) {
 type MessageBubbleProps = {
   message: ConversationMessage;
   isOutgoing: boolean;
+  onRetry?: (message: ConversationMessage) => void;
 };
 
-function MessageBubble({ message, isOutgoing }: MessageBubbleProps) {
+function MessageBubble({ message, isOutgoing, onRetry }: MessageBubbleProps) {
+  // Tentar de novo só para texto enviado pelo CRM que falhou (a nova tentativa é uma nova mensagem).
+  const canRetry = Boolean(
+    onRetry && isOutgoing && message.status === "failed" && message.origin === "crm" && !message.is_history
+      && message.text_content?.trim() && !message.has_attachments,
+  );
   const deliveryState = outgoingStatusLabel(message);
   const timeLabel = new Date(message.occurred_at).toLocaleTimeString("pt-BR", {
     hour: "2-digit",
@@ -874,6 +901,21 @@ function MessageBubble({ message, isOutgoing }: MessageBubbleProps) {
         >
           {deliveryState === "sending" ? "Enviando…" : deliveryState === "failed" ? "Não enviada" : timeLabel}
         </p>
+        {deliveryState === "failed" ? (
+          <div className="mt-0.5 flex flex-wrap items-center justify-end gap-x-2 gap-y-0.5 text-caption text-primary-foreground/80" data-testid="message-failed-detail">
+            {message.send_error ? <span className="break-words">{message.send_error}</span> : null}
+            {canRetry ? (
+              <button
+                className="inline-flex min-h-8 items-center gap-1 rounded-control px-2 font-semibold underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-foreground"
+                data-testid="message-retry"
+                onClick={() => onRetry?.(message)}
+                type="button"
+              >
+                <RotateCw aria-hidden="true" size={12} /> Tentar de novo
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </div>
   );
