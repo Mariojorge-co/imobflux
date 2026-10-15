@@ -155,3 +155,10 @@ Detalhes em [RELATORIO_RESPOSTAS_RAPIDAS.md](RELATORIO_RESPOSTAS_RAPIDAS.md); ro
   - Vídeo na conversa ainda no limite antigo (220/280 px); só a foto foi reduzida.
   - Suíte `email-auth-flow` (cópia `imobflux-auth-disposable`) ainda não executada; rodar antes de mexer em autenticação ou convite.
   - Conferir o CI (Node 22) no GitHub e o Ready da Vercel depois do push.
+
+## Em revisão (NÃO publicado): branch `feat/pacote-arquivos-prazos`
+
+Envio de arquivos pelo WhatsApp, fila de envio não bloqueante, prazos configuráveis (pausa por conversa), grupos e conversa consigo mesmo. Detalhes, contrato da Evolution, decisões, roteiro de teste e riscos em [RELATORIO_PACOTE_ARQUIVOS_PRAZOS.md](RELATORIO_PACOTE_ARQUIVOS_PRAZOS.md).
+- **4 migrations só locais** (`20260802005300`–`005600`), todas com rollback testado em `docs/rollback/`. **Publicar migrations primeiro (Trava A) e o app depois (Trava B).**
+- Antes de publicar: rodar o checklist abaixo e conferir CI e Vercel por CLI (`gh run list`, `vercel ls`).
+- Pendências conhecidas: eco de arquivo antes da confirmação pode gerar linha duplicada no banco (a tela esconde); varredura de uploads órfãos manual (`npm run sweep:uploads`); só um envio real prova o comportamento da Evolution com arquivos grandes.
