@@ -64,8 +64,8 @@ export function GroupsVisibilityManager({ groups }: { groups: GroupRow[] }) {
             return (
               <li data-testid="group-row" key={row.id}>
                 <Card className="flex flex-wrap items-center gap-3 p-3">
-                  <div className="min-w-0 flex-1">
-                    <Link className="block truncate text-body font-semibold text-text hover:underline" href={`/conversas/${row.id}`}>
+                  <div className="min-w-0 basis-full sm:flex-1 sm:basis-0">
+                    <Link className="block break-words text-body font-semibold text-text hover:underline sm:truncate" href={`/conversas/${row.id}`}>
                       👥 {row.name}
                     </Link>
                     <p className="text-caption text-text-muted">

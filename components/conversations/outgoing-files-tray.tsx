@@ -38,7 +38,7 @@ export function OutgoingFilesTray({ files }: { files: OutgoingFiles }) {
       ) : null}
 
       {files.items.length > 0 ? (
-        <ul aria-label="Arquivos para enviar" className="flex max-h-56 flex-col gap-1.5 overflow-y-auto">
+        <ul aria-label="Arquivos para enviar" className="flex max-h-[min(14rem,35dvh)] flex-col gap-1.5 overflow-y-auto">
           {files.items.map((item) => (
             <li className="flex items-start gap-2 rounded-control border border-border bg-background p-1.5" data-testid="outgoing-item" key={item.id}>
               <Thumb item={item} />
