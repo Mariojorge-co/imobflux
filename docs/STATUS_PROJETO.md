@@ -4,7 +4,7 @@
 - **Objetivo**: gestão comercial e relacionamento para corretores e imobiliárias, com WhatsApp integrado.
 - **Versão**: `0.1.0`
 - **Produção**: app em `https://imobflux.vercel.app` (Vercel) e banco no Supabase (`imobflux-prod`).
-- **Última atualização**: 2026-10-14 (produção em `965f695`: WhatsApp pessoal publicado; migration `005000` aplicada em produção em 2026-10-14, ver `RELATORIO_WHATSAPP_PESSOAL.md`)
+- **Última atualização**: 2026-10-15 (pacote de Conversas publicado: troca de conversa rápida, contador de espera único, envio otimista e mídia; migration `005100` aplicada em produção em 2026-10-15, ver `RELATORIO_CONVERSAS_PACOTE.md`)
 
 ---
 
@@ -74,7 +74,7 @@ Detalhes, testes e decisões em [RELATORIO_NOITE.md](RELATORIO_NOITE.md). Corre�
 
 ## Banco de dados
 
-- **Migrations**: 50 arquivos forward-only (`20260802000100` a `20260802005000`); todas as 50 estão em produção (`004300` a `004900` em 2026-10-13; `005000` em 2026-10-14).
+- **Migrations**: 51 arquivos forward-only (`20260802000100` a `20260802005100`); todas as 51 estão em produção (`004300` a `004900` em 2026-10-13; `005000` em 2026-10-14; `005100` em 2026-10-15).
 - **Tabelas de domínio**: 19 (`public`), com RLS habilitada e forçada.
 - **Funções**: leitura por RPCs `SECURITY INVOKER` (RLS preservada); escrita por RPCs `SECURITY DEFINER`
   auditadas; funções de ingestão e de mídia só para `service_role`.
@@ -128,3 +128,17 @@ O CI do GitHub roda em **Node 22**; o desenvolvimento local costuma usar Node 24
 4. Em testes, use caminho relativo em `require.resolve(...)` (o apelido `@/` só funciona em `require(...)` e `import`).
 5. Mudança de banco: suíte pgTAP do zero e, em produção, backup, `migration list --linked`, `db push --linked --dry-run` e validação somente leitura (migrations primeiro, app depois).
 6. Depois do push: conferir o resultado do CI no GitHub (e-mail ou aba Actions) e o deploy da Vercel até "Ready".
+
+## Publicado em produção em 2026-10-15 (ex-branch `fix/conversas-pacote`)
+
+Detalhes, números de desempenho, testes e roteiro em [RELATORIO_CONVERSAS_PACOTE.md](RELATORIO_CONVERSAS_PACOTE.md); rollback da migration em `docs/rollback/20260802005100_rollback.sql`.
+- **Troca de conversa rápida:** lista no layout (carregada uma vez), cabeçalho por uma consulta (`get_conversation_item`), consultas em paralelo, acesso do usuário em 1 consulta, esqueleto e prefetch; medido em banco local com 230 conversas: de ~1,6 s para ~0,4 s no navegador.
+- **Contador de espera numa regra só:** nos dois sentidos; conversa **arquivada** (= encerrada) fica sem chip em lugar nenhum; resposta que falhou não conta; mensagem do cliente numa conversa arquivada **reabre** a conversa (com auditoria).
+- **Envio:** bolha "Enviando…" na hora, falha marcada como "Não enviada", eco do webhook sem bolha duplicada; a instância de envio vem do banco (a fila devolve `instance_name`). `EVOLUTION_INSTANCE_NAME` na Vercel continua como reserva e **não deve ser removida** por enquanto.
+- **Mídia e espaço:** figurinha pequena sem bolha, foto/vídeo com altura limitada e ampliar, responsáveis no cabeçalho, caixa de texto que cresce.
+
+## Pendências a registrar (conferir antes de seguir)
+- **Investigar ANTES de convidar funcionários:** o teste de navegador `tests/team-management.spec.ts` ("ATTENDANT não administra equipe e respeita contatos, grupos e histórico temporal") **falha**: o atendente é redirecionado (`/conversas?reason=access_changed`) ao abrir um grupo liberado. Falha com o app da `main`, com o banco em qualquer estado testado (inclusive só até a `004200`) e **antes** do trabalho de 13 a 15/10, então não é regressão recente. Pode ser teste desatualizado ou bug real de visibilidade de grupo para atendente; há tarefa aberta para investigar. Hoje só existe o dono (e um atendente de teste), por isso o risco imediato é baixo.
+- **Suíte não executada:** `isolated-tests/email-auth-flow.spec.ts` (config `playwright.auth-isolated.config.ts`) exige uma cópia dedicada `imobflux-auth-disposable` com Supabase na porta 56321 e não foi rodada nesta entrega. Cobre e-mail, convite e recuperação (as suítes `auth-flow`, `team-management` e `email-auth-flow` unitária passaram). Rodar antes de mexer de novo em autenticação ou convite.
+- **Verificação do CI:** confirmar no GitHub (Actions ou e-mail) que o job "Lint, tipos, testes unitários e build" (Node 22) e o de banco ficaram verdes depois do push, e a Vercel em "Ready".
+- Em aberto, sem relação com esta entrega: contatos `@lid`, exclusão real de contato/conversa e custo do `get_conversations_inbox` com volume maior (item M2).
