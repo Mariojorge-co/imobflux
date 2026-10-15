@@ -127,7 +127,7 @@ O CI do GitHub roda em **Node 22**; o desenvolvimento local costuma usar Node 24
 3. Build com as variáveis falsas do CI (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_CLIENT_KEY` e `SUPABASE_ADMIN_KEY` com valores de mentira): `npm run build`.
 4. Em testes, use caminho relativo em `require.resolve(...)` (o apelido `@/` só funciona em `require(...)` e `import`).
 5. Mudança de banco: suíte pgTAP do zero e, em produção, backup, `migration list --linked`, `db push --linked --dry-run` e validação somente leitura (migrations primeiro, app depois).
-6. Depois do push: conferir o resultado do CI no GitHub (e-mail ou aba Actions) e o deploy da Vercel até "Ready".
+6. Depois do push, conferir **por CLI** (sem abrir painel): CI com `gh run list -R Mariojorge-co/imobflux -L 3` e, para os jobs, `gh run view <id> -R Mariojorge-co/imobflux --json jobs` (esperado: "Lint, tipos, testes unitários e build" e "Banco (migrations + pgTAP)" em success); deploy com `vercel ls imobflux` (o mais recente em Production deve estar "Ready" e com a idade batendo com o push) e `vercel inspect <url>`. Ferramentas e logins já feitos neste Windows (`gh` em `C:Program FilesGitHub CLIgh.exe` se o PATH não atualizar; `vercel` global do npm). Só leitura: nunca rodar `vercel setup`/`link`/`deploy`.
 
 ## Publicado em produção em 2026-10-15 (ex-branch `fix/conversas-pacote`)
 
