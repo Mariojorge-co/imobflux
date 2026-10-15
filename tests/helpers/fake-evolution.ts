@@ -41,7 +41,6 @@ export async function startFakeEvolution(port: number): Promise<FakeEvolution> {
       }
       const path = req.url ?? "";
       const entry: FakeRequest = { path, body, at: Date.now(), hasApiKey: Boolean(req.headers.apikey) };
-      requests.push(entry);
       const info = { path, body };
       // sendMedia: a Evolution real baixa o arquivo pela URL; a simulada faz o mesmo e guarda o que recebeu.
       // sendWhatsAppAudio (mensagem de voz): o campo é "audio"; o resto é igual. editar (updateMessage), apagar para todos
@@ -56,6 +55,8 @@ export async function startFakeEvolution(port: number): Promise<FakeEvolution> {
           entry.download = { status: 0, bytes: 0, head: "" };
         }
       }
+      // O pedido só aparece em `requests` depois do download (quando há), para o teste nunca ler o registro pela metade.
+      requests.push(entry);
       const wait = behavior.delay?.(info) ?? 0;
       setTimeout(() => {
         const downloadFailed = entry.download !== undefined && entry.download.status !== 200;
