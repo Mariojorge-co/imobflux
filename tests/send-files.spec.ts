@@ -115,6 +115,18 @@ test.describe("Envio de arquivos pelo WhatsApp", () => {
     expect(mediaRequests()[0].body).toMatchObject({ mediatype: "document", mimetype: "image/png", fileName: "planta.png" });
   });
 
+  test("vídeo curto vai como vídeo e aparece na conversa com o mesmo limite de tamanho da foto", async ({ page }) => {
+    await open(page);
+    await page.getByTestId("file-input").setInputFiles([{ name: "visita.mp4", mimeType: "video/mp4", buffer: mp4(3_000) }]);
+    await waitAllReady(page, 1);
+    await page.getByRole("button", { name: "Enviar mensagem" }).click();
+    await expect.poll(() => mediaRequests().length, { timeout: 30_000 }).toBe(1);
+    expect(mediaRequests()[0].body).toMatchObject({ mediatype: "video", mimetype: "video/mp4", fileName: "visita.mp4" });
+    await expect(page.getByLabel("Histórico de mensagens").getByTestId("message-sending")).toHaveCount(0, { timeout: 30_000 });
+    await page.reload();
+    await expect(page.getByLabel("Histórico de mensagens").getByTestId("video-thumb")).toHaveCount(1);
+  });
+
   test("limites: 24 MB envia, 26 MB é recusado com mensagem clara, mais de 10 arquivos, e arquivos vazios", async ({ page }) => {
     await open(page);
     await page.getByTestId("file-input").setInputFiles([{ name: "grande.pdf", mimeType: "application/pdf", buffer: pdf(26 * MB) }]);
