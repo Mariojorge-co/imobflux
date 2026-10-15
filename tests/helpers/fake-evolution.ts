@@ -3,7 +3,14 @@ import http from "node:http";
 // Evolution API SIMULADA para os testes de navegador: nada sai para a internet nem usa credencial real.
 // Registra o que o app enviaria (caminho e corpo, sem a chave) e responde no formato da Evolution v2 (`key.id`).
 
-export type FakeRequest = { path: string; body: Record<string, unknown>; at: number; hasApiKey: boolean };
+export type FakeRequest = {
+  path: string;
+  body: Record<string, unknown>;
+  at: number;
+  hasApiKey: boolean;
+  /** Em sendMedia: o que a Evolution simulada conseguiu baixar da URL assinada (como a real faria). */
+  download?: { status: number; bytes: number; head: string };
+};
 
 export type FakeEvolution = {
   url: string;
@@ -25,7 +32,7 @@ export async function startFakeEvolution(port: number): Promise<FakeEvolution> {
   const server = http.createServer((req, res) => {
     const chunks: Buffer[] = [];
     req.on("data", (chunk: Buffer) => chunks.push(chunk));
-    req.on("end", () => {
+    req.on("end", async () => {
       let body: Record<string, unknown> = {};
       try {
         body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>;
@@ -33,11 +40,23 @@ export async function startFakeEvolution(port: number): Promise<FakeEvolution> {
         body = {};
       }
       const path = req.url ?? "";
-      requests.push({ path, body, at: Date.now(), hasApiKey: Boolean(req.headers.apikey) });
+      const entry: FakeRequest = { path, body, at: Date.now(), hasApiKey: Boolean(req.headers.apikey) };
+      requests.push(entry);
       const info = { path, body };
+      // sendMedia: a Evolution real baixa o arquivo pela URL; a simulada faz o mesmo e guarda o que recebeu.
+      if (path.includes("/message/sendMedia/") && typeof body.media === "string" && body.media.startsWith("http")) {
+        try {
+          const download = await fetch(body.media);
+          const bytes = new Uint8Array(await download.arrayBuffer());
+          entry.download = { status: download.status, bytes: bytes.length, head: Buffer.from(bytes.slice(0, 8)).toString("hex") };
+        } catch {
+          entry.download = { status: 0, bytes: 0, head: "" };
+        }
+      }
       const wait = behavior.delay?.(info) ?? 0;
       setTimeout(() => {
-        const failStatus = behavior.fail?.(info) ?? null;
+        const downloadFailed = entry.download !== undefined && entry.download.status !== 200;
+        const failStatus = downloadFailed ? 502 : (behavior.fail?.(info) ?? null);
         if (failStatus) {
           res.writeHead(failStatus, { "content-type": "application/json" });
           res.end(JSON.stringify({ status: failStatus, error: "Simulated failure", response: { message: ["simulated"] } }));

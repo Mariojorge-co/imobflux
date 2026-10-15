@@ -13,7 +13,8 @@
     "test:db": "npx --yes supabase@2.111.0 test db --local supabase/tests/database/",
     "demo:load": "npx tsx scripts/demo-control.ts --load",
     "demo:clean": "npx tsx scripts/demo-control.ts --clean",
-    "demo:reset": "npx tsx scripts/demo-control.ts --reset"
+    "demo:reset": "npx tsx scripts/demo-control.ts --reset",
+    "sweep:uploads": "npx tsx scripts/sweep-orphan-uploads.ts"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.3",
