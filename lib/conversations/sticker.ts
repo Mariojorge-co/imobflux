@@ -6,12 +6,9 @@ export const STICKER_LABEL = "Figurinha";
 
 /** Tamanho máximo (em pixels) da figurinha na conversa. */
 export const STICKER_MAX_PX = 140;
-/** Foto na conversa: limite no MAIOR lado (largura ou altura), celular e desktop; a proporção é preservada. */
+/** Foto e vídeo na conversa: limite no MAIOR lado (largura ou altura), celular e desktop; a proporção é preservada. */
 export const IMAGE_MAX_SIDE_MOBILE_PX = 180;
 export const IMAGE_MAX_SIDE_DESKTOP_PX = 220;
-/** Altura máxima de vídeo na conversa: celular e desktop. */
-export const MEDIA_MAX_HEIGHT_MOBILE_PX = 220;
-export const MEDIA_MAX_HEIGHT_DESKTOP_PX = 280;
 
 type StickerCandidate = { file_name?: string | null; mime_type?: string | null };
 

@@ -224,5 +224,8 @@ test.describe("imagem na conversa", () => {
     expect(source).toContain(`max-w-[${IMAGE_MAX_SIDE_MOBILE_PX}px]`);
     expect(source).toContain(`sm:max-h-[${IMAGE_MAX_SIDE_DESKTOP_PX}px]`);
     expect(source).toContain(`sm:max-w-[${IMAGE_MAX_SIDE_DESKTOP_PX}px]`);
+    // O vídeo usa o mesmo limite (duas ocorrências de cada classe: foto e vídeo).
+    expect(source.split(`max-h-[${IMAGE_MAX_SIDE_MOBILE_PX}px]`).length - 1).toBeGreaterThanOrEqual(2);
+    expect(source.split(`sm:max-w-[${IMAGE_MAX_SIDE_DESKTOP_PX}px]`).length - 1).toBeGreaterThanOrEqual(2);
   });
 });

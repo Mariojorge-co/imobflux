@@ -24,8 +24,6 @@ import {
   isStickerMessage,
   IMAGE_MAX_SIDE_DESKTOP_PX,
   IMAGE_MAX_SIDE_MOBILE_PX,
-  MEDIA_MAX_HEIGHT_DESKTOP_PX,
-  MEDIA_MAX_HEIGHT_MOBILE_PX,
   STICKER_MAX_PX,
 } from "../lib/conversations/sticker";
 
@@ -224,12 +222,10 @@ test.describe("figurinha e limites de mídia", () => {
     expect(isStickerMessage({ text_content: "Figurinha", attachments: [{ file_name: "figurinha", mime_type: "image/webp" }, { file_name: "x", mime_type: "image/png" }] })).toBe(false);
   });
 
-  test("limites: figurinha até 140 px; foto até 180 px (celular) e 220 px (desktop) no maior lado; vídeo 220/280 px de altura", () => {
+  test("limites: figurinha até 140 px; foto e vídeo até 180 px (celular) e 220 px (desktop) no maior lado", () => {
     expect(STICKER_MAX_PX).toBe(140);
     expect(IMAGE_MAX_SIDE_MOBILE_PX).toBe(180);
     expect(IMAGE_MAX_SIDE_DESKTOP_PX).toBe(220);
-    expect(MEDIA_MAX_HEIGHT_MOBILE_PX).toBe(220);
-    expect(MEDIA_MAX_HEIGHT_DESKTOP_PX).toBe(280);
   });
 });
 

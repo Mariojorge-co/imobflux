@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Eye, EyeOff, ExternalLink, FileText, Maximize2, Paperclip, RotateCw } from "lucide-react";
+import { Eye, EyeOff, ExternalLink, FileText, Paperclip, Play, RotateCw } from "lucide-react";
 import { retryAttachmentDownloadAction } from "@/lib/conversations/actions";
 import { describeAttachment } from "@/lib/conversations/attachment-label";
 import { isDownloadInProgress, viewerKindForMime } from "@/lib/conversations/media-types";
@@ -54,7 +54,7 @@ export function AttachmentView({ attachment, isOutgoing, messageText }: Attachme
       );
     }
 
-    // Foto: o MAIOR lado limitado (celular 180 px, desktop 220 px), proporção preservada, espaço reservado até carregar
+    // Foto e vídeo: o MAIOR lado limitado (celular 180 px, desktop 220 px), proporção preservada, espaço reservado até carregar
     // (a rolagem não "pula") e o clique abre ampliada.
     if (kind === "image") {
       return (
@@ -94,13 +94,33 @@ export function AttachmentView({ attachment, isOutgoing, messageText }: Attachme
 
     if (kind === "video") {
       return (
-        <div className="mb-1.5 max-w-full">
-          <video aria-label={description.title} className="block max-h-[220px] max-w-full rounded-lg sm:max-h-[280px]" controls onError={() => setBroken(true)} playsInline preload="metadata" src={src} />
-          <button className={`${linkClass} ${isOutgoing ? "text-primary-foreground/80" : "text-text-muted"}`} data-testid="video-expand" onClick={() => setLightboxOpen(true)} type="button">
-            <Maximize2 aria-hidden="true" size={12} /> Ampliar
+        <>
+          {/* Vídeo: mesmo limite da foto (maior lado 180 px no celular, 220 px no desktop); o clique abre ampliado e toca. */}
+          <button
+            aria-label={`Ampliar vídeo ${attachment.file_name}`}
+            className="relative mb-1.5 block max-w-full cursor-zoom-in overflow-hidden rounded-lg"
+            data-testid="video-thumb"
+            onClick={() => setLightboxOpen(true)}
+            type="button"
+          >
+            <video
+              aria-hidden="true"
+              className="block h-auto max-h-[180px] w-auto max-w-[180px] object-contain sm:max-h-[220px] sm:max-w-[220px]"
+              muted
+              onError={() => setBroken(true)}
+              playsInline
+              preload="metadata"
+              src={src}
+              tabIndex={-1}
+            />
+            <span className="absolute inset-0 flex items-center justify-center bg-black/20">
+              <span className="flex size-9 items-center justify-center rounded-full bg-black/60 text-white">
+                <Play aria-hidden="true" fill="currentColor" size={16} />
+              </span>
+            </span>
           </button>
           <MediaLightbox kind="video" label={attachment.file_name} onClose={() => setLightboxOpen(false)} open={lightboxOpen} src={src} />
-        </div>
+        </>
       );
     }
 
