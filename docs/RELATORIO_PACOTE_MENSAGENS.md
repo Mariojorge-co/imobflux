@@ -72,7 +72,21 @@ Segurança: `SECURITY DEFINER` com `search_path = ''`; `service_role`/`anon` sem
 - **Unitários** (Playwright, sem navegador): regras de tela, webhook (edição/exclusão/reação/citação), contrato das chamadas à Evolution (rota, método, corpo, erros sem vazamento), ações do servidor (ordem begin → Evolution → commit; recusa não grava; nota nunca chama a Evolution), fila com citação.
 - **Navegador** (`tests/mensagens-pacote.spec.ts`, Evolution simulada): uma cobertura por função, incluindo clipe/arrastar/Ctrl+V na legenda, áudio com microfone simulado, busca com 120 mensagens antigas e nota entre atendente e dono.
 
-(Resultado final de cada suíte, versões de Node e build: ver "Checklist" no fim deste arquivo.)
+(Resultado final de cada suíte, versões de Node e build: ver "Checklist" logo abaixo.)
+
+## Checklist antes de publicar (resultado em 2026-10-15, branch `feat/pacote-mensagens`)
+
+| Item | Resultado |
+|------|-----------|
+| `npm run lint` e `npm run typecheck` | sem erros, em **Node 24 e Node 22** |
+| Unitários (`npm run test:unit`) | **558 passam** em Node 24 e em Node 22 |
+| Build (`next build`) com variáveis falsas do CI | **ok** em Node 24 e em Node 22 |
+| pgTAP completo (banco novo do zero) | **43 arquivos / 1343 testes** passam |
+| Navegador — pacote de mensagens (`tests/mensagens-pacote.spec.ts`) | **14/14** |
+| Navegador — regressão (conversas 13, arquivos 11, fila 2, respostas rápidas 8, grupos 7, prazos 7, lista em tempo real 3, sprints 23/24 26, correções 7, demo 1) | **todas passam** |
+| Verificação visual (1440 e 390 de largura) | menu, citação, reação, marcas e botões ok; sem rolagem horizontal; menu e emojis ancorados na bolha (não saem da tela) |
+| Compatibilidade das migrations com o app antigo | ver abaixo |
+| Segredos | nenhum valor de chave, senha ou URL aparece em log, relatório ou teste (as chamadas à Evolution só registram códigos curtos) |
 
 ## Prova de compatibilidade (as migrations entram ANTES do app, então precisam funcionar com o app antigo)
 
