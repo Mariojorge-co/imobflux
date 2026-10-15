@@ -528,7 +528,7 @@ test.describe("Pacote de mensagens", () => {
     const attendant = page;
     await loginAsDemoAttendant(attendant);
     await open(attendant);
-    const slaBefore = queryLocalSql(`select coalesce(last_activity_at::text, '') from public.conversations where id = '${main}';`);
+    const slaBefore = queryLocalSql(`select coalesce(max(occurred_at)::text, '') from public.messages where conversation_id = '${main}';`);
     const messagesBefore = queryLocalSql(`select count(*) from public.messages where conversation_id = '${main}';`);
     const sendsBefore = fake.requests.length;
     await attendant.getByRole("button", { name: "Nota interna" }).click();
@@ -538,10 +538,10 @@ test.describe("Pacote de mensagens", () => {
     const note = attendant.getByTestId("internal-note").filter({ hasText: "visita no sábado" });
     await expect(note).toBeVisible();
     await expect(note).toContainText("Só a equipe vê");
-    // Nenhuma chamada à Evolution, nenhuma mensagem criada, atividade da conversa inalterada.
+    // Nenhuma chamada à Evolution, nenhuma mensagem criada, hora da última mensagem (base do prazo) inalterada.
     expect(fake.requests.length - sendsBefore).toBe(0);
     expect(queryLocalSql(`select count(*) from public.messages where conversation_id = '${main}';`)).toBe(messagesBefore);
-    expect(queryLocalSql(`select coalesce(last_activity_at::text, '') from public.conversations where id = '${main}';`)).toBe(slaBefore);
+    expect(queryLocalSql(`select coalesce(max(occurred_at)::text, '') from public.messages where conversation_id = '${main}';`)).toBe(slaBefore);
 
     // O autor edita.
     await note.getByTestId("note-edit").click();
