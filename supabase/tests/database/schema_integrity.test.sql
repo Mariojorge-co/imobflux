@@ -138,8 +138,8 @@ select is(
           and namespace_record.nspname = 'public'
           and procedure_record.proname = 'set_updated_at'
     ),
-    12::bigint,
-    'set_updated_at remains attached to the 12 standard mutable tables'
+    14::bigint,
+    'set_updated_at remains attached to the 14 standard mutable tables'
 );
 
 select is(
