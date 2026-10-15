@@ -532,7 +532,7 @@ test.describe("Pacote de mensagens", () => {
     const messagesBefore = queryLocalSql(`select count(*) from public.messages where conversation_id = '${main}';`);
     const sendsBefore = fake.requests.length;
     await attendant.getByRole("button", { name: "Nota interna" }).click();
-    await expect(attendant.getByTestId("note-hint")).toContainText("Só a equipe vê");
+    await expect(attendant.getByTestId("note-hint")).toContainText(/só a equipe vê/i);
     await attendant.getByLabel("Digitar nota interna (apenas CRM)").fill("Cliente prefere visita no sábado");
     await attendant.keyboard.press("Enter");
     const note = attendant.getByTestId("internal-note").filter({ hasText: "visita no sábado" });
