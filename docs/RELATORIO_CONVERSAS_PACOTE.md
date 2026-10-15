@@ -144,3 +144,45 @@ chips nos dois sentidos, arquivar sem chip, reabertura por mensagem do cliente (
 
 ## Commits
 Veja `git log main..fix/conversas-pacote`.
+
+## Trava A: resultado (2026-10-15) — migration `20260802005100` aplicada em produção
+
+Só o banco. O app em produção continua na `main` (`39ec0b1`). Nada foi publicado do app.
+
+**Condição 1: compatibilidade com o app atual.** Comparei o esquema de um banco descartável até a `005000` com o mesmo banco depois da `005100`
+(funções com assinatura, retorno, `SECURITY DEFINER`, volatilidade, `search_path` e permissões; colunas; constraints; índices; gatilhos;
+políticas RLS): **a única diferença é uma função nova, `get_conversation_item(uuid)`**. Nenhuma função existente mudou de assinatura ou de
+tipo de retorno (todas continuam `jsonb`), nenhuma coluna/constraint/índice/gatilho/política mudou. Os JSON ganharam campos a mais
+(`sla_*` na lista; `instance_name`/`connection_status` na fila de envio), que o app antigo ignora. O app antigo (`main`) foi exercitado
+contra o banco novo (item abaixo) e o comportamento é o mesmo que contra o banco sem a migration.
+
+**Condição 2: suítes de navegador (`test:auth` e `tests/*.spec.ts`), em ambiente descartável** (cópia em `imobflux-suite-disposable`, Supabase
+próprio, servidor na porta 3200; a porta 3000 da máquina estava presa por um processo antigo e não foi tocada):
+| Execução | Resultado |
+|---|---|
+| App **atual** (`main`) + banco **com** a `005100` | 481 passaram, 2 falharam, 1 ignorado |
+| O mesmo, banco **sem** a `005100` (linha de base) | as mesmas 2 falhas (logo, **não** vêm da migration) |
+| App **novo** (esta branch) + banco novo, suíte completa | 507 passaram, 2 falharam, 1 ignorado |
+| App novo, suítes de Conversas depois das correções | **61 passaram, 0 falharam**, 1 ignorado (já ignorado antes) |
+- Falha 1, **anterior ao trabalho de 13 a 15/10** (falha também com o banco só até a `004200`): `team-management` "ATTENDANT não administra equipe e
+  respeita... grupos": o atendente é redirecionado ao abrir um grupo liberado. Teste desatualizado ou bug de visibilidade; **aberta uma tarefa
+  separada para investigar** (não é desta entrega).
+- Falha 2, minha: o e2e de integração ainda esperava o código antigo de falha do envio (`GATEWAY_ERROR`); atualizado para `EVOLUTION_REJECTED`.
+- Falha 3, consequência intencional do envio otimista: `collaboration-hotfix` considerava a mensagem enviada assim que a bolha aparecia; agora o
+  teste espera a confirmação ("Enviando…" sumir). Também acrescentei `suppressHydrationWarning` nos rótulos de tempo (avisava mismatch de
+  hidratação quando o minuto virava entre o servidor e o navegador).
+- **Sem cobertura:** a suíte `isolated-tests/email-auth-flow.spec.ts` (config `playwright.auth-isolated.config.ts`) exige uma cópia dedicada
+  `imobflux-auth-disposable` com Supabase na porta 56321; não foi executada. Ela cobre e-mail/convite/recuperação, que esta entrega só toca
+  na consulta de acesso do usuário (agora 1 consulta), exercitada pelas suítes `auth-flow`, `team-management` (convite real) e `email-auth-flow` (unitária).
+
+**Produção:**
+1. Backup (esquema 377 KB + dados 112 KB); `migration list`: produção até `005000`, só a `005100` pendente; dry-run listou só ela.
+2. `db push --linked`: aplicada sem erro; `migration list`: 51 de 51, sem pendências.
+3. Validação somente leitura: esquema de produção antes × depois com **uma única diferença** (a função nova, `authenticated` executa, `anon` e
+   `service_role` não, `search_path` vazio, roda como o chamador); as funções de entrada e de envio mantêm as permissões de antes;
+   `queue_outgoing_text_message` agora devolve `instance_name`/`connection_status`; contagens das 20 tabelas principais **idênticas**
+   (127 mensagens, 4 conversas, 0 arquivadas, 24 eventos de auditoria, etc.); como o dono, em transação somente leitura: lista com `sla_*`,
+   `get_conversation_item` de uma conversa real, Kanban e mensagens respondendo sem erro. A fila **não** foi chamada (ela grava).
+4. Com o app atual no ar: Conversas (lista com os chips), Kanban, Prioridades e Configurações > WhatsApp (filtros nos estados esperados) abrem sem erro.
+5. Backups apagados (sem cópias restantes). `EVOLUTION_INSTANCE_NAME` na Vercel **mantida**.
+Rollback (só com autorização): `docs/rollback/20260802005100_rollback.sql`.
