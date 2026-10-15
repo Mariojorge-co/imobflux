@@ -192,6 +192,7 @@ test.describe("Respostas rápidas", () => {
     await owner.setViewportSize({ width: 1440, height: 900 });
     await owner.goto(`/conversas/${CONVERSATION}`);
     const box = owner.getByLabel("Digitar mensagem de texto");
+    await expect(box).toBeVisible(); // boundingBox não espera a página desenhar a caixa
     const height = async () => (await box.boundingBox())!.height;
 
     const small = await height();
