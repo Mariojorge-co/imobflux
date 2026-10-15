@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Download, ScrollText, Smartphone, Timer, Users, Zap } from "lucide-react";
+import { Download, MessagesSquare, ScrollText, Smartphone, Timer, Users, Zap } from "lucide-react";
 import {
   Card,
   PageContainer,
@@ -55,6 +55,17 @@ export default async function ConfiguracoesPage() {
             <span>
               <span className="block font-semibold text-text">Prazos</span>
               <span className="text-body text-text-muted">Defina quando uma conversa muda de cor e entra em Prioridades.</span>
+            </span>
+          </Card>
+        </Link>
+        <Link className="block max-w-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" href="/configuracoes/grupos">
+          <Card className="flex items-center gap-stack transition-colors hover:bg-neutral-soft">
+            <span className="flex size-11 items-center justify-center rounded-control bg-neutral-soft text-text">
+              <MessagesSquare aria-hidden="true" size={20} />
+            </span>
+            <span>
+              <span className="block font-semibold text-text">Grupos</span>
+              <span className="text-body text-text-muted">Veja os grupos do WhatsApp e libere, um a um, para a equipe.</span>
             </span>
           </Card>
         </Link>

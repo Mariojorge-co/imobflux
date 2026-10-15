@@ -634,7 +634,12 @@ export function MessagesPanel({
             </button>
             {isGroup && canManagePrivacy ? (
               <button
-                className="hidden rounded-control px-2 py-1 text-xs text-text-muted hover:bg-neutral-soft sm:block"
+                className={[
+                  "inline-flex min-h-9 items-center rounded-control border px-2.5 text-caption font-medium hover:bg-neutral-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                  liveConversation.visibility === "commercial" ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-400" : "border-border text-text-muted",
+                ].join(" ")}
+                data-testid="group-visibility-toggle"
+                title={liveConversation.visibility === "commercial" ? "Hoje a equipe vê este grupo (a partir da liberação)" : "Hoje só você vê este grupo"}
                 onClick={() => startTransition(async () => {
                   const teamVisible = liveConversation.visibility !== "commercial";
                   const result = await setGroupTeamVisibilityAction(conversation.conversation_id, teamVisible);
@@ -642,7 +647,7 @@ export function MessagesPanel({
                 })}
                 type="button"
               >
-                {liveConversation.visibility === "commercial" ? "Tornar OWNER-only" : "Visível para equipe"}
+                {liveConversation.visibility === "commercial" ? "Restringir ao dono" : "Liberar para a equipe"}
               </button>
             ) : null}
 

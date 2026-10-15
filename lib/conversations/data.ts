@@ -240,6 +240,8 @@ export async function getConversationsInbox(
       ...item,
       participant_name: resolveConversationIdentity({
         contactDisplayName: item.participant_name,
+        // O banco já devolve o ASSUNTO do grupo em participant_name; sem repassá-lo, todo grupo virava "Grupo WhatsApp".
+        groupSubject: item.participant_name,
         conversationType: item.conversation_type,
         phoneDisplayValue: item.participant_phone,
       }),
@@ -298,6 +300,7 @@ export async function getConversationById(
     ...item,
     participant_name: resolveConversationIdentity({
       contactDisplayName: item.participant_name,
+      groupSubject: item.participant_name,
       conversationType: item.conversation_type,
       phoneDisplayValue: item.participant_phone,
     }),
