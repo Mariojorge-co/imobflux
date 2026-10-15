@@ -142,3 +142,11 @@ Detalhes, números de desempenho, testes e roteiro em [RELATORIO_CONVERSAS_PACOT
 - **Suíte não executada:** `isolated-tests/email-auth-flow.spec.ts` (config `playwright.auth-isolated.config.ts`) exige uma cópia dedicada `imobflux-auth-disposable` com Supabase na porta 56321 e não foi rodada nesta entrega. Cobre e-mail, convite e recuperação (as suítes `auth-flow`, `team-management` e `email-auth-flow` unitária passaram). Rodar antes de mexer de novo em autenticação ou convite.
 - **Verificação do CI:** confirmar no GitHub (Actions ou e-mail) que o job "Lint, tipos, testes unitários e build" (Node 22) e o de banco ficaram verdes depois do push, e a Vercel em "Ready".
 - Em aberto, sem relação com esta entrega: contatos `@lid`, exclusão real de contato/conversa e custo do `get_conversations_inbox` com volume maior (item M2).
+
+## Em revisão (NÃO publicado): branch `feat/respostas-rapidas`
+
+Respostas rápidas + foto 180/220 px + correção do teste `team-management`. Detalhes em [RELATORIO_RESPOSTAS_RAPIDAS.md](RELATORIO_RESPOSTAS_RAPIDAS.md); rollback em `docs/rollback/20260802005200_rollback.sql`.
+- Migration `20260802005200_quick_replies.sql` **só local** (pgTAP 34 arquivos/1062 testes verdes). Produção: Trava A (backup → migration list → dry-run → "autorizo" → db push → validação somente leitura) e só depois Trava B (app).
+- Verificado: lint/tipos/unitários (452) em Node 24 e 22, build com variáveis falsas, navegador 90/90 (inclui `team-management` 3/3).
+- A pendência "team-management atendente em grupo liberado" estava **resolvida**: era teste desatualizado (contato protegido prevalece em grupo, migration 003600), não bug.
+- Ainda não executada: suíte `email-auth-flow` (cópia `imobflux-auth-disposable`).
