@@ -1774,6 +1774,26 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: Json
       }
+      queue_outgoing_media_message: {
+        Args: {
+          p_conversation_id: string
+          p_client_idempotency_key: string
+          p_storage_key: string
+          p_file_name: string
+          p_mime_type: string
+          p_size_bytes: number
+          p_text_content: string
+        }
+        Returns: Json
+      }
+      record_outgoing_media_sent: {
+        Args: { p_message_id: string; p_media_kind: string }
+        Returns: undefined
+      }
+      list_orphan_outbound_uploads: {
+        Args: { p_older_than?: string }
+        Returns: string[]
+      }
       ingest_whatsapp_history_batch: {
         Args: { p_external_account_id: string; p_messages: Json }
         Returns: Json

@@ -74,6 +74,34 @@ export function removePendingMessage(messages: ConversationMessage[], pendingId:
   return messages.filter((message) => message.id !== pendingId);
 }
 
+/** Mensagem provisória de um ARQUIVO sendo enviado: mostra o nome, o tamanho e (imagem) a miniatura local. */
+export function buildPendingMediaMessage(input: {
+  idempotencyKey: string;
+  /** Legenda ou rótulo do arquivo: o MESMO texto que o servidor grava (assim a bolha provisória é substituída uma a uma). */
+  text: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  previewUrl?: string | null;
+  now?: Date;
+}): ConversationMessage {
+  const base = buildPendingMessage({ idempotencyKey: input.idempotencyKey, text: input.text, now: input.now });
+  return {
+    ...base,
+    has_attachments: true,
+    attachments: [
+      {
+        id: `local-${input.idempotencyKey}`,
+        file_name: input.fileName,
+        mime_type: input.mimeType,
+        size_bytes: input.sizeBytes,
+        status: "available",
+        local_preview_url: input.previewUrl ?? null,
+      },
+    ],
+  };
+}
+
 /** Marca uma provisória como "não enviada", guardando o motivo para mostrar na bolha. */
 export function failPendingMessage(messages: ConversationMessage[], pendingId: string, reason: string): ConversationMessage[] {
   return messages.map((message) => (message.id === pendingId ? { ...message, status: "failed", send_error: reason } : message));

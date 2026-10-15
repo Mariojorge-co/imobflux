@@ -33,8 +33,10 @@ import { ClientContextPanel } from "@/components/conversations/client-context-pa
 import { AssigneesBar } from "@/components/conversations/assignees-bar";
 import type { ConversationAssignee, DirectoryMember } from "@/lib/conversations/assignment";
 import { emitConversationClientUpdate } from "@/lib/conversations/client-events";
+import { useOutgoingFiles } from "@/components/conversations/use-outgoing-files";
+import { useFileDrop } from "@/components/conversations/use-file-drop";
 import { failPendingMessage, isDismissedFailure, mergeMessages, outgoingStatusLabel, removePendingMessage, type DismissedFailure } from "@/lib/conversations/message-merge";
-import { sendTextQueued } from "@/lib/conversations/send-client";
+import { retryMediaQueued, sendTextQueued } from "@/lib/conversations/send-client";
 import { conversationPatchFromMessage, isConversationClosed } from "@/lib/conversations/sla-display";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
@@ -72,6 +74,8 @@ export function MessagesPanel({
   const [messages, setMessages] = useState<ConversationMessage[]>(initialMessages);
   const [liveConversation, setLiveConversation] = useState(conversation);
   const [dismissedFailed, setDismissedFailed] = useState<ReadonlyArray<DismissedFailure>>([]);
+  const outgoing = useOutgoingFiles(conversation.conversation_id);
+  const dropZone = useFileDrop({ enabled: conversation.conversation_type !== "group", onFiles: (files) => void outgoing.addFiles(files) });
   const visibleMessages = useMemo(() => messages.filter((message) => !isDismissedFailure(message, dismissedFailed)), [messages, dismissedFailed]);
   const [optimisticNotes, setOptimisticNotes] = useState<
     Record<string, ConversationContextData["notes"]>
@@ -225,8 +229,12 @@ export function MessagesPanel({
   }, [handleMessagePersisted]);
 
   // Falhou: a bolha continua na conversa como "não enviada", com o motivo e "Tentar de novo".
-  const handleMessageFailed = useCallback((pendingId: string, reason: string) => {
-    setMessages((previous) => failPendingMessage(previous, pendingId, reason));
+  const handleMessageFailed = useCallback((pendingId: string, reason: string, _code?: string, persisted?: ConversationMessage) => {
+    setMessages((previous) => {
+      const failed = failPendingMessage(previous, pendingId, reason);
+      // Arquivo: o servidor já gravou a mensagem como "falhou"; ela substitui a provisória (o "tentar de novo" usa o id real).
+      return persisted ? mergeMessages(removePendingMessage(failed, pendingId), [{ ...persisted, send_error: reason }]) : failed;
+    });
   }, []);
 
   // "Tentar de novo" é uma NOVA mensagem (nova chave) na fila da conversa; a que falhou sai da tela. Nada é reenviado sozinho.
@@ -234,12 +242,15 @@ export function MessagesPanel({
     const text = failed.text_content?.trim();
     if (!text) return;
     setDismissedFailed((previous) => [...previous, { id: failed.id, text, at: failed.occurred_at }]);
-    void sendTextQueued(conversation.conversation_id, text, {
-      onSending: handleMessageSending,
-      onSettled: handleMessageSettled,
-      onFailed: handleMessageFailed,
-    });
+    const handlers = { onSending: handleMessageSending, onSettled: handleMessageSettled, onFailed: handleMessageFailed };
+    if (failed.has_attachments) void retryMediaQueued(conversation.conversation_id, failed, handlers);
+    else void sendTextQueued(conversation.conversation_id, text, handlers);
   }, [conversation.conversation_id, handleMessageFailed, handleMessageSending, handleMessageSettled]);
+
+  // Falha que nem chegou a ser gravada (ex.: arquivo recusado no servidor): só dá para tirar a bolha da conversa.
+  const handleDiscardFailed = useCallback((failed: ConversationMessage) => {
+    setMessages((previous) => removePendingMessage(previous, failed.id));
+  }, []);
 
   const handleInternalNoteSaved = useCallback((
     note: ConversationContextData["notes"][number],
@@ -480,8 +491,17 @@ export function MessagesPanel({
 
   return (
     <div className="flex h-full min-w-0 w-full overflow-hidden">
-      {/* Coluna Principal da Conversa */}
-      <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-background">
+      {/* Coluna Principal da Conversa (também é a área de soltar arquivos) */}
+      <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-background" data-testid="conversation-column" {...dropZone.handlers}>
+        {dropZone.dragging ? (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center border-2 border-dashed border-primary bg-primary/10"
+            data-testid="drop-overlay"
+          >
+            <p className="rounded-card bg-surface px-4 py-2 text-body font-semibold text-primary shadow-lg">Solte os arquivos para anexar</p>
+          </div>
+        ) : null}
         {/* Cabeçalho do painel de mensagens */}
         <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-border bg-surface px-3 py-1.5 sm:px-4" data-testid="conversation-header">
           <div className="flex min-w-0 flex-1 basis-48 items-center gap-2 sm:gap-3">
@@ -660,7 +680,7 @@ export function MessagesPanel({
                   {!msg.is_history && visibleMessages[idx - 1]?.is_history && (
                     <HistoryDivider kind="end" />
                   )}
-                  <MessageBubble isOutgoing={isOutgoing} message={msg} onRetry={handleRetryMessage} />
+                  <MessageBubble isOutgoing={isOutgoing} message={msg} onDiscard={handleDiscardFailed} onRetry={handleRetryMessage} />
                 </div>
               );
             })}
@@ -677,6 +697,8 @@ export function MessagesPanel({
           onMessageSending={handleMessageSending}
           onMessageSettled={handleMessageSettled}
           opportunityId={effectiveOpportunityId}
+          outgoing={outgoing}
+          filesEnabled={!isGroup}
         />
       </div>
 
@@ -815,14 +837,18 @@ type MessageBubbleProps = {
   message: ConversationMessage;
   isOutgoing: boolean;
   onRetry?: (message: ConversationMessage) => void;
+  onDiscard?: (message: ConversationMessage) => void;
 };
 
-function MessageBubble({ message, isOutgoing, onRetry }: MessageBubbleProps) {
-  // Tentar de novo só para texto enviado pelo CRM que falhou (a nova tentativa é uma nova mensagem).
+function MessageBubble({ message, isOutgoing, onRetry, onDiscard }: MessageBubbleProps) {
+  // Tentar de novo: mensagem do CRM que falhou (a nova tentativa é uma nova mensagem). Arquivo só se já foi gravado
+  // no servidor (id real); senão só dá para remover a bolha.
+  const isLocalMedia = Boolean(message.attachments?.[0]?.id.startsWith("local-"));
   const canRetry = Boolean(
     onRetry && isOutgoing && message.status === "failed" && message.origin === "crm" && !message.is_history
-      && message.text_content?.trim() && !message.has_attachments,
+      && message.text_content?.trim() && !isLocalMedia,
   );
+  const canDiscard = Boolean(onDiscard && isOutgoing && message.status === "failed" && isLocalMedia);
   const deliveryState = outgoingStatusLabel(message);
   const timeLabel = new Date(message.occurred_at).toLocaleTimeString("pt-BR", {
     hour: "2-digit",
@@ -912,6 +938,16 @@ function MessageBubble({ message, isOutgoing, onRetry }: MessageBubbleProps) {
                 type="button"
               >
                 <RotateCw aria-hidden="true" size={12} /> Tentar de novo
+              </button>
+            ) : null}
+            {canDiscard ? (
+              <button
+                className="inline-flex min-h-8 items-center gap-1 rounded-control px-2 font-semibold underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-foreground"
+                data-testid="message-discard"
+                onClick={() => onDiscard?.(message)}
+                type="button"
+              >
+                Remover
               </button>
             ) : null}
           </div>

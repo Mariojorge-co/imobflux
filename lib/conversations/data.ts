@@ -76,6 +76,8 @@ export type ConversationMessageAttachment = {
   size_bytes: number;
   status: string; // 'pending' | 'available' | 'unavailable' | 'archived'
   created_at?: string;
+  /** Só no navegador: miniatura local do arquivo que está sendo enviado (bolha "enviando…"). */
+  local_preview_url?: string | null;
 };
 
 /** Uma mensagem individual para exibição no painel de histórico. */

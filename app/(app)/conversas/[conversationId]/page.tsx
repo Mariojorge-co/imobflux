@@ -12,6 +12,9 @@ import {
 import { MessagesPanel } from "@/components/conversations/messages-panel";
 import { requireActiveAccess } from "@/lib/auth/dal";
 
+// O envio de arquivo (server action chamada desta página) espera a Evolution baixar e entregar o arquivo: até 60 s.
+export const maxDuration = 60;
+
 type ConversationDetailPageProps = {
   params: Promise<{ conversationId: string }>;
   searchParams: Promise<{ opportunityId?: string }>;

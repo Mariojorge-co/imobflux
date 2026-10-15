@@ -7,6 +7,7 @@ import { describeAttachment } from "@/lib/conversations/attachment-label";
 import { isDownloadInProgress, viewerKindForMime } from "@/lib/conversations/media-types";
 import { isStickerAttachment, STICKER_MAX_PX } from "@/lib/conversations/sticker";
 import { MediaLightbox } from "@/components/conversations/media-lightbox";
+import { formatFileSize } from "@/lib/conversations/outgoing-files";
 import type { ConversationMessageAttachment } from "@/lib/conversations/data";
 
 type AttachmentViewProps = {
@@ -36,6 +37,31 @@ export function AttachmentView({ attachment, isOutgoing, messageText }: Attachme
   const tone = isOutgoing ? "bg-white/10 text-primary-foreground/80" : "bg-neutral-soft text-text-muted";
   const cardClass = `mb-1.5 flex items-start gap-1.5 rounded-lg px-2.5 py-1.5 text-xs ${tone}`;
   const kind = viewerKindForMime(attachment.mime_type);
+
+  // Arquivo que ainda está sendo enviado (bolha provisória): miniatura local da imagem, ou cartão com nome e tamanho.
+  // Não existe no servidor ainda, então nunca chama a rota de anexos.
+  if (attachment.id.startsWith("local-")) {
+    if (kind === "image" && attachment.local_preview_url) {
+      return (
+        // eslint-disable-next-line @next/next/no-img-element -- miniatura local (blob:) do arquivo escolhido
+        <img
+          alt={attachment.file_name}
+          className="mb-1.5 block h-auto max-h-[180px] w-auto max-w-[180px] rounded-lg object-contain sm:max-h-[220px] sm:max-w-[220px]"
+          data-testid="local-image-preview"
+          src={attachment.local_preview_url}
+        />
+      );
+    }
+    return (
+      <div className={cardClass} data-testid="local-file-card">
+        <FileText aria-hidden="true" className="mt-0.5 shrink-0" size={14} strokeWidth={1.8} />
+        <span className="min-w-0">
+          <span className="block break-words font-medium">{attachment.file_name}</span>
+          <span className="block">{formatFileSize(attachment.size_bytes)}</span>
+        </span>
+      </div>
+    );
+  }
 
   if (attachment.status === "available" && !broken) {
     // Figurinha: pequena, sem moldura, sem ampliar.

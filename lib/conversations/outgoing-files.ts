@@ -228,3 +228,13 @@ export function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(bytes < 10 * 1024 ? 1 : 0).replace(".", ",")} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1).replace(".", ",")} MB`;
 }
+
+/** Valor do atributo `accept` do seletor de arquivos (o servidor revalida tudo; isto só guia a escolha). */
+export const ACCEPT_ATTRIBUTE: string = Object.keys(ALLOWED)
+  .map((extension) => `.${extension}`)
+  .join(",");
+
+/** Só estes tipos de imagem o navegador consegue mostrar como miniatura. */
+export function canPreviewImage(extension: string): boolean {
+  return ["jpg", "jpeg", "png", "gif", "webp", "bmp"].includes(extension);
+}

@@ -187,3 +187,90 @@ export async function sendEvolutionTextMessage(
     };
   }
 }
+
+export type SendEvolutionMediaInput = {
+  /** image | video | audio | document (imagem "como documento" vai como document, sem compressão). */
+  mediatype: "image" | "video" | "audio" | "document";
+  mimetype: string;
+  fileName: string;
+  caption?: string | null;
+  /** URL assinada de vida curta do arquivo no Storage privado (a Evolution baixa por ela). Nunca vai para log. */
+  mediaUrl: string;
+};
+
+/**
+ * Envia um arquivo pela Evolution API v2: POST /message/sendMedia/{instância} com
+ * `{ number, mediatype, mimetype, fileName, caption?, media }`, onde `media` é a URL (ou base64) e a resposta traz
+ * `key.id`. Confirmado no código da v2.3.7 (SendMediaDto/mediaMessageSchema). A imagem enviada como "image" é
+ * recomprimida em JPEG pela própria Evolution; por isso o "enviar como documento" usa mediatype "document".
+ *
+ * Como no texto, os erros devolvem só um código curto e uma frase fixa: nunca a URL assinada, o nome do arquivo, o
+ * número, o corpo da resposta nem a chave.
+ */
+export async function sendEvolutionMedia(
+  instanceName: string | undefined,
+  toPhone: string | undefined,
+  input: SendEvolutionMediaInput,
+  timeoutMs = 60000,
+): Promise<SendEvolutionTextMessageResult> {
+  const apiUrl = process.env.EVOLUTION_API_URL;
+  const apiKey = process.env.EVOLUTION_API_KEY;
+  if (!apiUrl || !apiKey) {
+    return { success: false, error: "Configuração da Evolution API ausente no ambiente", code: "MISSING_ENV_CONFIG" };
+  }
+
+  const activeInstance = instanceName?.trim() || process.env.EVOLUTION_INSTANCE_NAME?.trim();
+  if (!activeInstance) {
+    return { success: false, error: "Nome da instância do WhatsApp não informado", code: "MISSING_INSTANCE" };
+  }
+
+  const formattedPhone = toPhone ? formatPhoneForEvolution(toPhone) : null;
+  if (!formattedPhone) {
+    return { success: false, error: "Telefone do destinatário inválido", code: "INVALID_PHONE" };
+  }
+
+  const targetUrl = `${apiUrl.replace(/\/+$/, "")}/message/sendMedia/${encodeURIComponent(activeInstance)}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const caption = input.caption?.trim();
+    const response = await fetch(targetUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: apiKey },
+      body: JSON.stringify({
+        number: formattedPhone,
+        mediatype: input.mediatype,
+        mimetype: input.mimetype,
+        fileName: input.fileName,
+        ...(caption ? { caption } : {}),
+        media: input.mediaUrl,
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+
+    if (!response.ok) {
+      return { success: false, error: `Evolution API retornou erro HTTP ${response.status}`, code: `HTTP_${response.status}` };
+    }
+
+    let responseData: unknown;
+    try {
+      responseData = await response.json();
+    } catch {
+      return { success: false, error: "Resposta da Evolution API não é um JSON válido", code: "INVALID_JSON_RESPONSE" };
+    }
+
+    const externalMessageId = externalIdFrom(responseData);
+    if (!externalMessageId) {
+      return { success: false, error: "Resposta da Evolution API não continha o ID externo da mensagem", code: "MISSING_EXTERNAL_ID" };
+    }
+    return { success: true, externalMessageId };
+  } catch (err: unknown) {
+    clearTimeout(timer);
+    if (err instanceof Error && err.name === "AbortError") {
+      return { success: false, error: "Tempo limite excedido no envio do arquivo", code: "TIMEOUT" };
+    }
+    return { success: false, error: "Falha de rede na comunicação com a Evolution API", code: "NETWORK_ERROR" };
+  }
+}

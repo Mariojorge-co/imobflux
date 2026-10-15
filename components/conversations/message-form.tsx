@@ -9,7 +9,10 @@ import {
   useState,
   type KeyboardEvent,
 } from "react";
-import { FileText, Maximize2, MessageSquare, Minimize2, Send, Zap } from "lucide-react";
+import { FileText, Maximize2, MessageSquare, Minimize2, Paperclip, Send, Zap } from "lucide-react";
+import { OutgoingFilesTray } from "@/components/conversations/outgoing-files-tray";
+import type { OutgoingFiles } from "@/components/conversations/use-outgoing-files";
+import { ACCEPT_ATTRIBUTE } from "@/lib/conversations/outgoing-files";
 import { ConfirmDialog } from "@/components/quick-replies/confirm-dialog";
 import { QuickRepliesPanel } from "@/components/quick-replies/quick-replies-panel";
 import { SlashMenu, slashOptionId } from "@/components/quick-replies/slash-menu";
@@ -20,7 +23,7 @@ import { detectSlashTrigger, insertAtCursor, replaceSlashTrigger, type SlashTrig
 import type { QuickReply } from "@/lib/quick-replies/types";
 import { findUnresolvedVariables, resolveVariables, unresolvedWarning } from "@/lib/quick-replies/variables";
 import { saveInternalNoteAction } from "@/lib/conversations/actions";
-import { sendTextQueued } from "@/lib/conversations/send-client";
+import { sendMediaQueued, sendTextQueued } from "@/lib/conversations/send-client";
 import type {
   ConversationContextData,
   ConversationMessage,
@@ -44,7 +47,11 @@ type MessageFormProps = {
   /** Fim do envio: remove a bolha provisória e, se deu certo, entrega a mensagem gravada. */
   onMessageSettled?: (pendingId: string, persisted?: ConversationMessage) => void;
   /** Falha do envio: a bolha fica "não enviada" com o motivo e a opção de tentar de novo. */
-  onMessageFailed?: (pendingId: string, reason: string, code?: string) => void;
+  onMessageFailed?: (pendingId: string, reason: string, code?: string, persisted?: ConversationMessage) => void;
+  /** Arquivos escolhidos (clipe, arrastar, colar): bandeja, upload e envio. */
+  outgoing: OutgoingFiles;
+  /** Arquivos só em conversa individual (grupos: sem envio de arquivos). */
+  filesEnabled?: boolean;
 };
 
 export function MessageForm({
@@ -56,6 +63,8 @@ export function MessageForm({
   onMessageSending,
   onMessageSettled,
   onMessageFailed,
+  outgoing,
+  filesEnabled = true,
 }: MessageFormProps) {
   const [activeTab, setActiveTab] = useState<"message" | "note">("message");
   const [text, setText] = useState("");
@@ -66,6 +75,7 @@ export function MessageForm({
   } | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Respostas rápidas: painel, atalho "/", caixa expandida e confirmação de campos em branco.
   const quick = useQuickReplies();
@@ -194,7 +204,13 @@ export function MessageForm({
 
   const handleSubmit = async (options?: { skipConfirm?: boolean }) => {
     const trimmed = text.trim();
-    if (!trimmed) return;
+    const hasFiles = activeTab === "message" && outgoing.readyCount > 0;
+    if (!trimmed && !hasFiles) return;
+
+    if (activeTab === "message" && outgoing.uploading) {
+      setFeedback({ type: "info", message: "Aguarde o envio dos arquivos terminar para enviar." });
+      return;
+    }
 
     if (trimmed.length > MAX_CHAR_LIMIT) {
       setFeedback({
@@ -206,7 +222,7 @@ export function MessageForm({
 
     if (activeTab === "message") {
       // Mensagem com {{campo}} ainda aberto: pede confirmação antes de enviar ao cliente.
-      if (!options?.skipConfirm) {
+      if (trimmed && !options?.skipConfirm) {
         const pendingFields = findUnresolvedVariables(trimmed);
         if (pendingFields.length > 0) {
           setUnresolved(pendingFields);
@@ -219,14 +235,33 @@ export function MessageForm({
       // novo"; o texto não volta para a caixa e nada é reenviado sozinho.
       setFeedback(null);
       setText("");
-      void sendTextQueued(conversationId, trimmed, {
-        onSending: (pending) => onMessageSending?.(pending),
-        onSettled: (pendingId, persisted) => {
+      const handlers = {
+        onSending: (pending: ConversationMessage) => onMessageSending?.(pending),
+        onSettled: (pendingId: string, persisted?: ConversationMessage) => {
           if (onMessageSettled) onMessageSettled(pendingId, persisted);
           else if (persisted) onMessagePersisted?.(persisted);
         },
-        onFailed: (pendingId, reason, code) => onMessageFailed?.(pendingId, reason, code),
-      });
+        onFailed: (pendingId: string, reason: string, code?: string, persisted?: ConversationMessage) =>
+          onMessageFailed?.(pendingId, reason, code, persisted),
+      };
+      // Primeiro os arquivos (na ordem escolhida), depois o texto da caixa: tudo na mesma fila da conversa.
+      for (const file of outgoing.takeReady()) {
+        void sendMediaQueued(
+          conversationId,
+          {
+            path: file.path as string,
+            name: file.name,
+            mime: file.mime,
+            size: file.size,
+            kind: file.kind,
+            caption: file.caption,
+            asDocument: file.asDocument,
+            previewUrl: file.previewUrl,
+          },
+          handlers,
+        );
+      }
+      if (trimmed) void sendTextQueued(conversationId, trimmed, handlers);
       requestAnimationFrame(() => textareaRef.current?.focus());
       return;
     }
@@ -300,7 +335,8 @@ export function MessageForm({
   const isTextEmpty = text.trim() === "";
   const isOverLimit = text.length > MAX_CHAR_LIMIT;
   const showCounter = text.length >= COUNTER_SHOW_THRESHOLD;
-  const isButtonDisabled = isSubmitting || isTextEmpty || isOverLimit;
+  const hasReadyFiles = activeTab === "message" && outgoing.readyCount > 0;
+  const isButtonDisabled = isSubmitting || (isTextEmpty && !hasReadyFiles) || isOverLimit || (activeTab === "message" && outgoing.uploading);
 
   return (
     <div className="shrink-0 border-t border-border bg-surface px-3 py-1.5 sm:px-4" data-testid="message-composer">
@@ -400,6 +436,24 @@ export function MessageForm({
         </div>
       )}
 
+      {activeTab === "message" ? <OutgoingFilesTray files={outgoing} /> : null}
+
+      <input
+        accept={ACCEPT_ATTRIBUTE}
+        aria-hidden="true"
+        className="hidden"
+        data-testid="file-input"
+        multiple
+        onChange={(event) => {
+          const chosen = Array.from(event.target.files ?? []);
+          event.target.value = "";
+          void outgoing.addFiles(chosen);
+        }}
+        ref={fileInputRef}
+        tabIndex={-1}
+        type="file"
+      />
+
       <form
         aria-label={
           activeTab === "note"
@@ -412,6 +466,18 @@ export function MessageForm({
           handleSubmit();
         }}
       >
+        <button
+          aria-label="Anexar arquivo"
+          className="flex size-11 shrink-0 items-center justify-center rounded-control border border-border text-text-muted transition-colors hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
+          data-testid="attach-button"
+          disabled={activeTab !== "message" || !filesEnabled}
+          onClick={() => fileInputRef.current?.click()}
+          title={!filesEnabled ? "Arquivos só em conversas individuais" : activeTab === "message" ? "Anexar arquivo (ou arraste para a conversa, ou cole com Ctrl+V)" : "Arquivos só em mensagens ao cliente"}
+          type="button"
+        >
+          <Paperclip aria-hidden="true" size={18} />
+        </button>
+
         <div className="relative flex-1">
           <label className="sr-only" htmlFor={inputId}>
             {activeTab === "note" ? "Nota interna" : "Mensagem de texto"}
@@ -451,6 +517,14 @@ export function MessageForm({
             }}
             onChange={(e) => handleTextChange(e.target.value, e.target.selectionStart)}
             onKeyDown={handleKeyDown}
+            onPaste={(event) => {
+              // Colar imagem/arquivo (Ctrl+V): vira anexo, em vez de texto.
+              if (activeTab !== "message" || !filesEnabled) return;
+              const pasted = Array.from(event.clipboardData?.files ?? []);
+              if (pasted.length === 0) return;
+              event.preventDefault();
+              void outgoing.addFiles(pasted);
+            }}
             onSelect={(e) => {
               const element = e.currentTarget;
               selectionRef.current = { start: element.selectionStart, end: element.selectionEnd };

@@ -43,7 +43,8 @@ export function queueFor(conversationId: string): SequentialQueue {
 /** Resultado de um envio, como devolvido pela server action de enviar texto. */
 export type SendOutcome =
   | { success: true; message?: ConversationMessage }
-  | { success: false; error: string; code?: string };
+  // Em arquivo, a falha pode devolver a mensagem já gravada como "falhou" (para o "tentar de novo" usar o id real).
+  | { success: false; error: string; code?: string; message?: ConversationMessage };
 
 export type SendHandlers = {
   /** A bolha provisória ("enviando…") assim que a pessoa envia. */
@@ -51,12 +52,32 @@ export type SendHandlers = {
   /** Enviada: sai a provisória e entra a mensagem gravada (se o servidor devolveu). */
   onSettled: (pendingId: string, persisted?: ConversationMessage) => void;
   /** Falhou: a bolha fica como "não enviada" com o motivo e a opção de tentar de novo. */
-  onFailed: (pendingId: string, reason: string, code?: string) => void;
+  onFailed: (pendingId: string, reason: string, code?: string, persisted?: ConversationMessage) => void;
 };
 
 export type SendFunction = (conversationId: string, text: string, idempotencyKey: string) => Promise<SendOutcome>;
 
 export const CONNECTION_ERROR_MESSAGE = "Erro de conexão ao enviar. Verifique a internet e tente de novo.";
+
+/** Coloca QUALQUER envio (texto ou arquivo) na fila da conversa, com a bolha provisória já criada. */
+export function enqueueSend(input: {
+  conversationId: string;
+  pending: ConversationMessage;
+  handlers: SendHandlers;
+  run: () => Promise<SendOutcome>;
+}): { pending: ConversationMessage; done: Promise<void> } {
+  input.handlers.onSending(input.pending);
+  const done = queueFor(input.conversationId).enqueue(async () => {
+    try {
+      const result = await input.run();
+      if (result.success) input.handlers.onSettled(input.pending.id, result.message);
+      else input.handlers.onFailed(input.pending.id, result.error, result.code, result.message);
+    } catch {
+      input.handlers.onFailed(input.pending.id, CONNECTION_ERROR_MESSAGE, "NETWORK");
+    }
+  });
+  return { pending: input.pending, done };
+}
 
 /**
  * Coloca um texto na fila da conversa. Devolve na hora a bolha provisória (já anunciada em `onSending`) e uma promessa
@@ -73,16 +94,10 @@ export function enqueueTextSend(input: {
 }): { pending: ConversationMessage; done: Promise<void> } {
   const idempotencyKey = input.idempotencyKey ?? crypto.randomUUID();
   const pending = buildPendingMessage({ idempotencyKey, text: input.text, now: input.now });
-  input.handlers.onSending(pending);
-
-  const done = queueFor(input.conversationId).enqueue(async () => {
-    try {
-      const result = await input.send(input.conversationId, input.text, idempotencyKey);
-      if (result.success) input.handlers.onSettled(pending.id, result.message);
-      else input.handlers.onFailed(pending.id, result.error, result.code);
-    } catch {
-      input.handlers.onFailed(pending.id, CONNECTION_ERROR_MESSAGE, "NETWORK");
-    }
+  return enqueueSend({
+    conversationId: input.conversationId,
+    pending,
+    handlers: input.handlers,
+    run: () => input.send(input.conversationId, input.text, idempotencyKey),
   });
-  return { pending, done };
 }
