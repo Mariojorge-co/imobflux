@@ -69,6 +69,8 @@ test.describe("Gestão de Equipe OWNER × ATTENDANT", () => {
     await page.goto("/conversas/d3300003-0000-4000-8000-000000000022");
     await expect(page.getByLabel("Histórico de mensagens").getByText("DEMO — Grupo após o marco")).toBeVisible();
     await expect(page.getByText("DEMO — Grupo antes do marco")).toHaveCount(0);
+    // Contato protegido prevalece mesmo em grupo liberado (migration 20260802003600): a mensagem dele não aparece.
+    await expect(page.getByText("DEMO — Grupo mensagem de contato protegido")).toHaveCount(0);
 
     await page.goto("/conversas/d3300003-0000-4000-8000-000000000021");
     await expect(page).toHaveURL(/\/conversas\?reason=access_changed$/);

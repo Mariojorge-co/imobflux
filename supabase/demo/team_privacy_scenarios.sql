@@ -112,7 +112,8 @@ begin
     occurred_at, external_created_at, received_at, created_at
   ) values
     ('d3400007-0000-4000-8000-000000000002', v_workspace_id, v_channel_id, 'd3300003-0000-4000-8000-000000000022', 'demo-group-before', 'incoming', 'whatsapp', 'd3300004-0000-4000-8000-000000000002', 'DEMO — Grupo antes do marco', 'received', v_now - interval '90 minutes', v_now - interval '90 minutes', v_now - interval '90 minutes', v_now - interval '90 minutes'),
-    ('d3400007-0000-4000-8000-000000000003', v_workspace_id, v_channel_id, 'd3300003-0000-4000-8000-000000000022', 'demo-group-after', 'incoming', 'whatsapp', 'd3300004-0000-4000-8000-000000000002', 'DEMO — Grupo após o marco', 'received', v_now - interval '30 minutes', v_now - interval '30 minutes', v_now - interval '30 minutes', v_now - interval '30 minutes')
+    ('d3400007-0000-4000-8000-000000000003', v_workspace_id, v_channel_id, 'd3300003-0000-4000-8000-000000000022', 'demo-group-after', 'incoming', 'whatsapp', 'd3300004-0000-4000-8000-000000000003', 'DEMO — Grupo após o marco', 'received', v_now - interval '30 minutes', v_now - interval '30 minutes', v_now - interval '30 minutes', v_now - interval '30 minutes'),
+    ('d3400007-0000-4000-8000-000000000004', v_workspace_id, v_channel_id, 'd3300003-0000-4000-8000-000000000022', 'demo-group-protected-after', 'incoming', 'whatsapp', 'd3300004-0000-4000-8000-000000000002', 'DEMO — Grupo mensagem de contato protegido', 'received', v_now - interval '20 minutes', v_now - interval '20 minutes', v_now - interval '20 minutes', v_now - interval '20 minutes')
   on conflict do nothing;
 
   insert into public.conversation_read_states (
