@@ -37,8 +37,8 @@ export function SlaBadge({ direction, lastActivityAt, closed = false, variant = 
       title={sla.fullLabel}
     >
       <Icon aria-hidden="true" size={12} />
-      <span aria-hidden={variant === "compact" ? "true" : undefined}>{text}</span>
-      {variant === "compact" ? <span className="sr-only">{sla.fullLabel}</span> : null}
+      <span aria-hidden={variant === "compact" ? "true" : undefined} suppressHydrationWarning>{text}</span>
+      {variant === "compact" ? <span className="sr-only" suppressHydrationWarning>{sla.fullLabel}</span> : null}
     </span>
   );
 }

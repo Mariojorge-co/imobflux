@@ -44,6 +44,8 @@ test.describe("Hotfix colaborativo OWNER × ATTENDANT", () => {
       await expect(page.getByRole("log").getByText(content, { exact: true })).toHaveCount(1, {
         timeout: 15_000,
       });
+      // A bolha aparece na hora ("Enviando…"): só segue quando o servidor confirmou, para manter a ordem real do envio.
+      await expect(page.getByTestId("message-sending")).toHaveCount(0, { timeout: 15_000 });
     }
 
     await expect(ownerPage.getByRole("log").getByText("HOTFIX M8 OWNER", { exact: true })).toHaveCount(1, {

@@ -536,7 +536,7 @@ function ConversationCard({ item, isSelected, onClick, onPrefetch }: Conversatio
             {isGroup ? `👥 ${displayName}` : displayName}
           </span>
         </div>
-          <span className="shrink-0 text-caption text-text-muted">{timeLabel}</span>
+          <span className="shrink-0 text-caption text-text-muted" suppressHydrationWarning>{timeLabel}</span>
         </div>
         <p className="mt-0.5 truncate text-caption text-text-muted">{snippet}</p>
         {assigneeNames ? (
