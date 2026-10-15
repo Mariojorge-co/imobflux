@@ -33,6 +33,8 @@ export type MessageCapabilities = {
   canForward: boolean;
   canReact: boolean;
   canCopy: boolean;
+  /** Só o dono: ver o texto anterior de uma mensagem editada e o original de uma apagada para todos. */
+  canViewHistory: boolean;
 };
 
 const NONE: MessageCapabilities = {
@@ -43,6 +45,7 @@ const NONE: MessageCapabilities = {
   canForward: false,
   canReact: false,
   canCopy: false,
+  canViewHistory: false,
 };
 
 const DELIVERED = new Set(["sent", "delivered", "read"]);
@@ -56,11 +59,13 @@ export function messageCapabilities(
   viewer: Viewer | null,
   options: { isGroup?: boolean; now?: number } = {},
 ): MessageCapabilities {
-  if (message.deleted_at || message.internal_note) return NONE;
+  if (message.internal_note) return NONE;
+  if (message.deleted_at) return { ...NONE, canViewHistory: viewer?.role === "owner" };
   const text = Boolean(message.text_content?.trim());
   if (isPendingMessage(message) || message.status === "failed" || message.status === "queued" || message.status === "sending") {
     return { ...NONE, canCopy: text };
   }
+
 
   const now = options.now ?? Date.now();
   const age = now - new Date(message.occurred_at).getTime();
@@ -79,6 +84,7 @@ export function messageCapabilities(
     canForward: Boolean(viewer) && (text || hasFiles),
     canReact: Boolean(viewer) && hasExternalId && !options.isGroup,
     canCopy: text,
+    canViewHistory: viewer?.role === "owner" && Boolean(message.edited_at),
   };
 }
 

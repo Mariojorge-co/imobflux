@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Copy, CornerUpLeft, CornerUpRight, EyeOff, Forward, Paperclip, Pencil, RotateCw, SmilePlus, Trash2 } from "lucide-react";
+import { ChevronDown, Copy, CornerUpLeft, CornerUpRight, EyeOff, Forward, History, Paperclip, Pencil, RotateCw, SmilePlus, Trash2 } from "lucide-react";
 import { AttachmentView } from "@/components/conversations/attachment-view";
 import { EmojiPicker } from "@/components/conversations/emoji-picker";
 import { isStickerMessage } from "@/lib/conversations/sticker";
@@ -27,6 +27,8 @@ export type MessageBubbleActions = {
   onCopy?: (message: ConversationMessage) => void;
   /** Clicou na citação: rolar até a mensagem original e destacá-la. */
   onJumpToQuoted?: (messageId: string) => void;
+  /** Só o dono: texto anterior / original apagado. */
+  onViewHistory?: (message: ConversationMessage) => void;
 };
 
 type MessageBubbleProps = MessageBubbleActions & {
@@ -72,6 +74,7 @@ export function MessageBubble({
   onReact,
   onCopy,
   onJumpToQuoted,
+  onViewHistory,
 }: MessageBubbleProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -330,6 +333,9 @@ export function MessageBubble({
                   <MenuItem icon={<Forward size={15} />} label="Encaminhar" onClick={run(onForward)} testId="action-forward" />
                 ) : null}
                 {capabilities.canEdit ? <MenuItem icon={<Pencil size={15} />} label="Editar" onClick={run(onEdit)} testId="action-edit" /> : null}
+                {capabilities.canViewHistory ? (
+                  <MenuItem icon={<History size={15} />} label={deleted ? "Ver original" : "Ver histórico"} onClick={run(onViewHistory)} testId="action-history" />
+                ) : null}
                 {capabilities.canHide || capabilities.canDeleteForEveryone ? <div className="my-1 h-px bg-border" /> : null}
                 {capabilities.canDeleteForEveryone ? (
                   <MenuItem danger icon={<Trash2 size={15} />} label="Apagar para todos" onClick={run(onDeleteForEveryone)} testId="action-delete-all" />

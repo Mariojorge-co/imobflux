@@ -4,7 +4,7 @@
 - **Objetivo**: gestão comercial e relacionamento para corretores e imobiliárias, com WhatsApp integrado.
 - **Versão**: `0.1.0`
 - **Produção**: app em `https://imobflux.vercel.app` (Vercel) e banco no Supabase (`imobflux-prod`).
-- **Última atualização**: 2026-10-15 (pacote de Conversas publicado: troca de conversa rápida, contador de espera único, envio otimista e mídia; migration `005100` aplicada em produção em 2026-10-15, ver `RELATORIO_CONVERSAS_PACOTE.md`)
+- **Última atualização**: 2026-10-15 (pacote de **Mensagens** pronto na branch `feat/pacote-mensagens`, **ainda não publicado** — ver abaixo; antes disso, pacote de Conversas publicado: troca de conversa rápida, contador de espera único, envio otimista e mídia; migration `005100` aplicada em produção em 2026-10-15, ver `RELATORIO_CONVERSAS_PACOTE.md`)
 
 ---
 
@@ -136,6 +136,14 @@ Detalhes, números de desempenho, testes e roteiro em [RELATORIO_CONVERSAS_PACOT
 - **Contador de espera numa regra só:** nos dois sentidos; conversa **arquivada** (= encerrada) fica sem chip em lugar nenhum; resposta que falhou não conta; mensagem do cliente numa conversa arquivada **reabre** a conversa (com auditoria).
 - **Envio:** bolha "Enviando…" na hora, falha marcada como "Não enviada", eco do webhook sem bolha duplicada; a instância de envio vem do banco (a fila devolve `instance_name`). `EVOLUTION_INSTANCE_NAME` na Vercel continua como reserva e **não deve ser removida** por enquanto.
 - **Mídia e espaço:** figurinha pequena sem bolha, foto/vídeo com altura limitada e ampliar, responsáveis no cabeçalho, caixa de texto que cresce.
+
+## Pacote de Mensagens — pronto em ambiente local, NÃO publicado (branch `feat/pacote-mensagens`)
+
+Detalhes, decisões, limites do WhatsApp e **roteiro de teste real no celular** em [RELATORIO_PACOTE_MENSAGENS.md](RELATORIO_PACOTE_MENSAGENS.md). Rollbacks em `docs/rollback/20260802005700` a `…006200`.
+- **Funções**: responder (citação), editar (15 min, só texto nosso), apagar para mim (oculta para a equipe; só o dono restaura) e para todos (48 h), encaminhar (até 5 conversas, com aviso de risco), reações com emoji, áudio de voz (PTT, até 10 min), fixar conversa (pessoal, até 5), busca na conversa, nota interna no meio da conversa (nunca vai ao WhatsApp) e Enter envia na legenda.
+- **Banco**: migrations `20260802005700` a `20260802006200` (só locais até a Trava A); compatíveis com o app em produção (só adicionam colunas, tabelas e funções e recriam leituras com campos a mais).
+- **Testes**: pgTAP 43 arquivos / 1343 testes; unitários; navegador (`tests/mensagens-pacote.spec.ts`) com Evolution simulada.
+- **Pendência**: formato real dos eventos de edição/exclusão/reação enviados pela Evolution ainda não foi visto com celular real (parser tolerante; roteiro cobre).
 
 ## Pendências a registrar (conferir antes de seguir)
 - **Investigar ANTES de convidar funcionários:** o teste de navegador `tests/team-management.spec.ts` ("ATTENDANT não administra equipe e respeita contatos, grupos e histórico temporal") **falha**: o atendente é redirecionado (`/conversas?reason=access_changed`) ao abrir um grupo liberado. Falha com o app da `main`, com o banco em qualquer estado testado (inclusive só até a `004200`) e **antes** do trabalho de 13 a 15/10, então não é regressão recente. Pode ser teste desatualizado ou bug real de visibilidade de grupo para atendente; há tarefa aberta para investigar. Hoje só existe o dono (e um atendente de teste), por isso o risco imediato é baixo.

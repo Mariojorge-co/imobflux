@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
-import { Archive, ArchiveRestore, ArrowLeft, Info, Mail, Pin, PinOff, Plus, Search } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowLeft, EyeOff, Info, Mail, Pin, PinOff, Plus, Search } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -32,6 +32,7 @@ import { MessageBubble } from "@/components/conversations/message-bubble";
 import { NoteBubble } from "@/components/conversations/note-bubble";
 import { ForwardDialog } from "@/components/conversations/forward-dialog";
 import { ConversationSearch } from "@/components/conversations/conversation-search";
+import { HiddenMessagesDialog, MessageHistoryDialog } from "@/components/conversations/message-audit-dialogs";
 import { ConfirmDialog } from "@/components/quick-replies/confirm-dialog";
 import { Button, Drawer, Input, ModalDialog } from "@/components/ui";
 import { SlaBadge } from "@/components/conversations/sla-badge";
@@ -98,6 +99,8 @@ export function MessagesPanel({
   const [replyTo, setReplyTo] = useState<(ReplyRef & { author: string }) | null>(null);
   const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
   const [forwardTarget, setForwardTarget] = useState<ConversationMessage | null>(null);
+  const [historyTarget, setHistoryTarget] = useState<string | null>(null);
+  const [hiddenOpen, setHiddenOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{ kind: "hide" | "delete"; message: ConversationMessage } | null>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
@@ -933,6 +936,20 @@ export function MessagesPanel({
               <Search size={18} />
             </button>
 
+            {/* Só o dono: mensagens escondidas (restaurar) */}
+            {viewer?.role === "owner" ? (
+              <button
+                aria-label="Mensagens escondidas"
+                className="hidden size-9 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-neutral-soft hover:text-text sm:flex"
+                data-testid="hidden-messages-toggle"
+                onClick={() => setHiddenOpen(true)}
+                title="Mensagens escondidas (restaurar)"
+                type="button"
+              >
+                <EyeOff size={18} />
+              </button>
+            ) : null}
+
             {/* Fixar no topo da lista (só para você) */}
             <button
               aria-label={liveConversation.is_pinned ? "Desafixar conversa" : "Fixar conversa no topo"}
@@ -1093,6 +1110,7 @@ export function MessagesPanel({
                       setConfirmAction({ kind: "hide", message: target });
                     }}
                     onJumpToQuoted={(id) => void handleJumpToQuoted(id)}
+                    onViewHistory={(target) => setHistoryTarget(target.id)}
                     onReact={(target, emoji) => void handleReact(target, emoji)}
                     onReply={handleReply}
                     onRetry={handleRetryMessage}
@@ -1144,6 +1162,15 @@ export function MessagesPanel({
         />
       </div>
 
+      <MessageHistoryDialog messageId={historyTarget} onClose={() => setHistoryTarget(null)} />
+      <HiddenMessagesDialog
+        conversationId={conversation.conversation_id}
+        onClose={() => setHiddenOpen(false)}
+        onRestored={() => {
+          void refreshConversationMessagesAction(conversation.conversation_id).then((page) => setMessages((previous) => mergeMessages(previous, page.messages)));
+        }}
+        open={hiddenOpen}
+      />
       <ForwardDialog
         currentConversationId={conversation.conversation_id}
         message={forwardTarget}

@@ -737,6 +737,105 @@ export type Database = {
           },
         ]
       }
+      message_edits: {
+        Row: {
+          id: string
+          workspace_id: string
+          message_id: string
+          previous_text: string | null
+          new_text: string
+          edited_at: string
+          edited_by_member_id: string | null
+          source: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          message_id: string
+          previous_text?: string | null
+          new_text: string
+          edited_at?: string
+          edited_by_member_id?: string | null
+          source: string
+        }
+        Update: {
+          id?: string
+          workspace_id?: string
+          message_id?: string
+          previous_text?: string | null
+          new_text?: string
+          edited_at?: string
+          edited_by_member_id?: string | null
+          source?: string
+        }
+        Relationships: []
+      }
+      message_deletions: {
+        Row: {
+          id: string
+          workspace_id: string
+          message_id: string
+          original_text: string | null
+          deleted_at: string
+          deleted_by_member_id: string | null
+          source: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          message_id: string
+          original_text?: string | null
+          deleted_at?: string
+          deleted_by_member_id?: string | null
+          source: string
+        }
+        Update: {
+          id?: string
+          workspace_id?: string
+          message_id?: string
+          original_text?: string | null
+          deleted_at?: string
+          deleted_by_member_id?: string | null
+          source?: string
+        }
+        Relationships: []
+      }
+      message_reactions: {
+        Row: {
+          id: string
+          workspace_id: string
+          message_id: string
+          member_id: string | null
+          contact_point_id: string | null
+          is_account: boolean
+          emoji: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          message_id: string
+          member_id?: string | null
+          contact_point_id?: string | null
+          is_account?: boolean
+          emoji: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          workspace_id?: string
+          message_id?: string
+          member_id?: string | null
+          contact_point_id?: string | null
+          is_account?: boolean
+          emoji?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           is_history: boolean

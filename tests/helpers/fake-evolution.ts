@@ -44,9 +44,12 @@ export async function startFakeEvolution(port: number): Promise<FakeEvolution> {
       requests.push(entry);
       const info = { path, body };
       // sendMedia: a Evolution real baixa o arquivo pela URL; a simulada faz o mesmo e guarda o que recebeu.
-      if (path.includes("/message/sendMedia/") && typeof body.media === "string" && body.media.startsWith("http")) {
+      // sendWhatsAppAudio (mensagem de voz): o campo é "audio"; o resto é igual. editar (updateMessage), apagar para todos
+      // (deleteMessageForEveryone) e reagir (sendReaction) só registram o pedido e respondem com a chave.
+      const mediaUrl = path.includes("/message/sendMedia/") ? body.media : path.includes("/message/sendWhatsAppAudio/") ? body.audio : undefined;
+      if (typeof mediaUrl === "string" && mediaUrl.startsWith("http")) {
         try {
-          const download = await fetch(body.media);
+          const download = await fetch(mediaUrl);
           const bytes = new Uint8Array(await download.arrayBuffer());
           entry.download = { status: download.status, bytes: bytes.length, head: Buffer.from(bytes.slice(0, 8)).toString("hex") };
         } catch {

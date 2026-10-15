@@ -25,14 +25,14 @@ type ServerClient = Awaited<ReturnType<typeof serverModule.createServerSupabaseC
 const fail = (error: string, code?: string): { success: false; error: string; code?: string } => ({ success: false, error, code });
 
 async function authorize(): Promise<
-  { ok: true; supabase: ServerClient; memberId: string } | { ok: false; result: { success: false; error: string; code?: string } }
+  { ok: true; supabase: ServerClient; memberId: string; role: "owner" | "attendant" } | { ok: false; result: { success: false; error: string; code?: string } }
 > {
   const supabase = await serverModule.createServerSupabaseClient();
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) return { ok: false, result: fail("Sessão expirada ou não autenticada.", "UNAUTHORIZED") };
   const access = await getActiveAccessForAuthUser(data.user.id);
   if (!access) return { ok: false, result: fail("Sessão expirada ou não autenticada.", "UNAUTHORIZED") };
-  return { ok: true, supabase, memberId: access.memberId };
+  return { ok: true, supabase, memberId: access.memberId, role: access.role };
 }
 
 function logCode(scope: string, code: string) {
@@ -335,5 +335,74 @@ export async function archiveInternalNoteAction(noteId: string): Promise<Message
   } catch {
     logCode("archiveInternalNoteAction", "EXCEPTION");
     return fail("Erro interno ao apagar a nota.", "INTERNAL_ERROR");
+  }
+}
+
+// ─── Só o dono: mensagens escondidas e histórico (original editado / apagado) ─────────────────────
+
+export type HiddenMessage = {
+  id: string;
+  text: string | null;
+  occurred_at: string;
+  direction: string;
+  hidden_at: string;
+};
+
+/** Mensagens escondidas ("apagar para mim") da conversa, para o DONO restaurar. */
+export async function listHiddenMessagesAction(conversationId: string): Promise<MessageActionResult<{ messages: HiddenMessage[] }>> {
+  try {
+    const auth = await authorize();
+    if (!auth.ok) return auth.result;
+    if (auth.role !== "owner") return fail("Só o dono pode ver e restaurar mensagens escondidas.", "FORBIDDEN");
+    if (!UUID_REGEX.test(conversationId ?? "")) return fail("Conversa inválida.", "INVALID_INPUT");
+    const { data, error } = await auth.supabase
+      .from("messages")
+      .select("id, text_content, occurred_at, direction, hidden_at")
+      .eq("conversation_id", conversationId)
+      .not("hidden_at", "is", null)
+      .order("occurred_at", { ascending: false })
+      .limit(100);
+    if (error) return fail("Não foi possível listar as mensagens escondidas.", error.code ?? undefined);
+    return {
+      success: true,
+      messages: (data ?? []).map((row) => ({
+        id: row.id,
+        text: row.text_content,
+        occurred_at: row.occurred_at,
+        direction: row.direction,
+        hidden_at: row.hidden_at as string,
+      })),
+    };
+  } catch {
+    logCode("listHiddenMessagesAction", "EXCEPTION");
+    return fail("Erro interno ao listar as mensagens escondidas.", "INTERNAL_ERROR");
+  }
+}
+
+export type MessageHistory = {
+  edits: Array<{ previous_text: string | null; new_text: string; edited_at: string; source: string }>;
+  deletion: { original_text: string | null; deleted_at: string; source: string } | null;
+};
+
+/** Texto anterior de uma mensagem editada e o original de uma apagada para todos. A RLS só deixa o DONO ler. */
+export async function getMessageHistoryAction(messageId: string): Promise<MessageActionResult<{ history: MessageHistory }>> {
+  try {
+    const auth = await authorize();
+    if (!auth.ok) return auth.result;
+    if (auth.role !== "owner") return fail("Só o dono pode ver o histórico das mensagens.", "FORBIDDEN");
+    if (!UUID_REGEX.test(messageId ?? "")) return fail("Mensagem inválida.", "INVALID_INPUT");
+    const [edits, deletion] = await Promise.all([
+      auth.supabase
+        .from("message_edits")
+        .select("previous_text, new_text, edited_at, source")
+        .eq("message_id", messageId)
+        .order("edited_at", { ascending: true }),
+      auth.supabase.from("message_deletions").select("original_text, deleted_at, source").eq("message_id", messageId).maybeSingle(),
+    ]);
+    if (edits.error || deletion.error) return fail("Não foi possível carregar o histórico.", "QUERY_ERROR");
+    return { success: true, history: { edits: edits.data ?? [], deletion: deletion.data ?? null } };
+  } catch {
+    logCode("getMessageHistoryAction", "EXCEPTION");
+    return fail("Erro interno ao carregar o histórico.", "INTERNAL_ERROR");
   }
 }
