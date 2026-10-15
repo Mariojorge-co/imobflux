@@ -123,7 +123,7 @@ select is(
         where schema_record.nspname in ('public', 'private')
           and function_record.prosecdef
     ),
-    113::bigint,
+    116::bigint,
     'no unapproved SECURITY DEFINER function exists in application schemas (including reorder_opportunity, private.is_protected_contact_point and attach_whatsapp_media)'
 );
 
