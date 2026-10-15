@@ -28,6 +28,7 @@ import * as gatewayModule from "@/lib/supabase/gateway";
 import { resolveSendInstance } from "@/lib/conversations/send-instance";
 import { classifyGatewayOutcome } from "@/lib/conversations/gateway-outcome";
 import { assignmentErrorMessage } from "@/lib/conversations/assignment";
+import { attachReply } from "@/lib/conversations/reply";
 import { taskErrorMessage } from "@/lib/tasks/model";
 import * as mediaModule from "@/lib/conversations/media-download";
 import { isDownloadInProgress } from "@/lib/conversations/media-types";
@@ -53,7 +54,7 @@ async function getPersistedMessage(
 
   const { data, error } = await supabase
     .from("messages")
-    .select("id, direction, origin, status, text_content, occurred_at, internal_author_member_id")
+    .select("id, direction, origin, status, text_content, occurred_at, internal_author_member_id, external_message_id, reply_to_message_id, reply_snapshot, forwarded, edited_at")
     .eq("id", messageId)
     .maybeSingle();
 
@@ -85,6 +86,12 @@ async function getPersistedMessage(
     occurred_at: data.occurred_at,
     has_attachments: false,
     internal_author_name: internalAuthorName,
+    internal_author_member_id: data.internal_author_member_id,
+    has_external_id: data.external_message_id !== null,
+    reply_to_message_id: data.reply_to_message_id,
+    reply_snapshot: (data.reply_snapshot ?? null) as ConversationMessage["reply_snapshot"],
+    forwarded: data.forwarded,
+    edited_at: data.edited_at,
   };
 }
 
@@ -296,6 +303,7 @@ export async function sendMessageAction(
   conversationId: string,
   textContent: string,
   clientIdempotencyKey: string,
+  replyToMessageId?: string | null,
 ): Promise<SendMessageResult> {
   try {
     const supabase = await serverModule.createServerSupabaseClient();
@@ -396,8 +404,10 @@ export async function sendMessageAction(
     // A instância vem do banco (a RPC de enfileirar já devolve a conexão ativa; nada vem do navegador);
     // EVOLUTION_INSTANCE_NAME é só reserva, para banco sem a migration. Sem conexão ativa, nada é enviado.
     const resolved = resolveSendInstance(queueObj);
+    // Responder: liga a mensagem à citada e manda o `quoted` à Evolution (sem citação válida, o texto sai normal).
+    const quoted = await attachReply(supabase, messageId, replyToMessageId, recipientTarget);
     const gatewayResult = resolved.ok
-      ? await gatewayModule.sendEvolutionTextMessage(resolved.instance, recipientTarget, textContent)
+      ? await gatewayModule.sendEvolutionTextMessage(resolved.instance, recipientTarget, textContent, undefined, quoted)
       : { success: false as const, code: resolved.code, error: "Instância do WhatsApp indisponível" };
 
     // Só o aceite real do gateway conta como envio. O único contorno (dev/demo, nunca em

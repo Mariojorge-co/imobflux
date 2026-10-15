@@ -3,11 +3,15 @@
 import * as serverModule from "@/lib/supabase/server";
 import * as adminModule from "@/lib/supabase/admin";
 import * as gatewayModule from "@/lib/supabase/gateway";
+import * as actionsGateway from "@/lib/supabase/gateway-actions";
+import { attachReply, isValidReplyId } from "@/lib/conversations/reply";
+import { sendMessageAction } from "@/lib/conversations/actions";
 import { classifyGatewayOutcome } from "@/lib/conversations/gateway-outcome";
 import { resolveSendInstance } from "@/lib/conversations/send-instance";
 import type { ConversationMessage } from "@/lib/conversations/data";
 import {
   HEAD_BYTES,
+  detectContentFamily,
   MAX_FILE_BYTES,
   FILE_ERROR_MESSAGES,
   mediaLabel,
@@ -40,6 +44,9 @@ export type MediaFailureCode =
   | "NOT_AUTHORIZED"
   | "MEDIA_ALREADY_USED"
   | "PREVIOUSLY_FAILED"
+  | "VOICE_TOO_LONG"
+  | "FORWARD_SOURCE_UNAVAILABLE"
+  | "GROUP_NOT_SUPPORTED"
   | "RETRY_NOT_ALLOWED"
   | "INTERNAL_ERROR"
   | "GATEWAY_NOT_CONFIGURED"
@@ -64,6 +71,9 @@ const FAILURE_TEXT: Partial<Record<MediaFailureCode, string>> = {
   NOT_AUTHORIZED: "Você não tem permissão para enviar nesta conversa.",
   MEDIA_ALREADY_USED: "Este arquivo já foi enviado.",
   PREVIOUSLY_FAILED: "Este envio falhou antes. Use \"Tentar de novo\".",
+  VOICE_TOO_LONG: "A gravação passa de 10 minutos.",
+  FORWARD_SOURCE_UNAVAILABLE: "Esta mensagem não pode ser encaminhada (foi apagada, escondida ou o arquivo não está disponível).",
+  GROUP_NOT_SUPPORTED: "O ImobFlux ainda não envia mensagens para grupos.",
   RETRY_NOT_ALLOWED: "Só dá para tentar de novo um arquivo que falhou ao enviar.",
   INTERNAL_ERROR: "Erro interno ao enviar o arquivo.",
 };
@@ -152,7 +162,7 @@ async function inspectStoredObject(admin: ReturnType<typeof adminModule.createAd
 async function loadMessageWithAttachments(supabase: ServerClient, messageId: string): Promise<ConversationMessage | undefined> {
   const { data, error } = await supabase
     .from("messages")
-    .select("id, direction, origin, status, text_content, occurred_at, internal_author_member_id, attachments(id, original_file_name, mime_type, size_bytes, status, created_at)")
+    .select("id, direction, origin, status, text_content, occurred_at, internal_author_member_id, external_message_id, reply_to_message_id, reply_snapshot, forwarded, edited_at, attachments(id, original_file_name, mime_type, size_bytes, status, created_at)")
     .eq("id", messageId)
     .maybeSingle();
   if (error || !data) return undefined;
@@ -183,6 +193,12 @@ async function loadMessageWithAttachments(supabase: ServerClient, messageId: str
     has_attachments: attachments.length > 0,
     attachments,
     internal_author_name: internalAuthorName,
+    internal_author_member_id: data.internal_author_member_id,
+    has_external_id: data.external_message_id !== null,
+    reply_to_message_id: data.reply_to_message_id,
+    reply_snapshot: (data.reply_snapshot ?? null) as ConversationMessage["reply_snapshot"],
+    forwarded: data.forwarded,
+    edited_at: data.edited_at,
   };
 }
 
@@ -197,6 +213,10 @@ type QueueAndSendInput = {
   asDocument: boolean;
   caption: string;
   idempotencyKey: string;
+  /** Responder: a mensagem citada. */
+  replyToMessageId?: string | null;
+  /** Áudio de voz (gravação): sai como mensagem de voz (PTT) pela rota própria da Evolution. */
+  voice?: boolean;
 };
 
 /** Enfileira a mensagem com o anexo e pede o envio à Evolution; reconcilia o resultado. */
@@ -233,6 +253,7 @@ async function queueAndSend(input: QueueAndSendInput): Promise<SendMediaResult> 
 
   const messageId = queued.message_id as string;
   const admin = adminModule.createAdminSupabaseClient();
+  const quoted = await attachReply(input.supabase, messageId, input.replyToMessageId, queued.recipient_target as string | undefined);
 
   let gatewayResult: Awaited<ReturnType<typeof gatewayModule.sendEvolutionMedia>>;
   const resolved = resolveSendInstance(queued);
@@ -242,14 +263,22 @@ async function queueAndSend(input: QueueAndSendInput): Promise<SendMediaResult> 
     const signed = await admin.storage.from(BUCKET).createSignedUrl(input.path, SIGNED_URL_SECONDS);
     if (signed.error || !signed.data?.signedUrl) {
       gatewayResult = { success: false, code: "SIGNED_URL", error: "Não foi possível preparar o arquivo" };
+    } else if (input.voice) {
+      gatewayResult = await actionsGateway.sendEvolutionVoiceNote(resolved.instance, queued.recipient_target as string, signed.data.signedUrl, quoted);
     } else {
-      gatewayResult = await gatewayModule.sendEvolutionMedia(resolved.instance, queued.recipient_target as string, {
-        mediatype: mediaType,
-        mimetype: input.mime,
-        fileName: input.fileName,
-        caption: input.caption || null,
-        mediaUrl: signed.data.signedUrl,
-      });
+      gatewayResult = await gatewayModule.sendEvolutionMedia(
+        resolved.instance,
+        queued.recipient_target as string,
+        {
+          mediatype: mediaType,
+          mimetype: input.mime,
+          fileName: input.fileName,
+          caption: input.caption || null,
+          mediaUrl: signed.data.signedUrl,
+        },
+        undefined,
+        quoted,
+      );
     }
   }
 
@@ -297,6 +326,7 @@ export async function sendOutgoingMediaAction(input: {
   caption?: string | null;
   asDocument?: boolean;
   idempotencyKey: string;
+  replyToMessageId?: string | null;
 }): Promise<SendMediaResult> {
   try {
     const supabase = await serverModule.createServerSupabaseClient();
@@ -333,6 +363,7 @@ export async function sendOutgoingMediaAction(input: {
       asDocument: Boolean(input.asDocument),
       caption,
       idempotencyKey: input.idempotencyKey,
+      replyToMessageId: isValidReplyId(input.replyToMessageId) ? input.replyToMessageId : null,
     });
   } catch {
     logCode("sendOutgoingMediaAction", "EXCEPTION");
@@ -420,5 +451,168 @@ export async function discardOutgoingUploadAction(input: { conversationId: strin
   } catch {
     logCode("discardOutgoingUploadAction", "EXCEPTION");
     return { success: false };
+  }
+}
+
+// ─── Áudio de voz (gravado no navegador) ──────────────────────────────────────────────────────────
+
+/** Duração máxima de uma gravação de voz, em segundos (10 minutos). */
+const MAX_VOICE_SECONDS = 600;
+
+const VOICE_FAMILIES: Record<string, { ext: string; mime: string }> = {
+  webm: { ext: "webm", mime: "audio/webm" },
+  ogg: { ext: "ogg", mime: "audio/ogg" },
+  mp4: { ext: "m4a", mime: "audio/mp4" },
+  mp3: { ext: "mp3", mime: "audio/mpeg" },
+  wav: { ext: "wav", mime: "audio/wav" },
+  aac: { ext: "aac", mime: "audio/aac" },
+  amr: { ext: "amr", mime: "audio/amr" },
+  flac: { ext: "flac", mime: "audio/flac" },
+};
+
+/**
+ * Envia uma gravação de voz como mensagem de voz (PTT). O navegador sobe o áudio direto ao Storage (mesma URL de upload
+ * dos arquivos); aqui o tipo é conferido pelo CONTEÚDO, o limite de 10 min / 25 MB é aplicado e o envio usa a rota de áudio
+ * de voz da Evolution (que converte para ogg/opus). Sem transcrição.
+ */
+export async function sendVoiceNoteAction(input: {
+  conversationId: string;
+  path: string;
+  durationSeconds: number;
+  idempotencyKey: string;
+  replyToMessageId?: string | null;
+}): Promise<SendMediaResult> {
+  try {
+    const supabase = await serverModule.createServerSupabaseClient();
+    const access = await authorizedConversation(supabase, input.conversationId);
+    if ("success" in access) return access;
+    if (!UUID_REGEX.test(input.idempotencyKey ?? "")) return failure("INVALID_INPUT");
+    const expectedPath = new RegExp(`^${access.workspaceId}/${input.conversationId}/out/${UUID}$`, "i");
+    if (typeof input.path !== "string" || !expectedPath.test(input.path)) return failure("INVALID_INPUT");
+    if (!Number.isFinite(input.durationSeconds) || input.durationSeconds <= 0) return failure("INVALID_INPUT");
+    if (input.durationSeconds > MAX_VOICE_SECONDS + 5) return failure("VOICE_TOO_LONG");
+
+    const admin = adminModule.createAdminSupabaseClient();
+    const inspected = await inspectStoredObject(admin, input.path);
+    if (!inspected) return failure("UPLOAD_MISSING");
+    if (inspected.size > MAX_FILE_BYTES) {
+      await admin.storage.from(BUCKET).remove([input.path]);
+      return failure("TOO_LARGE");
+    }
+    const voice = VOICE_FAMILIES[detectContentFamily(inspected.head)];
+    if (!voice) {
+      await admin.storage.from(BUCKET).remove([input.path]);
+      return failure("CONTENT_MISMATCH");
+    }
+
+    return await queueAndSend({
+      supabase,
+      conversationId: input.conversationId,
+      path: input.path,
+      fileName: `voz.${voice.ext}`,
+      mime: voice.mime,
+      size: inspected.size,
+      kind: "audio",
+      asDocument: false,
+      caption: "",
+      idempotencyKey: input.idempotencyKey,
+      replyToMessageId: isValidReplyId(input.replyToMessageId) ? input.replyToMessageId : null,
+      voice: true,
+    });
+  } catch {
+    logCode("sendVoiceNoteAction", "EXCEPTION");
+    return failure("INTERNAL_ERROR");
+  }
+}
+
+// ─── Encaminhar ───────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Encaminha UMA mensagem (texto ou arquivo) para UMA conversa. O navegador chama uma vez por destino, cada uma na fila
+ * da conversa de destino, então a falha de um destino não cancela os outros. O banco confere que a pessoa vê a mensagem
+ * de origem e a conversa de destino (RLS e `can_access_conversation`); arquivo é COPIADO no Storage (reaproveita o que já
+ * está salvo, sem baixar de novo). Só conversas individuais: o envio a grupos ainda não existe no ImobFlux.
+ */
+export async function forwardMessageToConversationAction(input: {
+  sourceMessageId: string;
+  targetConversationId: string;
+  idempotencyKey: string;
+}): Promise<SendMediaResult> {
+  try {
+    const supabase = await serverModule.createServerSupabaseClient();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user) return failure("UNAUTHORIZED");
+    if (
+      !UUID_REGEX.test(input.sourceMessageId ?? "")
+      || !UUID_REGEX.test(input.targetConversationId ?? "")
+      || !UUID_REGEX.test(input.idempotencyKey ?? "")
+    ) return failure("INVALID_INPUT");
+
+    const { data: source, error: sourceError } = await supabase.rpc("get_message_for_forward", { p_message_id: input.sourceMessageId });
+    if (sourceError || !source) return failure("FORWARD_SOURCE_UNAVAILABLE");
+    const info = source as unknown as {
+      text: string | null;
+      attachments: Array<{ file_name: string; mime_type: string; size_bytes: number; storage_bucket: string; storage_key: string; status: string }>;
+    };
+
+    const access = await authorizedConversation(supabase, input.targetConversationId);
+    if ("success" in access) return access;
+    const { data: target } = await supabase
+      .from("conversations")
+      .select("conversation_type, operational_status")
+      .eq("id", input.targetConversationId)
+      .maybeSingle();
+    if (!target || !["active", "archived"].includes(target.operational_status)) return failure("CONVERSATION_NOT_AVAILABLE");
+    if (target.conversation_type !== "individual") return failure("GROUP_NOT_SUPPORTED");
+
+    let result: SendMediaResult;
+    const attachment = info.attachments?.[0];
+    if (!attachment) {
+      const text = (info.text ?? "").trim();
+      if (!text) return failure("FORWARD_SOURCE_UNAVAILABLE");
+      const sent = await sendMessageAction(input.targetConversationId, text, input.idempotencyKey);
+      result = sent.success
+        ? { success: true, messageId: sent.messageId, status: sent.status === "sent" ? "sent" : "duplicate", ...(sent.message ? { message: sent.message } : {}) }
+        : failure((sent.code as MediaFailureCode) ?? "GATEWAY_ERROR", sent.error);
+    } else {
+      if (attachment.status !== "available" || attachment.storage_bucket !== BUCKET) return failure("FORWARD_SOURCE_UNAVAILABLE");
+      const verdict = validateOutgoingFile({ fileName: attachment.file_name, size: Number(attachment.size_bytes) });
+      if (!verdict.ok) return failure(verdict.code);
+
+      const newPath = `${access.workspaceId}/${input.targetConversationId}/out/${crypto.randomUUID()}`;
+      const admin = adminModule.createAdminSupabaseClient();
+      const { error: copyError } = await admin.storage.from(BUCKET).copy(attachment.storage_key, newPath);
+      if (copyError) {
+        logCode("forwardMessageToConversationAction", "COPY");
+        return failure("UPLOAD_ERROR");
+      }
+      const text = (info.text ?? "").trim();
+      const generated = [mediaLabel(verdict.kind, verdict.fileName), mediaLabel("document", verdict.fileName)];
+      result = await queueAndSend({
+        supabase,
+        conversationId: input.targetConversationId,
+        path: newPath,
+        fileName: verdict.fileName,
+        mime: attachment.mime_type || verdict.mime,
+        size: Number(attachment.size_bytes),
+        kind: verdict.kind,
+        asDocument: verdict.kind === "image" && text === mediaLabel("document", verdict.fileName),
+        caption: generated.includes(text) ? "" : text,
+        idempotencyKey: input.idempotencyKey,
+      });
+    }
+
+    if (result.success && result.status !== "duplicate") {
+      const { error: markError } = await supabase.rpc("mark_message_forwarded", {
+        p_message_id: result.messageId,
+        p_source_message_id: input.sourceMessageId,
+      });
+      if (markError) logCode("mark_message_forwarded", markError.code ?? "desconhecido");
+      else if (result.message) result = { ...result, message: { ...result.message, forwarded: true } };
+    }
+    return result;
+  } catch {
+    logCode("forwardMessageToConversationAction", "EXCEPTION");
+    return failure("INTERNAL_ERROR");
   }
 }

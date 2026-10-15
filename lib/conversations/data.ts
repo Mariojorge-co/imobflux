@@ -47,6 +47,8 @@ export type ConversationListItem = {
   /** O banco decidiu se há prazo (grupo, conversa consigo mesmo e pausa/desativação = false). */
   sla_applies?: boolean | null;
   is_self?: boolean | null;
+  /** Fixada no topo da lista para quem está logado (fixação pessoal). */
+  is_pinned?: boolean | null;
   /** Cursores do próximo lote — retornados pela RPC */
   next_cursor_ts: string | null;
   next_cursor_id: string | null;
@@ -102,6 +104,36 @@ export type ConversationMessage = {
   sender_display_name?: string | null;
   /** Só no navegador: motivo da falha de uma mensagem que nem chegou a ser gravada (bolha "não enviada"). */
   send_error?: string | null;
+  /** Autor interno (membro) da mensagem enviada pelo CRM: base das permissões de editar/apagar na tela. */
+  internal_author_member_id?: string | null;
+  reply_to_message_id?: string | null;
+  /** Trecho da mensagem citada (autor, texto, se foi apagada, se tinha arquivo). */
+  reply_snapshot?: ReplySnapshot | null;
+  edited_at?: string | null;
+  /** Apagada para todos: a leitura já devolve sem texto nem arquivos. */
+  deleted_at?: string | null;
+  deleted_source?: string | null;
+  forwarded?: boolean;
+  /** A mensagem tem id do WhatsApp (precisa dele para editar, apagar para todos e reagir). */
+  has_external_id?: boolean;
+  reactions?: MessageReaction[];
+  /** Só no navegador: nota interna mostrada no meio das mensagens (nunca vai ao WhatsApp). */
+  internal_note?: { id: string; author_member_id: string; edited: boolean } | null;
+};
+
+export type ReplySnapshot = {
+  author?: string | null;
+  direction?: string | null;
+  text?: string | null;
+  deleted?: boolean;
+  has_media?: boolean;
+};
+
+export type MessageReaction = {
+  emoji: string;
+  by: "member" | "contact" | "account";
+  mine: boolean;
+  name: string | null;
 };
 
 /** Cursor para paginação de mensagens. */

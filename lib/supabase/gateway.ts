@@ -48,8 +48,23 @@ export function formatPhoneForEvolution(toPhone: string): string | null {
   return null;
 }
 
+/** Mensagem citada ao responder: id do WhatsApp dela, JID da conversa, se é nossa e um trecho (a Evolution v2 pede key + message). */
+export type EvolutionQuoted = {
+  externalMessageId: string;
+  remoteJid: string;
+  fromMe: boolean;
+  text: string;
+};
+
+export function quotedPayload(quoted: EvolutionQuoted) {
+  return {
+    key: { id: quoted.externalMessageId, remoteJid: quoted.remoteJid, fromMe: quoted.fromMe },
+    message: { conversation: quoted.text.slice(0, 500) },
+  };
+}
+
 /** Identificador externo devolvido pela Evolution v2: `key.id` (aceita também o envelope `data.key.id`). */
-function externalIdFrom(responseData: unknown): string | null {
+export function externalIdFrom(responseData: unknown): string | null {
   const payload = responseData as { key?: { id?: unknown }; data?: { key?: { id?: unknown } } } | null;
   const id = payload?.key?.id ?? payload?.data?.key?.id;
   return typeof id === "string" && id.trim() !== "" ? id : null;
@@ -67,6 +82,7 @@ export async function sendEvolutionTextMessage(
   toPhone?: string,
   textContent?: string,
   timeoutMs = 10000,
+  quoted?: EvolutionQuoted | null,
 ): Promise<SendEvolutionTextMessageResult> {
   const apiUrl = process.env.EVOLUTION_API_URL;
   const apiKey = process.env.EVOLUTION_API_KEY;
@@ -131,6 +147,7 @@ export async function sendEvolutionTextMessage(
       body: JSON.stringify({
         number: formattedPhone,
         text: textContent,
+        ...(quoted ? { quoted: quotedPayload(quoted) } : {}),
       }),
       signal: controller.signal,
     });
@@ -212,6 +229,7 @@ export async function sendEvolutionMedia(
   toPhone: string | undefined,
   input: SendEvolutionMediaInput,
   timeoutMs = 60000,
+  quoted?: EvolutionQuoted | null,
 ): Promise<SendEvolutionTextMessageResult> {
   const apiUrl = process.env.EVOLUTION_API_URL;
   const apiKey = process.env.EVOLUTION_API_KEY;
@@ -245,6 +263,7 @@ export async function sendEvolutionMedia(
         fileName: input.fileName,
         ...(caption ? { caption } : {}),
         media: input.mediaUrl,
+        ...(quoted ? { quoted: quotedPayload(quoted) } : {}),
       }),
       signal: controller.signal,
     });

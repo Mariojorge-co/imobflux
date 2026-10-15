@@ -757,6 +757,18 @@ export type Database = {
           status_updated_at: string | null
           text_content: string | null
           workspace_id: string
+          reply_to_message_id: string | null
+          reply_to_external_id: string | null
+          reply_snapshot: Json | null
+          edited_at: string | null
+          edit_count: number
+          deleted_at: string | null
+          deleted_by_member_id: string | null
+          deleted_source: string | null
+          hidden_at: string | null
+          hidden_by_member_id: string | null
+          forwarded: boolean
+          forwarded_from_message_id: string | null
         }
         Insert: {
           is_history?: boolean
@@ -777,8 +789,32 @@ export type Database = {
           status_updated_at?: string | null
           text_content?: string | null
           workspace_id: string
+          reply_to_message_id?: string | null
+          reply_to_external_id?: string | null
+          reply_snapshot?: Json | null
+          edited_at?: string | null
+          edit_count?: number
+          deleted_at?: string | null
+          deleted_by_member_id?: string | null
+          deleted_source?: string | null
+          hidden_at?: string | null
+          hidden_by_member_id?: string | null
+          forwarded?: boolean
+          forwarded_from_message_id?: string | null
         }
         Update: {
+          reply_to_message_id?: string | null
+          reply_to_external_id?: string | null
+          reply_snapshot?: Json | null
+          edited_at?: string | null
+          edit_count?: number
+          deleted_at?: string | null
+          deleted_by_member_id?: string | null
+          deleted_source?: string | null
+          hidden_at?: string | null
+          hidden_by_member_id?: string | null
+          forwarded?: boolean
+          forwarded_from_message_id?: string | null
           is_history?: boolean
           channel_connection_id?: string
           client_idempotency_key?: string | null
@@ -1793,6 +1829,78 @@ export type Database = {
       set_conversation_sla_mode: {
         Args: { p_conversation_id: string; p_mode: string }
         Returns: Json
+      }
+      set_message_reply: {
+        Args: { p_message_id: string; p_reply_to_message_id: string }
+        Returns: Json
+      }
+      set_incoming_message_reply: {
+        Args: { p_message_id: string; p_quoted_external_id: string; p_snapshot?: Json }
+        Returns: Json
+      }
+      begin_message_edit: { Args: { p_message_id: string; p_new_text: string }; Returns: Json }
+      commit_message_edit: {
+        Args: { p_message_id: string; p_new_text: string; p_actor_member_id: string; p_source: string }
+        Returns: Json
+      }
+      begin_message_revoke: { Args: { p_message_id: string }; Returns: Json }
+      commit_message_revoke: {
+        Args: { p_message_id: string; p_actor_member_id: string; p_source: string }
+        Returns: Json
+      }
+      hide_message: { Args: { p_message_id: string }; Returns: Json }
+      restore_hidden_message: { Args: { p_message_id: string }; Returns: Json }
+      get_message_for_forward: { Args: { p_message_id: string }; Returns: Json }
+      mark_message_forwarded: {
+        Args: { p_message_id: string; p_source_message_id: string }
+        Returns: Json
+      }
+      begin_message_reaction: { Args: { p_message_id: string; p_emoji: string }; Returns: Json }
+      commit_message_reaction: {
+        Args: { p_message_id: string; p_actor_member_id: string; p_emoji: string }
+        Returns: Json
+      }
+      ingest_whatsapp_message_edit: {
+        Args: {
+          p_external_account_id: string
+          p_external_message_id: string
+          p_new_text: string
+          p_edited_at?: string
+        }
+        Returns: Json
+      }
+      ingest_whatsapp_message_delete: {
+        Args: { p_external_account_id: string; p_external_message_id: string }
+        Returns: Json
+      }
+      ingest_whatsapp_reaction: {
+        Args: {
+          p_external_account_id: string
+          p_target_external_id: string
+          p_reactor_jid: string
+          p_from_me: boolean
+          p_emoji: string
+        }
+        Returns: Json
+      }
+      set_conversation_pin: { Args: { p_conversation_id: string; p_pinned: boolean }; Returns: Json }
+      search_conversation_messages: {
+        Args: { p_conversation_id: string; p_query: string; p_limit?: number }
+        Returns: Json
+      }
+      update_internal_note: { Args: { p_note_id: string; p_content: string }; Returns: Json }
+      archive_internal_note: { Args: { p_note_id: string }; Returns: Json }
+      list_conversation_notes: {
+        Args: { p_conversation_id: string; p_opportunity_id?: string }
+        Returns: {
+          id: string
+          content: string
+          created_at: string
+          updated_at: string
+          author_name: string
+          author_member_id: string
+          opportunity_id: string | null
+        }[]
       }
       get_sla_conversations: {
         Args: { p_limit?: number }
