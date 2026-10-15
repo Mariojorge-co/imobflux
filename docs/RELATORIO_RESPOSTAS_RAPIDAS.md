@@ -58,3 +58,23 @@ Foto limitada a **220 px no maior lado no desktop e 180 px no celular**, propor�
 - `{{nome}}` usa o nome do contato exibido na conversa; sem nome (só telefone), fica literal e o aviso aparece ao enviar.
 - Vídeo continua com o limite antigo (220/280 px); só foto foi reduzida, como pedido.
 - Incidente de ambiente (sem efeito no repositório): ao sincronizar a cópia descartável, um espelhamento sobrescreveu a configuração local do Supabase e a cópia passou a apontar para o stack local `imobflux`; o banco local de desenvolvimento foi resetado e o stack foi parado e reiniciado por cerca de 1 minuto (dados locais de teste, recriados a cada execução de testes). Corrigido; a cópia descartável voltou à sua configuração (`imobflux-suite-0007`) e a sincronização agora a preserva. Produção não foi tocada.
+
+## Trava A (banco) — executada em 2026-10-15 (migration 20260802005200)
+
+Autorizada pelo dono, só o banco; o app **não** foi publicado (Trava B pendente, separada).
+
+**Pré-condições provadas em banco local descartável**
+1. Aditiva e compatível com o app atual (`08baccd`): comparação de esquema (`pg_dump`, banco até a 005100 × com a 005200) mostra **apenas adições** (2 tabelas, 2 índices extras, 2 gatilhos, 2 policies, 7 funções, grants); nenhuma linha removida ou alterada em objeto existente.
+2. Rollback `docs/rollback/20260802005200_rollback.sql`: aplicado sobre o banco com a 005200, o esquema voltou **idêntico** ao da 005100 (diff vazio) e a suíte pgTAP de `08baccd` passou (33 arquivos, 1008 testes).
+3. A migration não insere dado fora de função (DDL puro até a linha 93; o `insert` dos exemplos só existe dentro de `add_example_quick_replies`, chamada pelo botão).
+
+**Produção**
+1. Backup (esquema 390 KB + dados 118 KB, fora do repositório); `migration list --linked`: tudo aplicado até a 005100, **só a 005200 pendente**; `db push --linked --dry-run` listou só ela.
+2. `db push --linked`: aplicada sem erro; `migration list`: 52 de 52, sem pendências.
+3. Validação somente leitura:
+   - 7 funções novas: `SECURITY DEFINER`, `search_path=""`, `authenticated` executa; `anon` e `service_role` não.
+   - Tabelas novas: RLS ligada, 1 policy de leitura cada, `anon` sem leitura, `authenticated` sem INSERT; **0 linhas** em ambas.
+   - Contagens das 14 tabelas existentes verificadas antes e depois: **idênticas** (ex.: messages 132, conversations 4, audit_events 26).
+   - Esquema de produção antes × depois (dump): só linhas adicionadas, nenhuma alterada/removida.
+   - Páginas do app atual (Conversas, Kanban, Prioridades) **não foram abertas autenticadas**: não há credencial de produção disponível para a automação. Como nenhum objeto existente mudou (diff acima), o app atual não é afetado; sugiro abrir as três telas uma vez no navegador como conferência.
+4. Backups apagados (sem cópias restantes). `EVOLUTION_INSTANCE_NAME` na Vercel mantida (não tocada).

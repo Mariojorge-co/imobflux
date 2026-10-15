@@ -146,7 +146,7 @@ Detalhes, números de desempenho, testes e roteiro em [RELATORIO_CONVERSAS_PACOT
 ## Em revisão (NÃO publicado): branch `feat/respostas-rapidas`
 
 Respostas rápidas + foto 180/220 px + correção do teste `team-management`. Detalhes em [RELATORIO_RESPOSTAS_RAPIDAS.md](RELATORIO_RESPOSTAS_RAPIDAS.md); rollback em `docs/rollback/20260802005200_rollback.sql`.
-- Migration `20260802005200_quick_replies.sql` **só local** (pgTAP 34 arquivos/1062 testes verdes). Produção: Trava A (backup → migration list → dry-run → "autorizo" → db push → validação somente leitura) e só depois Trava B (app).
+- Migration `20260802005200_quick_replies.sql`: **aplicada em produção em 2026-10-15 (Trava A)**; pgTAP local 34 arquivos/1062 verdes. **Trava B (app) pendente**, aguarda "autorizo" (lint/tipos/unitários em Node 22 e 24 antes do push; conferir CI e Vercel depois).
 - Verificado: lint/tipos/unitários (452) em Node 24 e 22, build com variáveis falsas, navegador 90/90 (inclui `team-management` 3/3).
 - A pendência "team-management atendente em grupo liberado" estava **resolvida**: era teste desatualizado (contato protegido prevalece em grupo, migration 003600), não bug.
 - Ainda não executada: suíte `email-auth-flow` (cópia `imobflux-auth-disposable`).
