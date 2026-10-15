@@ -650,6 +650,7 @@ export function MessagesPanel({
         {/* Compositor Fixo */}
         <MessageForm
           conversationId={conversation.conversation_id}
+          contactName={liveConversation.participant_name}
           onInternalNoteSaved={handleInternalNoteSaved}
           onMessagePersisted={handleMessagePersisted}
           onMessageSending={handleMessageSending}

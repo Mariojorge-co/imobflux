@@ -4,11 +4,21 @@ import {
   useCallback,
   useEffect,
   useId,
+  useMemo,
   useRef,
   useState,
   type KeyboardEvent,
 } from "react";
-import { FileText, MessageSquare, Send } from "lucide-react";
+import { FileText, Maximize2, MessageSquare, Minimize2, Send, Zap } from "lucide-react";
+import { ConfirmDialog } from "@/components/quick-replies/confirm-dialog";
+import { QuickRepliesPanel } from "@/components/quick-replies/quick-replies-panel";
+import { SlashMenu, slashOptionId } from "@/components/quick-replies/slash-menu";
+import { useQuickReplies } from "@/components/quick-replies/use-quick-replies";
+import { composerHeight } from "@/lib/quick-replies/composer-size";
+import { searchForSlash } from "@/lib/quick-replies/filter";
+import { detectSlashTrigger, insertAtCursor, replaceSlashTrigger, type SlashTrigger } from "@/lib/quick-replies/insert";
+import type { QuickReply } from "@/lib/quick-replies/types";
+import { findUnresolvedVariables, resolveVariables, unresolvedWarning } from "@/lib/quick-replies/variables";
 import {
   saveInternalNoteAction,
   sendMessageAction,
@@ -24,6 +34,8 @@ const COUNTER_SHOW_THRESHOLD = 3500;
 
 type MessageFormProps = {
   conversationId: string;
+  /** Nome do contato na conversa: preenche {{nome}} e {{nome_completo}} nas respostas rápidas. */
+  contactName?: string | null;
   opportunityId?: string | null;
   onInternalNoteSaved?: (
     note: ConversationContextData["notes"][number],
@@ -38,6 +50,7 @@ type MessageFormProps = {
 
 export function MessageForm({
   conversationId,
+  contactName,
   opportunityId,
   onInternalNoteSaved,
   onMessagePersisted,
@@ -56,6 +69,17 @@ export function MessageForm({
   const pendingIdRef = useRef<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Respostas rápidas: painel, atalho "/", caixa expandida e confirmação de campos em branco.
+  const quick = useQuickReplies();
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [slash, setSlash] = useState<SlashTrigger | null>(null);
+  const [slashIndex, setSlashIndex] = useState(0);
+  const [unresolved, setUnresolved] = useState<string[] | null>(null);
+  const selectionRef = useRef<{ start: number; end: number } | null>(null);
+  const dismissedSlashRef = useRef<number | null>(null);
+  const pendingCaretRef = useRef<number | null>(null);
+
   const reactId = useId();
   const inputId = typeof reactId === "string" ? reactId : "input-message-text";
 
@@ -66,15 +90,72 @@ export function MessageForm({
     return activeIdempotencyKeyRef.current;
   }, []);
 
-  // A caixa começa com 1 linha e cresce até ~5 linhas (depois rola), sem roubar altura das mensagens.
-  useEffect(() => {
+  // A caixa começa com 1 linha e cresce com o texto até ~40% da altura da tela (depois rola por dentro). "Expandir" leva a
+  // ~60%. Uma resposta longa inserida nunca fica cortada: a altura acompanha o conteúdo.
+  const resizeTextarea = useCallback(() => {
     const element = textareaRef.current;
     if (!element) return;
+    const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
     element.style.height = "auto";
-    element.style.height = `${Math.min(element.scrollHeight, 128)}px`;
+    const borders = element.offsetHeight - element.clientHeight;
+    const size = composerHeight(element.scrollHeight + borders, viewportHeight, expanded);
+    element.style.height = `${size.height}px`;
+    element.style.overflowY = size.scrolls ? "auto" : "hidden";
+  }, [expanded]);
+
+  useEffect(() => {
+    resizeTextarea();
+  }, [resizeTextarea, text, activeTab]);
+
+  useEffect(() => {
+    window.addEventListener("resize", resizeTextarea);
+    window.visualViewport?.addEventListener("resize", resizeTextarea);
+    return () => {
+      window.removeEventListener("resize", resizeTextarea);
+      window.visualViewport?.removeEventListener("resize", resizeTextarea);
+    };
+  }, [resizeTextarea]);
+
+  // Depois de inserir uma resposta: cursor no fim do trecho inserido e foco de volta na caixa.
+  useEffect(() => {
+    const caret = pendingCaretRef.current;
+    if (caret === null) return;
+    pendingCaretRef.current = null;
+    const timer = window.setTimeout(() => {
+      const element = textareaRef.current;
+      if (!element) return;
+      element.focus();
+      element.setSelectionRange(caret, caret);
+      selectionRef.current = { start: caret, end: caret };
+      element.scrollTop = element.scrollHeight;
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [text]);
 
-  const handleTextChange = (newText: string) => {
+  // Atalho "/": acompanha o cursor. Esc dispensa a lista até a barra sair de cena.
+  const syncSlash = useCallback(
+    (value: string, caret: number) => {
+      const trigger = detectSlashTrigger(value, caret);
+      if (!trigger) {
+        dismissedSlashRef.current = null;
+        setSlash(null);
+        return;
+      }
+      if (dismissedSlashRef.current === trigger.start) {
+        setSlash(null);
+        return;
+      }
+      dismissedSlashRef.current = null;
+      quick.ensureLoaded();
+      setSlash((previous) => {
+        if (!previous || previous.query !== trigger.query) setSlashIndex(0);
+        return trigger;
+      });
+    },
+    [quick],
+  );
+
+  const handleTextChange = (newText: string, caret?: number) => {
     if (newText !== text) {
       activeIdempotencyKeyRef.current = null;
     }
@@ -82,11 +163,60 @@ export function MessageForm({
     if (feedback) {
       setFeedback(null);
     }
+    if (caret !== undefined) {
+      selectionRef.current = { start: caret, end: caret };
+      syncSlash(newText, caret);
+    }
   };
 
-  const handleSubmit = async () => {
+  const slashResults = useMemo(
+    () => (slash && quick.library ? searchForSlash(quick.library.replies, slash.query) : []),
+    [slash, quick.library],
+  );
+  const slashOpen = slash !== null;
+  const slashMenuId = `${inputId}-slash`;
+
+  // Insere a resposta na caixa (NUNCA envia): variáveis resolvidas, texto editável, cursor no fim do trecho inserido.
+  const insertQuickReply = (reply: QuickReply, via: "panel" | "slash") => {
+    const resolved = resolveVariables(reply.body, {
+      contactName,
+      memberName: quick.library?.memberName,
+      workspaceName: quick.library?.workspaceName,
+    });
+    const result =
+      via === "slash" && slash
+        ? replaceSlashTrigger(text, slash, resolved, MAX_CHAR_LIMIT)
+        : insertAtCursor(text, selectionRef.current?.start, selectionRef.current?.end, resolved, MAX_CHAR_LIMIT);
+    setPanelOpen(false);
+    setSlash(null);
+    dismissedSlashRef.current = null;
+    if (!result) {
+      setFeedback({
+        type: "error",
+        message: `Esta resposta não cabe aqui: o texto passaria do limite de ${MAX_CHAR_LIMIT} caracteres. Apague um trecho e tente de novo.`,
+      });
+      window.setTimeout(() => textareaRef.current?.focus(), 0);
+      return;
+    }
+    activeIdempotencyKeyRef.current = null;
+    pendingCaretRef.current = result.caret;
+    setText(result.value);
+    setFeedback(null);
+    quick.recordUse(reply.id);
+  };
+
+  const handleSubmit = async (options?: { skipConfirm?: boolean }) => {
     const trimmed = text.trim();
     if (!trimmed || isSubmitting) return;
+
+    // Mensagem com {{campo}} ainda aberto: pede confirmação antes de enviar ao cliente.
+    if (activeTab === "message" && !options?.skipConfirm) {
+      const pendingFields = findUnresolvedVariables(trimmed);
+      if (pendingFields.length > 0) {
+        setUnresolved(pendingFields);
+        return;
+      }
+    }
 
     if (trimmed.length > MAX_CHAR_LIMIT) {
       setFeedback({
@@ -190,6 +320,36 @@ export function MessageForm({
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (slashOpen) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        dismissedSlashRef.current = slash?.start ?? null;
+        setSlash(null);
+        return;
+      }
+      if (quick.state !== "ready" && e.key === "Enter" && !e.shiftKey) {
+        // Lista ainda carregando: Enter não envia a barra solta.
+        e.preventDefault();
+        return;
+      }
+      if (slashResults.length > 0) {
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          setSlashIndex((index) => (index + 1) % slashResults.length);
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          setSlashIndex((index) => (index - 1 + slashResults.length) % slashResults.length);
+          return;
+        }
+        if ((e.key === "Enter" && !e.shiftKey) || e.key === "Tab") {
+          e.preventDefault();
+          insertQuickReply(slashResults[Math.min(slashIndex, slashResults.length - 1)], "slash");
+          return;
+        }
+      }
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
@@ -240,6 +400,34 @@ export function MessageForm({
           <FileText size={13} />
           <span>Nota interna</span>
         </button>
+
+        <div className="ml-auto flex items-center gap-1">
+          <button
+            aria-expanded={panelOpen}
+            aria-haspopup="dialog"
+            className="flex min-h-8 items-center gap-1.5 rounded-control px-2.5 font-medium text-text-muted transition-colors hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            data-testid="quick-replies-button"
+            onClick={() => {
+              quick.ensureLoaded();
+              setSlash(null);
+              setPanelOpen(true);
+            }}
+            type="button"
+          >
+            <Zap aria-hidden="true" size={13} />
+            <span>Respostas rápidas</span>
+          </button>
+          <button
+            aria-label={expanded ? "Recolher a caixa de mensagem" : "Expandir a caixa de mensagem"}
+            aria-pressed={expanded}
+            className="flex size-8 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            data-testid="composer-expand"
+            onClick={() => setExpanded((current) => !current)}
+            type="button"
+          >
+            {expanded ? <Minimize2 aria-hidden="true" size={15} /> : <Maximize2 aria-hidden="true" size={15} />}
+          </button>
+        </div>
       </div>
 
       {/* Feedback Acessível */}
@@ -287,7 +475,21 @@ export function MessageForm({
           <label className="sr-only" htmlFor={inputId}>
             {activeTab === "note" ? "Nota interna" : "Mensagem de texto"}
           </label>
+          {slashOpen ? (
+            <SlashMenu
+              activeIndex={slashIndex}
+              id={slashMenuId}
+              onHover={setSlashIndex}
+              onPick={(reply) => insertQuickReply(reply, "slash")}
+              query={slash?.query ?? ""}
+              results={slashResults}
+              state={quick.state}
+            />
+          ) : null}
           <textarea
+            aria-activedescendant={slashOpen && slashResults.length > 0 ? slashOptionId(slashMenuId, Math.min(slashIndex, slashResults.length - 1)) : undefined}
+            aria-autocomplete={slashOpen ? "list" : undefined}
+            aria-controls={slashOpen && slashResults.length > 0 ? slashMenuId : undefined}
             aria-describedby={showCounter ? `${inputId}-counter` : undefined}
             aria-invalid={isOverLimit}
             aria-label={
@@ -296,19 +498,27 @@ export function MessageForm({
                 : "Digitar mensagem de texto"
             }
             className={[
-              "max-h-32 min-h-11 w-full resize-none rounded-control border bg-background px-3 py-2 text-body text-text placeholder:text-text-muted focus:outline-none focus:ring-2 disabled:opacity-50",
+              "min-h-11 w-full resize-none rounded-control border bg-background px-3 py-2 text-body text-text placeholder:text-text-muted focus:outline-none focus:ring-2 disabled:opacity-50",
               activeTab === "note"
                 ? "border-amber-500/40 focus:border-amber-500 focus:ring-amber-500"
                 : "border-border focus:border-primary focus:ring-primary",
             ].join(" ")}
             id={inputId}
             maxLength={MAX_CHAR_LIMIT}
-            onChange={(e) => handleTextChange(e.target.value)}
+            onBlur={(e) => {
+              selectionRef.current = { start: e.target.selectionStart, end: e.target.selectionEnd };
+            }}
+            onChange={(e) => handleTextChange(e.target.value, e.target.selectionStart)}
             onKeyDown={handleKeyDown}
+            onSelect={(e) => {
+              const element = e.currentTarget;
+              selectionRef.current = { start: element.selectionStart, end: element.selectionEnd };
+              if (element.selectionStart === element.selectionEnd) syncSlash(element.value, element.selectionStart);
+            }}
             placeholder={
               activeTab === "note"
                 ? "Escreva uma nota interna (visível APENAS no CRM, nunca enviada ao cliente)..."
-                : "Digite sua mensagem (Enter para enviar, Shift+Enter para nova linha)..."
+                : "Digite sua mensagem (Enter envia, Shift+Enter nova linha, / respostas rápidas)..."
             }
             ref={textareaRef}
             rows={1}
@@ -355,6 +565,31 @@ export function MessageForm({
           </span>
         </button>
       </form>
+
+      <QuickRepliesPanel
+        error={quick.error}
+        library={quick.library}
+        onClose={() => setPanelOpen(false)}
+        onInsert={(reply) => insertQuickReply(reply, "panel")}
+        onReload={() => void quick.reload()}
+        open={panelOpen}
+        state={quick.state}
+      />
+
+      <ConfirmDialog
+        confirmLabel="Enviar mesmo assim"
+        description={unresolved ? unresolvedWarning(unresolved) : ""}
+        onCancel={() => {
+          setUnresolved(null);
+          window.setTimeout(() => textareaRef.current?.focus(), 0);
+        }}
+        onConfirm={() => {
+          setUnresolved(null);
+          void handleSubmit({ skipConfirm: true });
+        }}
+        open={unresolved !== null}
+        title="Campos não preenchidos"
+      />
     </div>
   );
 }

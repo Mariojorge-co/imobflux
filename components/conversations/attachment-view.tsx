@@ -54,7 +54,7 @@ export function AttachmentView({ attachment, isOutgoing, messageText }: Attachme
       );
     }
 
-    // Foto: altura limitada (celular 220 px, desktop 280 px), proporção preservada, espaço reservado até carregar
+    // Foto: o MAIOR lado limitado (celular 180 px, desktop 220 px), proporção preservada, espaço reservado até carregar
     // (a rolagem não "pula") e o clique abre ampliada.
     if (kind === "image") {
       return (
@@ -69,7 +69,7 @@ export function AttachmentView({ attachment, isOutgoing, messageText }: Attachme
             {/* eslint-disable-next-line @next/next/no-img-element -- arquivo privado servido pela rota autenticada */}
             <img
               alt={attachment.file_name}
-              className={`block max-h-[220px] w-auto max-w-full object-contain sm:max-h-[280px] ${loaded ? "" : "opacity-0"}`}
+              className={`block h-auto max-h-[180px] w-auto max-w-[180px] object-contain sm:max-h-[220px] sm:max-w-[220px] ${loaded ? "" : "opacity-0"}`}
               loading="lazy"
               onError={() => setBroken(true)}
               onLoad={() => setLoaded(true)}

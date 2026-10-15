@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Download, ScrollText, Smartphone, Users } from "lucide-react";
+import { Download, ScrollText, Smartphone, Users, Zap } from "lucide-react";
 import {
   Card,
   PageContainer,
@@ -33,6 +33,17 @@ export default async function ConfiguracoesPage() {
             <span>
               <span className="block font-semibold text-text">Equipe</span>
               <span className="text-body text-text-muted">Convide, desative e reative funcionários.</span>
+            </span>
+          </Card>
+        </Link>
+        <Link className="block max-w-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" href="/configuracoes/respostas-rapidas">
+          <Card className="flex items-center gap-stack transition-colors hover:bg-neutral-soft">
+            <span className="flex size-11 items-center justify-center rounded-control bg-neutral-soft text-text">
+              <Zap aria-hidden="true" size={20} />
+            </span>
+            <span>
+              <span className="block font-semibold text-text">Respostas rápidas</span>
+              <span className="text-body text-text-muted">Modelos de mensagem da equipe, com categorias e variáveis.</span>
             </span>
           </Card>
         </Link>

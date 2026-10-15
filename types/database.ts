@@ -1740,6 +1740,40 @@ export type Database = {
         Args: { p_kind: string }
         Returns: Json
       }
+      get_quick_replies: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      save_quick_reply_category: {
+        Args: { p_category_id: string | null; p_name: string }
+        Returns: Json
+      }
+      delete_quick_reply_category: {
+        Args: { p_category_id: string }
+        Returns: Json
+      }
+      save_quick_reply: {
+        Args: {
+          p_reply_id: string | null
+          p_title: string
+          p_body: string
+          p_category_id: string | null
+          p_is_active?: boolean
+        }
+        Returns: Json
+      }
+      delete_quick_reply: {
+        Args: { p_reply_id: string }
+        Returns: Json
+      }
+      record_quick_reply_use: {
+        Args: { p_reply_id: string }
+        Returns: Json
+      }
+      add_example_quick_replies: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       ingest_whatsapp_history_batch: {
         Args: { p_external_account_id: string; p_messages: Json }
         Returns: Json
