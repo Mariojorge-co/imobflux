@@ -359,11 +359,10 @@ export function MessagesPanel({
   }, [conversation.conversation_id, effectiveOpportunityId, noteContextKey]);
 
   // Carrega o lote de mensagens mais antigo. Usa refs para poder ser chamado em laço (busca até achar uma mensagem antiga).
-  const loadingOlderRef = useRef(false);
-  const handleLoadOlder = useCallback(async () => {
+  const loadOlderPromiseRef = useRef<Promise<void> | null>(null);
+  const loadOlderBatch = useCallback(async () => {
     const current = messagesRef.current;
     const oldest = current.find((message) => !isPendingMessage(message));
-    if (loadingOlderRef.current) return;
     if (!oldest) {
       hasOlderRef.current = false;
       setHasOlder(false);
@@ -374,7 +373,6 @@ export function MessagesPanel({
       id: oldest.id,
     };
 
-    loadingOlderRef.current = true;
     setIsLoadingOlder(true);
     try {
       const page = await loadMoreMessagesAction(
@@ -403,10 +401,19 @@ export function MessagesPanel({
       hasOlderRef.current = more;
       setHasOlder(more);
     } finally {
-      loadingOlderRef.current = false;
       setIsLoadingOlder(false);
     }
   }, [conversation.conversation_id]);
+
+  // Um lote por vez: quem pedir enquanto outro lote carrega espera o MESMO lote (não devolve cedo sem ter carregado nada).
+  const handleLoadOlder = useCallback((): Promise<void> => {
+    if (loadOlderPromiseRef.current) return loadOlderPromiseRef.current;
+    const run = loadOlderBatch().finally(() => {
+      loadOlderPromiseRef.current = null;
+    });
+    loadOlderPromiseRef.current = run;
+    return run;
+  }, [loadOlderBatch]);
 
   // ─── Ações sobre mensagens ──────────────────────────────────────────────────────────────────────
 
@@ -517,7 +524,10 @@ export function MessagesPanel({
 
   // ─── Rolar até uma mensagem (citação e busca) ───────────────────────────────────────────────────
 
-  const revealTarget = useCallback(async (kind: "message" | "note", id: string): Promise<boolean> => {
+  // Cada pedido de rolagem cancela o anterior (digitar "es", "esc"… dispara várias buscas seguidas; só a última vale).
+  const revealTokenRef = useRef(0);
+  const revealTarget = useCallback(async (kind: "message" | "note", id: string): Promise<"found" | "missing" | "cancelled"> => {
+    const token = ++revealTokenRef.current;
     const selector = kind === "note" ? `[data-note-id="${id}"]` : `[data-message-id="${id}"]`;
     for (let attempt = 0; attempt < 80; attempt += 1) {
       const element = listRef.current?.querySelector(selector);
@@ -527,21 +537,23 @@ export function MessagesPanel({
         setSearchSeeking(false);
         setHighlightedId(id);
         window.setTimeout(() => setHighlightedId((current) => (current === id ? null : current)), 2200);
-        return true;
+        return "found";
       }
       if (!hasOlderRef.current) break;
       setSearchSeeking(true);
       await handleLoadOlder();
       // Espera o React desenhar o lote carregado antes de procurar de novo.
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      if (token !== revealTokenRef.current) return "cancelled";
     }
+    if (token !== revealTokenRef.current) return "cancelled";
     setSearchSeeking(false);
-    return false;
+    return "missing";
   }, [handleLoadOlder]);
 
   const handleJumpToQuoted = useCallback(async (messageId: string) => {
     const found = await revealTarget("message", messageId);
-    if (!found) setActionNotice("A mensagem original não está mais disponível nesta conversa.");
+    if (found === "missing") setActionNotice("A mensagem original não está mais disponível nesta conversa.");
   }, [revealTarget]);
 
   // ─── Busca na conversa ──────────────────────────────────────────────────────────────────────────
@@ -551,8 +563,8 @@ export function MessagesPanel({
     if (!match) return;
     setSearchIndex(index);
     const found = await revealTarget(match.kind, match.id);
-    if (!found) setSearchError("Esta mensagem não está mais disponível.");
-    else setSearchError(null);
+    if (found === "cancelled") return;
+    setSearchError(found === "missing" ? "Esta mensagem não está mais disponível." : null);
   }, [revealTarget]);
 
   useEffect(() => {
@@ -598,6 +610,8 @@ export function MessagesPanel({
   }, []);
 
   const closeSearch = useCallback(() => {
+    revealTokenRef.current += 1; // cancela qualquer rolagem em andamento
+    setSearchSeeking(false);
     setSearchOpen(false);
     setSearchQuery("");
     setSearchMatches([]);
