@@ -230,9 +230,15 @@ export function formatFileSize(bytes: number): string {
 }
 
 /** Valor do atributo `accept` do seletor de arquivos (o servidor revalida tudo; isto só guia a escolha). */
-export const ACCEPT_ATTRIBUTE: string = Object.keys(ALLOWED)
-  .map((extension) => `.${extension}`)
-  .join(",");
+// image/*, video/* e audio/* fazem o celular oferecer câmera, galeria e arquivos; os documentos entram por extensão.
+export const ACCEPT_ATTRIBUTE: string = [
+  "image/*",
+  "video/*",
+  "audio/*",
+  ...Object.entries(ALLOWED)
+    .filter(([, rule]) => rule.kind === "document")
+    .map(([extension]) => `.${extension}`),
+].join(",");
 
 /** Só estes tipos de imagem o navegador consegue mostrar como miniatura. */
 export function canPreviewImage(extension: string): boolean {

@@ -151,3 +151,13 @@ test.describe("arquivos enviados: limites e tipos", () => {
     expect(formatFileSize(24 * 1024 * 1024)).toBe("24,0 MB");
   });
 });
+
+test("seletor de arquivos: no celular oferece câmera/galeria (image/*, video/*, audio/*) e documentos por extensão", async () => {
+  const { ACCEPT_ATTRIBUTE } = await import("../lib/conversations/outgoing-files");
+  const parts = ACCEPT_ATTRIBUTE.split(",");
+  expect(parts.slice(0, 3)).toEqual(["image/*", "video/*", "audio/*"]);
+  expect(parts).toContain(".pdf");
+  expect(parts).toContain(".docx");
+  expect(parts).toContain(".rar");
+  expect(parts).not.toContain(".exe");
+});
