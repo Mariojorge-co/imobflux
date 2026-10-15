@@ -74,6 +74,15 @@ Segurança: `SECURITY DEFINER` com `search_path = ''`; `service_role`/`anon` sem
 
 (Resultado final de cada suíte, versões de Node e build: ver "Checklist" no fim deste arquivo.)
 
+## Prova de compatibilidade (as migrations entram ANTES do app, então precisam funcionar com o app antigo)
+
+Feita no Supabase local descartável, nunca em produção:
+
+1. **Esquema 005600 (o que está em produção) x esquema final (006200)**: só adições. Nenhuma tabela, índice, política, gatilho ou função removidos; 4 tabelas, 25 funções, 7 índices, 4 políticas e 1 gatilho novos; a tabela `messages` ganha 12 colunas e 5 restrições e **nenhuma linha antiga some**. As únicas funções existentes que mudam são `get_conversation_messages`, `get_conversations_inbox` e `get_conversation_item` (mesmas assinaturas; só ganham campos novos no JSON e deixam de listar mensagens escondidas).
+2. **Rollbacks encadeados** (`006200` → `005700`, na ordem inversa) sobre o banco final: o esquema volta a ficar **idêntico** ao de 005600 (diferença só de fim de linha e do token do `pg_dump`).
+3. **pgTAP do app antigo contra o banco novo**: 39 arquivos / 1196 testes do commit `8a9f50b` rodados no banco com as 6 migrations: **1192 passam**; os 4 que falham só contam funções SECURITY DEFINER / gatilhos `set_updated_at` (inventário que cresce de propósito: `auth_bootstrap` #20, `contact_operations` #7, `owner_rls` #33, `schema_integrity` #22) e já foram atualizados nesta branch.
+4. **Suítes de navegador do app antigo contra o banco novo**: ver o resultado abaixo.
+
 ## ROTEIRO DE TESTE REAL EM PRODUÇÃO (celular) — só depois da publicação
 
 Preparação: uma conversa de teste com **o seu próprio número pessoal** (use "conversa consigo mesmo" ou um segundo chip). Abra o ImobFlux no computador e o WhatsApp no celular lado a lado. Faça os passos nesta ordem; marque o que funcionou.

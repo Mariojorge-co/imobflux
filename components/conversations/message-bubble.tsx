@@ -307,58 +307,59 @@ export function MessageBubble({
             >
               <ChevronDown aria-hidden="true" size={16} />
             </button>
-
-            {menuOpen ? (
-              <div
-                className={["absolute top-9 w-48 rounded-card border border-border bg-surface py-1 shadow-lg", isOutgoing ? "right-0 sm:left-0 sm:right-auto" : "left-0"].join(" ")}
-                data-testid="message-menu"
-                role="menu"
-              >
-                {capabilities.canReply ? (
-                  <MenuItem icon={<CornerUpLeft size={15} />} label="Responder" onClick={run(onReply)} testId="action-reply" />
-                ) : null}
-                {capabilities.canReact ? (
-                  <MenuItem
-                    icon={<SmilePlus size={15} />}
-                    label="Reagir"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      setPickerOpen(true);
-                    }}
-                    testId="action-react"
-                  />
-                ) : null}
-                {capabilities.canCopy ? <MenuItem icon={<Copy size={15} />} label="Copiar" onClick={run(onCopy)} testId="action-copy" /> : null}
-                {capabilities.canForward ? (
-                  <MenuItem icon={<Forward size={15} />} label="Encaminhar" onClick={run(onForward)} testId="action-forward" />
-                ) : null}
-                {capabilities.canEdit ? <MenuItem icon={<Pencil size={15} />} label="Editar" onClick={run(onEdit)} testId="action-edit" /> : null}
-                {capabilities.canViewHistory ? (
-                  <MenuItem icon={<History size={15} />} label={deleted ? "Ver original" : "Ver histórico"} onClick={run(onViewHistory)} testId="action-history" />
-                ) : null}
-                {capabilities.canHide || capabilities.canDeleteForEveryone ? <div className="my-1 h-px bg-border" /> : null}
-                {capabilities.canDeleteForEveryone ? (
-                  <MenuItem danger icon={<Trash2 size={15} />} label="Apagar para todos" onClick={run(onDeleteForEveryone)} testId="action-delete-all" />
-                ) : null}
-                {capabilities.canHide ? (
-                  <MenuItem danger icon={<EyeOff size={15} />} label="Apagar para mim" onClick={run(onHide)} testId="action-hide" />
-                ) : null}
-              </div>
-            ) : null}
-
-            {pickerOpen ? (
-              <div className={["absolute top-9 z-20", isOutgoing ? "right-0 sm:left-0 sm:right-auto" : "left-0"].join(" ")}>
-                <EmojiPicker
-                  current={myReaction}
-                  onPick={(emoji) => {
-                    setPickerOpen(false);
-                    onReact?.(message, emoji);
-                  }}
-                />
-              </div>
-            ) : null}
           </div>
         ) : null}
+
+        {/* Menu e seletor de emoji ancorados na bolha (não no botão): nunca saem da tela no celular */}
+          {menuOpen ? (
+            <div
+              className={["absolute top-9 z-30 w-48 rounded-card border border-border bg-surface py-1 shadow-lg", isOutgoing ? "right-0" : "left-0"].join(" ")}
+              data-testid="message-menu"
+              role="menu"
+            >
+              {capabilities.canReply ? (
+                <MenuItem icon={<CornerUpLeft size={15} />} label="Responder" onClick={run(onReply)} testId="action-reply" />
+              ) : null}
+              {capabilities.canReact ? (
+                <MenuItem
+                  icon={<SmilePlus size={15} />}
+                  label="Reagir"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setPickerOpen(true);
+                  }}
+                  testId="action-react"
+                />
+              ) : null}
+              {capabilities.canCopy ? <MenuItem icon={<Copy size={15} />} label="Copiar" onClick={run(onCopy)} testId="action-copy" /> : null}
+              {capabilities.canForward ? (
+                <MenuItem icon={<Forward size={15} />} label="Encaminhar" onClick={run(onForward)} testId="action-forward" />
+              ) : null}
+              {capabilities.canEdit ? <MenuItem icon={<Pencil size={15} />} label="Editar" onClick={run(onEdit)} testId="action-edit" /> : null}
+              {capabilities.canViewHistory ? (
+                <MenuItem icon={<History size={15} />} label={deleted ? "Ver original" : "Ver histórico"} onClick={run(onViewHistory)} testId="action-history" />
+              ) : null}
+              {capabilities.canHide || capabilities.canDeleteForEveryone ? <div className="my-1 h-px bg-border" /> : null}
+              {capabilities.canDeleteForEveryone ? (
+                <MenuItem danger icon={<Trash2 size={15} />} label="Apagar para todos" onClick={run(onDeleteForEveryone)} testId="action-delete-all" />
+              ) : null}
+              {capabilities.canHide ? (
+                <MenuItem danger icon={<EyeOff size={15} />} label="Apagar para mim" onClick={run(onHide)} testId="action-hide" />
+              ) : null}
+            </div>
+          ) : null}
+
+          {pickerOpen ? (
+            <div className={["absolute top-9 z-30", isOutgoing ? "right-0" : "left-0"].join(" ")}>
+              <EmojiPicker
+                current={myReaction}
+                onPick={(emoji) => {
+                  setPickerOpen(false);
+                  onReact?.(message, emoji);
+                }}
+              />
+            </div>
+          ) : null}
       </div>
     </div>
   );
