@@ -595,7 +595,8 @@ export async function forwardMessageToConversationAction(input: {
         size: Number(attachment.size_bytes),
         kind: verdict.kind,
         asDocument: verdict.kind === "image" && text === mediaLabel("document", verdict.fileName),
-        caption: generated.includes(text) ? "" : text,
+        // Áudio e figurinha não têm legenda (o texto da origem é só o rótulo, como "Mensagem de voz").
+        caption: verdict.kind === "audio" || generated.includes(text) ? "" : text,
         idempotencyKey: input.idempotencyKey,
       });
     }
