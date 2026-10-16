@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
-import { Archive, ArchiveRestore, ArrowLeft, EyeOff, Info, Mail, Pin, PinOff, Plus, Search } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowLeft, EllipsisVertical, EyeOff, Info, Mail, MailOpen, Pin, PinOff, Plus, Search, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -34,13 +34,14 @@ import { ForwardDialog } from "@/components/conversations/forward-dialog";
 import { ConversationSearch } from "@/components/conversations/conversation-search";
 import { HiddenMessagesDialog, MessageHistoryDialog } from "@/components/conversations/message-audit-dialogs";
 import { ConfirmDialog } from "@/components/quick-replies/confirm-dialog";
-import { Button, Drawer, Input, ModalDialog } from "@/components/ui";
+import { BottomSheet, Button, Drawer, Input, ModalDialog, SheetItem } from "@/components/ui";
 import { SlaBadge } from "@/components/conversations/sla-badge";
 import { SlaControl, type SlaMode } from "@/components/conversations/sla-control";
 import { resolveOpportunityTargets } from "@/lib/conversations/opportunity-targets";
 import { copyableText, quoteAuthorLabel, snapshotFromMessage, type Viewer } from "@/lib/conversations/message-ui";
 import type { ReplyRef } from "@/lib/conversations/message-merge";
 import { ESCAPE_PRIORITY, isEditableTarget, useEscapeLayer } from "@/lib/ui/escape-stack";
+import { consumeOpenedFromList } from "@/lib/conversations/navigation";
 import type {
   ConversationContextData,
   ConversationListItem,
@@ -102,6 +103,7 @@ export function MessagesPanel({
   const [forwardTarget, setForwardTarget] = useState<ConversationMessage | null>(null);
   const [historyTarget, setHistoryTarget] = useState<string | null>(null);
   const [hiddenOpen, setHiddenOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{ kind: "hide" | "delete"; message: ConversationMessage } | null>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
@@ -872,6 +874,13 @@ export function MessagesPanel({
                 className="flex size-11 shrink-0 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-neutral-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:hidden"
                 href="/conversas"
                 id="btn-back-to-conversations"
+                onClick={(event) => {
+                  // Veio da lista: usa o histórico (igual ao voltar do aparelho). Senão, segue o link para a lista.
+                  if (consumeOpenedFromList()) {
+                    event.preventDefault();
+                    router.back();
+                  }
+                }}
               >
                 <ArrowLeft aria-hidden="true" size={18} />
               </Link>
@@ -1039,6 +1048,17 @@ export function MessagesPanel({
                 {liveConversation.visibility === "commercial" ? "Restringir ao dono" : "Liberar para a equipe"}
               </button>
             ) : null}
+
+            {/* Celular: as ações que não cabem no cabeçalho ficam neste menu (nada do desktop fica inalcançável) */}
+            <button
+              aria-label="Mais ações da conversa"
+              className="flex size-11 shrink-0 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:hidden"
+              data-testid="conversation-more"
+              onClick={() => setMoreOpen(true)}
+              type="button"
+            >
+              <EllipsisVertical aria-hidden="true" size={20} />
+            </button>
 
             {/* Contexto sempre sob demanda, em drawer no desktop e no mobile. */}
             <button
@@ -1211,6 +1231,62 @@ export function MessagesPanel({
           filesEnabled={!isGroup}
         />
       </div>
+
+      <BottomSheet onClose={() => setMoreOpen(false)} open={moreOpen} testId="conversation-more-sheet" title="Conversa">
+        <SheetItem
+          icon={liveConversation.is_unread ? <MailOpen size={18} /> : <Mail size={18} />}
+          label={liveConversation.is_unread ? "Marcar como lida" : "Marcar como não lida"}
+          onClick={() => {
+            setMoreOpen(false);
+            handleToggleUnread();
+          }}
+          testId="more-unread"
+        />
+        <SheetItem
+          icon={liveConversation.is_pinned ? <PinOff size={18} /> : <Pin size={18} />}
+          label={liveConversation.is_pinned ? "Desafixar conversa" : "Fixar conversa no topo"}
+          onClick={() => {
+            setMoreOpen(false);
+            handleTogglePin();
+          }}
+          testId="more-pin"
+        />
+        <SheetItem
+          icon={liveConversation.archived_at ? <ArchiveRestore size={18} /> : <Archive size={18} />}
+          label={liveConversation.archived_at ? "Desarquivar conversa" : "Arquivar conversa"}
+          onClick={() => {
+            setMoreOpen(false);
+            void handleArchive();
+          }}
+          testId="more-archive"
+        />
+        {isGroup && canManagePrivacy ? (
+          <SheetItem
+            icon={<Users size={18} />}
+            label={liveConversation.visibility === "commercial" ? "Restringir grupo ao dono" : "Liberar grupo para a equipe"}
+            onClick={() => {
+              setMoreOpen(false);
+              startTransition(async () => {
+                const teamVisible = liveConversation.visibility !== "commercial";
+                const result = await setGroupTeamVisibilityAction(conversation.conversation_id, teamVisible);
+                if (result.success) setLiveConversation((previous) => ({ ...previous, visibility: teamVisible ? "commercial" : "owner_only" }));
+              });
+            }}
+            testId="more-group-visibility"
+          />
+        ) : null}
+        {viewer?.role === "owner" ? (
+          <SheetItem
+            icon={<EyeOff size={18} />}
+            label="Mensagens escondidas"
+            onClick={() => {
+              setMoreOpen(false);
+              setHiddenOpen(true);
+            }}
+            testId="more-hidden"
+          />
+        ) : null}
+      </BottomSheet>
 
       <MessageHistoryDialog messageId={historyTarget} onClose={() => setHistoryTarget(null)} />
       <HiddenMessagesDialog

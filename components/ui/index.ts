@@ -1,4 +1,5 @@
 export * from "./avatar";
+export * from "./bottom-sheet";
 export * from "./badge";
 export * from "./button";
 export * from "./card";

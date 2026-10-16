@@ -54,7 +54,7 @@ export function OutgoingFilesTray({ files, onSubmit }: { files: OutgoingFiles; o
                   </div>
                   <button
                     aria-label={item.status === "uploading" ? `Cancelar o envio de ${item.name}` : `Remover ${item.name}`}
-                    className="flex size-9 shrink-0 items-center justify-center rounded-control text-text-muted hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    className="flex size-11 shrink-0 items-center justify-center rounded-control text-text-muted hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:size-9"
                     data-testid="outgoing-remove"
                     onClick={() => files.remove(item.id)}
                     type="button"

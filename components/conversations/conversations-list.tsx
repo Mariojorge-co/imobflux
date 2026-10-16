@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Archive, MessageCircle, Pin, Plus, TriangleAlert } from "lucide-react";
@@ -21,6 +21,7 @@ import type {
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { formatRelativeTime } from "@/lib/date";
 import { formatAssigneeNames } from "@/lib/conversations/assignment";
+import { consumeOpenedFromList, getSavedListScroll, markOpenedFromList, saveListScroll } from "@/lib/conversations/navigation";
 import {
   CONVERSATION_CLIENT_UPDATE_EVENT,
   type ConversationClientUpdate,
@@ -82,6 +83,13 @@ export function ConversationsList({
   const searchRef = useRef(search);
   const viewRef = useRef(view);
   const itemsRef = useRef(items);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  // Celular: ao voltar da conversa, a lista reaparece (estava escondida) na mesma posição de rolagem.
+  useLayoutEffect(() => {
+    if (selectedId !== undefined) return;
+    if (scrollRef.current) scrollRef.current.scrollTop = getSavedListScroll();
+    consumeOpenedFromList(); // voltou para a lista (pelo aparelho ou pelo botão): a marca de "veio da lista" não vale mais
+  }, [selectedId]);
 
   useEffect(() => {
     searchRef.current = search;
@@ -106,7 +114,8 @@ export function ConversationsList({
         : (index < 0 ? list.length - 1 : Math.max(0, index - 1));
       if (next === index) return;
       event.preventDefault();
-      router.push(`/conversas/${list[next].conversation_id}`);
+      // replace: ir de conversa em conversa não empilha histórico (o voltar continua levando à lista).
+      router.replace(`/conversas/${list[next].conversation_id}`);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -448,6 +457,10 @@ export function ConversationsList({
         aria-busy={isPending}
         aria-label="Lista de conversas"
         className="flex-1 overflow-y-auto"
+        onScroll={(event) => {
+          if (selectedId === undefined) saveListScroll(event.currentTarget.scrollTop);
+        }}
+        ref={scrollRef}
         role="list"
       >
         {isPending && (
@@ -485,9 +498,10 @@ export function ConversationsList({
             isSelected={conv.conversation_id === selectedId}
             item={conv}
             key={conv.conversation_id}
-            onClick={() =>
-              router.push(`/conversas/${conv.conversation_id}`)
-            }
+            onClick={() => {
+              markOpenedFromList();
+              router.push(`/conversas/${conv.conversation_id}`);
+            }}
             onPrefetch={() => prefetchConversation(conv.conversation_id)}
           />
         ))}

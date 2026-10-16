@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Copy, CornerUpLeft, CornerUpRight, EyeOff, Forward, History, Paperclip, Pencil, RotateCw, SmilePlus, Trash2 } from "lucide-react";
 import { AttachmentView } from "@/components/conversations/attachment-view";
+import { BottomSheet, SheetItem } from "@/components/ui/bottom-sheet";
+import { useIsCompact } from "@/lib/ui/use-compact";
 import { EmojiPicker } from "@/components/conversations/emoji-picker";
 import { FloatingMenu } from "@/components/ui/floating-menu";
 import { Reply } from "lucide-react";
@@ -19,6 +21,8 @@ import {
   splitForHighlight,
   type Viewer,
 } from "@/lib/conversations/message-ui";
+
+type MenuEntry = { key: string; label: string; icon: React.ReactNode; testId: string; danger?: boolean; separatorBefore?: boolean; onClick: () => void };
 
 export type MessageBubbleActions = {
   onRetry?: (message: ConversationMessage) => void;
@@ -111,8 +115,8 @@ export function MessageBubble({
   useEffect(() => {
     if (!menuOpen && !pickerOpen) return;
     const close = (event: Event) => {
-      // O menu e o seletor de emoji ficam num portal (fora da bolha): clicar neles não é "clicar fora".
-      if (event.target instanceof Element && event.target.closest("[data-floating-menu]")) return;
+      // O menu e o seletor de emoji (portal) e a folha do celular ficam fora da bolha: tocar neles não é "clicar fora".
+      if (event.target instanceof Element && event.target.closest("[data-floating-menu], [data-bottom-sheet]")) return;
       if (wrapperRef.current && event.target instanceof Node && !wrapperRef.current.contains(event.target)) {
         setMenuOpen(false);
         setPickerOpen(false);
@@ -190,6 +194,36 @@ export function MessageBubble({
     setMenuOpen(false);
     action?.(message);
   };
+  const pickEmoji = (emoji: string) => {
+    setPickerOpen(false);
+    onReact?.(message, emoji);
+  };
+  const compact = useIsCompact();
+  const entries: MenuEntry[] = [
+    ...(capabilities.canReply ? [{ key: "reply", label: "Responder", icon: <CornerUpLeft size={15} />, testId: "action-reply", onClick: run(onReply) }] : []),
+    ...(capabilities.canReact ? [{ key: "react", label: "Reagir", icon: <SmilePlus size={15} />, testId: "action-react", onClick: () => { setMenuOpen(false); setPickerOpen(true); } }] : []),
+    ...(capabilities.canCopy ? [{ key: "copy", label: "Copiar", icon: <Copy size={15} />, testId: "action-copy", onClick: run(onCopy) }] : []),
+    ...(capabilities.canForward ? [{ key: "forward", label: "Encaminhar", icon: <Forward size={15} />, testId: "action-forward", onClick: run(onForward) }] : []),
+    ...(capabilities.canEdit ? [{ key: "edit", label: "Editar", icon: <Pencil size={15} />, testId: "action-edit", onClick: run(onEdit) }] : []),
+    ...(capabilities.canViewHistory ? [{ key: "history", label: deleted ? "Ver original" : "Ver histórico", icon: <History size={15} />, testId: "action-history", onClick: run(onViewHistory) }] : []),
+    ...(capabilities.canDeleteForEveryone ? [{ key: "delete-all", label: "Apagar para todos", icon: <Trash2 size={15} />, testId: "action-delete-all", danger: true, separatorBefore: true, onClick: run(onDeleteForEveryone) }] : []),
+    ...(capabilities.canHide ? [{ key: "hide", label: "Apagar para mim", icon: <EyeOff size={15} />, testId: "action-hide", danger: true, separatorBefore: !capabilities.canDeleteForEveryone, onClick: run(onHide) }] : []),
+  ];
+
+  // Toque prolongado na bolha abre o menu (como no WhatsApp), sem depender do botão.
+  const pressTimer = useRef<number | null>(null);
+  const cancelPress = () => {
+    if (pressTimer.current !== null) window.clearTimeout(pressTimer.current);
+    pressTimer.current = null;
+  };
+  const startPress = (event: React.PointerEvent) => {
+    if (event.pointerType !== "touch" || !hasAnyAction) return;
+    cancelPress();
+    pressTimer.current = window.setTimeout(() => {
+      setPickerOpen(false);
+      setMenuOpen(true);
+    }, 500);
+  };
 
   // Figurinha: pequena, sem fundo/bolha, sem legenda, só um horário discreto.
   if (!deleted && isStickerMessage(message) && message.attachments?.[0]) {
@@ -246,6 +280,13 @@ export function MessageBubble({
             message.is_history ? "border border-dashed border-border-strong opacity-80" : "",
           ].join(" ")}
           data-deleted={deleted ? "true" : undefined}
+          onContextMenu={(event) => {
+            if (compact && hasAnyAction) event.preventDefault();
+          }}
+          onPointerCancel={cancelPress}
+          onPointerDown={startPress}
+          onPointerLeave={cancelPress}
+          onPointerUp={cancelPress}
           data-history={message.is_history ? "true" : undefined}
           data-testid="message-bubble"
         >
@@ -392,7 +433,7 @@ export function MessageBubble({
               aria-haspopup="menu"
               aria-label="Ações da mensagem"
               className={[
-                "flex size-8 items-center justify-center rounded-full bg-surface text-text-muted shadow ring-1 ring-border transition-opacity hover:text-text focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                "relative flex size-8 items-center justify-center rounded-full bg-surface text-text-muted shadow ring-1 ring-border transition-opacity before:absolute before:-inset-[6px] before:content-[''] hover:text-text focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                 menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100",
               ].join(" ")}
               data-testid="message-menu-button"
@@ -408,55 +449,50 @@ export function MessageBubble({
           </div>
         ) : null}
 
-        {/* Menu e seletor de emoji: em portal, sempre dentro da tela (viram para cima quando falta espaço embaixo) */}
+        {/* Desktop: menu e seletor de emoji em portal (FloatingMenu), sempre dentro da tela. Celular/tablet: folha de toque (BottomSheet). */}
           <FloatingMenu
             align={isOutgoing ? "end" : "start"}
             anchorRef={menuButtonRef}
             className="w-48 rounded-card border border-border bg-surface py-1 shadow-lg"
             data-testid="message-menu"
-            open={menuOpen}
+            open={menuOpen && !compact}
             role="menu"
           >
-              {capabilities.canReply ? (
-                <MenuItem icon={<CornerUpLeft size={15} />} label="Responder" onClick={run(onReply)} testId="action-reply" />
-              ) : null}
-              {capabilities.canReact ? (
-                <MenuItem
-                  icon={<SmilePlus size={15} />}
-                  label="Reagir"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    setPickerOpen(true);
-                  }}
-                  testId="action-react"
-                />
-              ) : null}
-              {capabilities.canCopy ? <MenuItem icon={<Copy size={15} />} label="Copiar" onClick={run(onCopy)} testId="action-copy" /> : null}
-              {capabilities.canForward ? (
-                <MenuItem icon={<Forward size={15} />} label="Encaminhar" onClick={run(onForward)} testId="action-forward" />
-              ) : null}
-              {capabilities.canEdit ? <MenuItem icon={<Pencil size={15} />} label="Editar" onClick={run(onEdit)} testId="action-edit" /> : null}
-              {capabilities.canViewHistory ? (
-                <MenuItem icon={<History size={15} />} label={deleted ? "Ver original" : "Ver histórico"} onClick={run(onViewHistory)} testId="action-history" />
-              ) : null}
-              {capabilities.canHide || capabilities.canDeleteForEveryone ? <div className="my-1 h-px bg-border" /> : null}
-              {capabilities.canDeleteForEveryone ? (
-                <MenuItem danger icon={<Trash2 size={15} />} label="Apagar para todos" onClick={run(onDeleteForEveryone)} testId="action-delete-all" />
-              ) : null}
-              {capabilities.canHide ? (
-                <MenuItem danger icon={<EyeOff size={15} />} label="Apagar para mim" onClick={run(onHide)} testId="action-hide" />
-              ) : null}
+            {entries.map((entry) => (
+              <div key={entry.key}>
+                {entry.separatorBefore ? <div className="my-1 h-px bg-border" /> : null}
+                <MenuItem danger={entry.danger} icon={entry.icon} label={entry.label} onClick={entry.onClick} testId={entry.testId} />
+              </div>
+            ))}
           </FloatingMenu>
 
-          <FloatingMenu align={isOutgoing ? "end" : "start"} anchorRef={menuButtonRef} data-testid="message-emoji-picker" open={pickerOpen}>
-            <EmojiPicker
-              current={myReaction}
-              onPick={(emoji) => {
-                setPickerOpen(false);
-                onReact?.(message, emoji);
-              }}
-            />
+          <FloatingMenu align={isOutgoing ? "end" : "start"} anchorRef={menuButtonRef} data-testid="message-emoji-picker" open={pickerOpen && !compact}>
+            <EmojiPicker current={myReaction} onPick={pickEmoji} />
           </FloatingMenu>
+
+          {/* No celular o menu e os emojis sobem da base da tela (toque; sem depender de passar o mouse) */}
+          <BottomSheet
+            onClose={() => {
+              setMenuOpen(false);
+              setPickerOpen(false);
+            }}
+            open={compact && (menuOpen || pickerOpen)}
+            testId="message-sheet"
+            title={pickerOpen ? "Reagir à mensagem" : "Mensagem"}
+          >
+            {pickerOpen ? (
+              <div className="flex justify-center px-2 pb-2">
+                <EmojiPicker current={myReaction} onPick={pickEmoji} />
+              </div>
+            ) : (
+              entries.map((entry) => (
+                <div key={entry.key}>
+                  {entry.separatorBefore ? <div className="my-1 h-px bg-border" /> : null}
+                  <SheetItem danger={entry.danger} icon={entry.icon} label={entry.label} onClick={entry.onClick} testId={entry.testId} />
+                </div>
+              ))
+            )}
+          </BottomSheet>
       </div>
     </div>
   );

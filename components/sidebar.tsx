@@ -82,7 +82,7 @@ export function NavigationLinks({ onNavigate, role }: NavigationLinksProps) {
 
 export function Sidebar({ role }: { role: "owner" | "attendant" }) {
   return (
-    <aside className="hidden min-h-screen w-sidebar shrink-0 flex-col border-r border-border bg-surface md:flex">
+    <aside className="hidden min-h-screen w-sidebar shrink-0 flex-col border-r border-border bg-surface lg:flex">
       <div className="flex h-topbar items-center border-b border-border px-page">
         <span className="text-xl font-bold tracking-tight text-text">
           ImobFlux

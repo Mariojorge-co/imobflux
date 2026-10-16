@@ -475,7 +475,7 @@ export function MessageForm({
         <button
           aria-pressed={activeTab === "message"}
           className={[
-            "flex min-h-8 items-center gap-1.5 whitespace-nowrap rounded-control px-2 font-medium transition-colors sm:px-3",
+            "flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-control px-3 font-medium transition-colors sm:min-h-8",
             activeTab === "message"
               ? "bg-primary/10 text-primary"
               : "text-text-muted hover:text-text",
@@ -493,7 +493,7 @@ export function MessageForm({
         <button
           aria-pressed={activeTab === "note"}
           className={[
-            "flex min-h-8 items-center gap-1.5 whitespace-nowrap rounded-control px-2 font-medium transition-colors sm:px-3",
+            "flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-control px-3 font-medium transition-colors sm:min-h-8",
             activeTab === "note"
               ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
               : "text-text-muted hover:text-text",
@@ -512,7 +512,7 @@ export function MessageForm({
           <button
             aria-expanded={panelOpen}
             aria-haspopup="dialog"
-            className="flex min-h-8 items-center gap-1 whitespace-nowrap rounded-control px-2 font-medium text-text-muted transition-colors hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            className="flex min-h-11 items-center gap-1 whitespace-nowrap rounded-control px-2 font-medium text-text-muted sm:min-h-8 transition-colors hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             data-testid="quick-replies-button"
             onClick={() => {
               quick.ensureLoaded();
@@ -527,7 +527,7 @@ export function MessageForm({
           <button
             aria-label={expanded ? "Recolher a caixa de mensagem" : "Expandir a caixa de mensagem"}
             aria-pressed={expanded}
-            className="flex size-8 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            className="flex size-11 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:size-8"
             data-testid="composer-expand"
             onClick={() => setExpanded((current) => !current)}
             type="button"
@@ -578,7 +578,7 @@ export function MessageForm({
           </div>
           <button
             aria-label="Cancelar resposta"
-            className="flex size-7 shrink-0 items-center justify-center rounded-control text-text-muted hover:bg-surface hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            className="flex size-11 shrink-0 items-center justify-center rounded-control text-text-muted hover:bg-surface sm:size-7 hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             data-testid="reply-cancel"
             onClick={onCancelReply}
             type="button"
