@@ -48,6 +48,11 @@ export type WebhookParseResult =
   | WebhookHistoryResult
   | { status: "edit"; instance: string; externalMessageId: string; newText: string; editedAt: string | null }
   | { status: "revoke"; instance: string; externalMessageId: string }
+  /**
+   * A mensagem foi EDITADA, mas o evento não traz o texto novo: a Evolution manda a edição cifrada (secretEncryptedMessage) ou só
+   * a chave (messages.edited). O app consulta a Evolution pelo texto atual da mensagem (ver edit-resolver).
+   */
+  | { status: "edit_signal"; instance: string; externalMessageId: string; remoteJid: string | null }
   | { status: "reaction"; instance: string; targetExternalId: string; reactorJid: string; fromMe: boolean; emoji: string }
   | {
       status: "valid";
@@ -204,6 +209,12 @@ export function textFromLayers(message: unknown): string | null {
   for (const layer of messageLayers(message)) {
     const direct = cleanString(layer.conversation) ?? cleanString(asObject(layer.extendedTextMessage)?.text);
     if (direct) return direct;
+    // Edição embrulhada: o texto novo está em protocolMessage.editedMessage.
+    const protocol = asObject(layer.protocolMessage);
+    if (protocol?.editedMessage) {
+      const nested = textFromLayers(protocol.editedMessage);
+      if (nested) return nested;
+    }
     for (const key of ["imageMessage", "videoMessage", "documentMessage"]) {
       const caption = cleanString(asObject(layer[key])?.caption);
       if (caption) return caption;
@@ -337,6 +348,14 @@ export function parseEvolutionWebhookPayload(body: unknown): WebhookParseResult 
     return { status: "ignored", reason: "status_update" };
   }
 
+  // messages.edited sem a mensagem (só { key, type }): a Evolution avisa que ALGUMA mensagem foi editada, sem o texto.
+  if (eventName === "messages.edited") {
+    const raw = payload.data as EvolutionPayloadData;
+    const hasContent = Boolean(raw.message) && messageLayers(raw.message).length > 0;
+    const id = cleanString(raw.key?.id);
+    if (!hasContent && id) return { status: "edit_signal", instance: payload.instance, externalMessageId: id, remoteJid: cleanString(raw.key?.remoteJid) };
+  }
+
   if (eventName !== "messages.upsert" && eventName !== "messages.edited") {
     return { status: "ignored", reason: "unhandled_event" };
   }
@@ -381,6 +400,18 @@ function parseSpecialMessage(
     }
     // Outros tipos de protocolo (histórico, expiração, sincronização de chave...) não são mensagens do chat.
     return { status: "ignored", reason: "non_text_message_ignored" };
+  }
+
+  for (const layer of layers) {
+    const secret = asObject(layer.secretEncryptedMessage);
+    if (!secret) continue;
+    const type = secret.secretEncType;
+    // 2 = MESSAGE_EDIT (1 = EVENT_EDIT, outras são respostas de enquete/evento: não são edição de texto).
+    if (type === 2 || type === "MESSAGE_EDIT") {
+      const target = asObject(secret.targetMessageKey);
+      const id = cleanString(target?.id);
+      if (id) return { status: "edit_signal", instance, externalMessageId: id, remoteJid: cleanString(target?.remoteJid) };
+    }
   }
 
   for (const layer of layers) {

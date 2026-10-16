@@ -7,6 +7,7 @@ import {
 
 import { importHistoryBatch } from "@/lib/conversations/history-import";
 import { webhookShapeLine } from "@/lib/conversations/webhook-shape";
+import { findEvolutionMessageText, logEvolutionAction } from "@/lib/supabase/gateway-actions";
 import { scheduleMediaDownload, storeAttachmentMedia } from "@/lib/conversations/media-download";
 
 // O download da mídia roda depois da resposta (after); dá tempo suficiente para arquivos grandes.
@@ -85,7 +86,7 @@ export async function POST(request: Request) {
     }
 
     // Só os tipos que interessam ao diagnóstico (edição, exclusão, reação, citação, o que foi ignorado e eventos desconhecidos).
-    if (result.status === "edit" || result.status === "revoke" || result.status === "reaction") logShape(body, result.status);
+    if (result.status === "edit" || result.status === "revoke" || result.status === "reaction" || result.status === "edit_signal") logShape(body, result.status);
     else if (result.status === "ignored") {
       if (result.reason === "unhandled_event") {
         const unhandled = (body as { event?: unknown } | null)?.event;
@@ -106,6 +107,36 @@ export async function POST(request: Request) {
         console.error("Erro ao importar lote de histórico do WhatsApp:", historyError);
         return NextResponse.json({ error: "Erro interno no processamento do webhook" }, { status: 500 });
       }
+    }
+
+    // Edição SEM texto no evento (cifrada ou só a chave): pergunta à Evolution qual é o texto atual da mensagem e aplica.
+    if (result.status === "edit_signal") {
+      const admin = createAdminSupabaseClient();
+      let applied: { status?: string; reason?: string } | null = null;
+      let lastShape = "-";
+      for (let attempt = 0; attempt < 3 && !applied; attempt += 1) {
+        // A Evolution pode levar um instante para gravar a edição: espera um pouco entre as tentativas.
+        if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 1200));
+        const found = await findEvolutionMessageText(result.instance, result.externalMessageId, result.remoteJid);
+        if (!found.ok) {
+          logEvolutionAction("findMessages", { http: found.code, attempt });
+          continue;
+        }
+        lastShape = found.shape;
+        if (!found.text) continue;
+        const { data: edited, error: editError } = await admin.rpc("ingest_whatsapp_message_edit", {
+          p_external_account_id: result.instance,
+          p_external_message_id: result.externalMessageId,
+          p_new_text: found.text,
+        });
+        if (editError) {
+          console.error("Erro ao aplicar edit_signal do WhatsApp via RPC (código):", editError.code ?? "desconhecido");
+          return NextResponse.json({ error: "Erro interno no processamento do webhook" }, { status: 500 });
+        }
+        applied = edited as { status?: string; reason?: string } | null;
+      }
+      console.log(`[webhook-event] edit_signal consulta status=${applied?.status ?? "sem_texto"} reason=${applied?.reason ?? "-"} forma=${lastShape}`);
+      return NextResponse.json({ status: applied?.status ?? "ignored", reason: applied ? undefined : "edit_text_unavailable" }, { status: 200 });
     }
 
     // Edição, exclusão e reação feitas pelo cliente ou pelo celular: o banco aplica (idempotente) e ignora o que não conhece.

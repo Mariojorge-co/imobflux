@@ -1,4 +1,5 @@
 import "server-only";
+import { textFromLayers } from "@/lib/conversations/webhook";
 import {
   externalIdFrom,
   formatPhoneForEvolution,
@@ -86,6 +87,52 @@ async function callEvolution(call: EvolutionCall): Promise<EvolutionActionResult
       return { success: false, error: "Tempo limite excedido na chamada ao WhatsApp", code: "TIMEOUT" };
     }
     return { success: false, error: "Falha de rede na comunicação com a Evolution API", code: "NETWORK_ERROR" };
+  }
+}
+
+/**
+ * Texto ATUAL de uma mensagem segundo a Evolution (POST /chat/findMessages, somente leitura). Serve para as edições que o WhatsApp
+ * entrega cifradas ou sem texto: a Evolution guarda a mensagem e, se ela já a atualizou, o texto novo está lá. Devolve só o texto e o
+ * formato da resposta (nomes das chaves) para o log; nunca registra conteúdo.
+ */
+export async function findEvolutionMessageText(
+  instanceName: string | undefined,
+  externalMessageId: string,
+  remoteJid?: string | null,
+): Promise<{ ok: true; text: string | null; shape: string } | { ok: false; code: string }> {
+  const apiUrl = process.env.EVOLUTION_API_URL;
+  const apiKey = process.env.EVOLUTION_API_KEY;
+  const instance = instanceName?.trim() || process.env.EVOLUTION_INSTANCE_NAME?.trim();
+  if (!apiUrl || !apiKey || !instance) return { ok: false, code: "MISSING_ENV_CONFIG" };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch(`${apiUrl.replace(/\/+$/, "")}/chat/findMessages/${encodeURIComponent(instance)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: apiKey },
+      body: JSON.stringify({ where: { key: { id: externalMessageId, ...(remoteJid ? { remoteJid } : {}) } }, limit: 1 }),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!response.ok) return { ok: false, code: `HTTP_${response.status}` };
+    const data = (await response.json().catch(() => null)) as unknown;
+    const container = data as { messages?: { records?: unknown[] } | unknown[]; records?: unknown[] } | unknown[] | null;
+    const list: unknown[] = Array.isArray(container)
+      ? container
+      : Array.isArray((container as { records?: unknown[] } | null)?.records)
+        ? ((container as { records: unknown[] }).records)
+        : Array.isArray((container as { messages?: unknown[] } | null)?.messages)
+          ? ((container as { messages: unknown[] }).messages)
+          : Array.isArray(((container as { messages?: { records?: unknown[] } } | null)?.messages as { records?: unknown[] } | undefined)?.records)
+            ? (((container as { messages: { records: unknown[] } }).messages.records))
+            : [];
+    const record = list.find((item) => (item as { key?: { id?: unknown } } | null)?.key?.id === externalMessageId) as { message?: unknown } | undefined;
+    const shape = record ? responseShape(record.message) : `sem_registro(${list.length})`;
+    if (!record) return { ok: true, text: null, shape };
+    return { ok: true, text: textFromLayers(record.message), shape };
+  } catch {
+    clearTimeout(timer);
+    return { ok: false, code: "NETWORK_ERROR" };
   }
 }
 

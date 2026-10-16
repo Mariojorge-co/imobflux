@@ -159,14 +159,14 @@ test.describe("Webhook — formas REAIS de produção (log [webhook-shape] de 16
     expect(parseEvolutionWebhookPayload(payload)).toMatchObject({ status: "reaction", targetExternalId: "ALVO", fromMe: true, emoji: "❤️" });
   });
 
-  test("secretEncryptedMessage (edição cifrada que o WhatsApp novo manda) é ignorada sem erro e sem virar mensagem", () => {
+  test("secretEncryptedMessage de edição (tipo 2) vira sinal de edição, nunca mensagem nova", () => {
     const payload = base("messages.upsert", {
       key: realKey({ id: "SECRET-EVENT" }),
       message: { secretEncryptedMessage: { targetMessageKey: { remoteJid: JID, fromMe: true, id: "ALVO" }, encPayload: { 0: 1, 1: 2 }, encIv: { 0: 1 }, secretEncType: 2 } },
       messageType: "secretEncryptedMessage",
       messageTimestamp: 1760000000,
     });
-    expect(parseEvolutionWebhookPayload(payload)).toMatchObject({ status: "ignored", reason: "non_text_message_ignored" });
+    expect(parseEvolutionWebhookPayload(payload)).toMatchObject({ status: "edit_signal", externalMessageId: "ALVO" });
   });
 });
 
@@ -229,5 +229,40 @@ test.describe("Webhook — robustez e diagnóstico sem conteúdo", () => {
     expect(line.length).toBeLessThan(2000);
     expect(line).not.toContain("\n");
     expect(line).toContain("event=messages.upsertINJECT");
+  });
+});
+
+test.describe("Webhook — edição SEM texto (formas reais do reteste de 16/10)", () => {
+  const secret = (type: number | string, extra: Record<string, unknown> = {}) =>
+    base("messages.upsert", {
+      key: { remoteJid: "123456789012345@lid", remoteJidAlt: JID, fromMe: true, id: "SECRET-EVENT", participant: "", addressingMode: "lid" },
+      message: { secretEncryptedMessage: { targetMessageKey: { remoteJid: JID, fromMe: true, id: "ALVO-EDIT" }, encPayload: { 0: 1 }, encIv: { 0: 1 }, secretEncType: type, ...extra } },
+      messageType: "secretEncryptedMessage",
+      messageTimestamp: 1760000000,
+    });
+
+  test("secretEncryptedMessage de edição (tipo 2) vira sinal de edição com o id da mensagem alvo", () => {
+    expect(parseEvolutionWebhookPayload(secret(2))).toEqual({ status: "edit_signal", instance: "inst", externalMessageId: "ALVO-EDIT", remoteJid: JID });
+    expect(parseEvolutionWebhookPayload(secret("MESSAGE_EDIT"))).toMatchObject({ status: "edit_signal", externalMessageId: "ALVO-EDIT" });
+  });
+
+  test("outros tipos de secretEncryptedMessage (evento, enquete) e sem alvo continuam ignorados", () => {
+    expect(parseEvolutionWebhookPayload(secret(1))).toMatchObject({ status: "ignored" });
+    expect(parseEvolutionWebhookPayload(secret(0))).toMatchObject({ status: "ignored" });
+    const noTarget = base("messages.upsert", { key: key({ id: "X" }), message: { secretEncryptedMessage: { secretEncType: 2 } } });
+    expect(parseEvolutionWebhookPayload(noTarget)).toMatchObject({ status: "ignored" });
+  });
+
+  test("messages.edited só com { key, type } (sem texto) vira sinal de edição; com texto continua sendo edição normal", () => {
+    expect(parseEvolutionWebhookPayload(base("messages.edited", { key: { remoteJid: JID, fromMe: true, id: "ALVO-2" }, type: "MESSAGE_EDIT" })))
+      .toEqual({ status: "edit_signal", instance: "inst", externalMessageId: "ALVO-2", remoteJid: JID });
+    expect(parseEvolutionWebhookPayload(base("messages.edited", { key: key({ id: "EV" }), message: { protocolMessage: { type: 14, key: key({ id: "ALVO-3" }), editedMessage: { conversation: "texto" } } } })))
+      .toMatchObject({ status: "edit", externalMessageId: "ALVO-3", newText: "texto" });
+    expect(parseEvolutionWebhookPayload(base("messages.edited", { type: "x" })).status).not.toBe("edit_signal");
+  });
+
+  test("messages.delete no formato PLANO real ({ remoteJid, fromMe, id, status... }) é exclusão", () => {
+    expect(parseEvolutionWebhookPayload(base("messages.delete", { remoteJid: "1@lid", remoteJidAlt: JID, fromMe: false, id: "ALVO-DEL", participant: "", addressingMode: "lid", status: "DELETED" })))
+      .toEqual({ status: "revoke", instance: "inst", externalMessageId: "ALVO-DEL" });
   });
 });

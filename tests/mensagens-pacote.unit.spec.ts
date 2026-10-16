@@ -502,3 +502,63 @@ test.describe("Pacote de mensagens — auditoria", () => {
     expect(categoryOf("conversation.note_deleted")).toBe("conversation");
   });
 });
+
+test.describe("Edição sem texto no evento — a rota consulta a Evolution (findMessages) e aplica", () => {
+  const original = adminModule.createAdminSupabaseClient;
+  const realFetch = globalThis.fetch;
+  let rpcs: Array<{ fn: string; args: Record<string, unknown> }> = [];
+  let findBodies: Array<Record<string, unknown>> = [];
+  let evolutionAnswer: () => unknown = () => ({});
+
+  test.beforeEach(() => {
+    process.env.EVOLUTION_WEBHOOK_SECRET = "secret_token_123";
+    process.env.EVOLUTION_API_URL = "http://evolution.test:8080";
+    process.env.EVOLUTION_API_KEY = "k";
+    rpcs = [];
+    findBodies = [];
+    adminModule.createAdminSupabaseClient = () => ({
+      rpc: async (fn: string, args: Record<string, unknown>) => {
+        rpcs.push({ fn, args });
+        return { data: { status: "success" }, error: null };
+      },
+    });
+    globalThis.fetch = (async (url: string, init: RequestInit) => {
+      if (String(url).includes("/chat/findMessages/")) {
+        findBodies.push(JSON.parse(String(init.body)));
+        return new Response(JSON.stringify(evolutionAnswer()), { status: 200 });
+      }
+      return realFetch(url, init);
+    }) as typeof fetch;
+  });
+  test.afterEach(() => {
+    adminModule.createAdminSupabaseClient = original;
+    globalThis.fetch = realFetch;
+  });
+
+  const post = (body: unknown) =>
+    routeModule.POST(new Request("http://localhost/api/webhooks/whatsapp", { method: "POST", headers: { "x-evolution-secret": "secret_token_123" }, body: JSON.stringify(body) }));
+  const signal = { event: "messages.edited", instance: "inst-1", data: { key: { remoteJid: "5582988880000@s.whatsapp.net", fromMe: true, id: "ORIG" }, type: "MESSAGE_EDIT" } };
+
+  test("a Evolution devolve o texto atual (formato { messages: { records } }): vira edição do WhatsApp", async () => {
+    evolutionAnswer = () => ({ messages: { total: 1, records: [{ key: { id: "ORIG" }, message: { conversation: "texto novo" } }] } });
+    const response = await post(signal);
+    expect(response.status).toBe(200);
+    expect(findBodies[0]).toMatchObject({ where: { key: { id: "ORIG", remoteJid: "5582988880000@s.whatsapp.net" } } });
+    expect(rpcs).toHaveLength(1);
+    expect(rpcs[0]).toMatchObject({ fn: "ingest_whatsapp_message_edit", args: { p_external_account_id: "inst-1", p_external_message_id: "ORIG", p_new_text: "texto novo" } });
+  });
+
+  test("aceita lista simples e a edição aninhada (editedMessage) como resposta", async () => {
+    evolutionAnswer = () => [{ key: { id: "ORIG" }, message: { editedMessage: { message: { protocolMessage: { editedMessage: { conversation: "texto aninhado" } } } } } }];
+    await post(signal);
+    expect(rpcs[0]?.args).toMatchObject({ p_new_text: "texto aninhado" });
+  });
+
+  test("sem texto na Evolution (ainda não atualizou): nada é aplicado e a resposta é 200", async () => {
+    evolutionAnswer = () => ({ messages: { records: [] } });
+    const response = await post(signal);
+    expect(response.status).toBe(200);
+    expect(rpcs).toHaveLength(0);
+    expect(findBodies.length).toBeGreaterThanOrEqual(2); // tenta de novo antes de desistir
+  });
+});
