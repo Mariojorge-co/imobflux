@@ -58,13 +58,13 @@ set local role service_role;
 select is(
     (public.ingest_whatsapp_reaction('re_instance', 're-1', '5582988886201@s.whatsapp.net', true, '👍')->>'status'),
     'success',
-    'depois de 2 minutos, mesmo emoji vindo do celular não é mais tratado como eco'
+    'emoji novo vindo do celular substitui a reação anterior da conta (sem janela de tempo)'
 );
 reset role;
 select is(
     (select count(*)::int from public.message_reactions where message_id = (select id from re_msg where external_message_id = 're-1')),
-    2,
-    'uma do membro e uma da conta (a da conta foi atualizada)'
+    1,
+    'a conta tem uma reação só (a nova substituiu a anterior)'
 );
 
 select * from finish();

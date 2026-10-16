@@ -243,12 +243,12 @@ select is((public.ingest_whatsapp_reaction('ma_instance', 'ma-crm-1', '558298888
 select is((public.ingest_whatsapp_reaction('ma_instance', 'ma-crm-1', '5582988885800@s.whatsapp.net', true, '🙏')->>'status'), 'success', 'reação feita no celular (conta) também');
 select is((public.ingest_whatsapp_reaction('ma_instance', 'ma-crm-1', '5582977770000@s.whatsapp.net', false, '😂')->>'reason'), 'unknown_reactor', 'quem não é contato conhecido é ignorado');
 reset role;
-select is((select count(*)::int from public.message_reactions where message_id = 'b5800005-0000-4000-8000-000000000001'), 3, 'três reações: atendente, cliente e conta');
+select is((select count(*)::int from public.message_reactions where message_id = 'b5800005-0000-4000-8000-000000000001'), 2, 'duas reações: cliente e conta (a do celular substituiu a do atendente: a conta é uma só)');
 set local role service_role;
-select is((public.commit_message_reaction('b5800005-0000-4000-8000-000000000001', 'b5800003-0000-4000-8000-000000000002', '')->>'status'), 'removed', 'emoji vazio remove a reação do atendente');
+select is((public.commit_message_reaction('b5800005-0000-4000-8000-000000000001', 'b5800003-0000-4000-8000-000000000002', '')->>'status'), 'removed', 'emoji vazio remove a reação da nossa conta, venha de onde vier');
 select is((public.ingest_whatsapp_reaction('ma_instance', 'ma-crm-1', '5582988885800@s.whatsapp.net', false, '')->>'status'), 'removed', 'cliente remove a reação');
 reset role;
-select is((select count(*)::int from public.message_reactions where message_id = 'b5800005-0000-4000-8000-000000000001'), 1, 'sobra só a da conta');
+select is((select count(*)::int from public.message_reactions where message_id = 'b5800005-0000-4000-8000-000000000001'), 0, 'remover tira a reação da nossa conta (membro ou celular) e a do cliente: não sobra nenhuma');
 
 select * from finish();
 rollback;
