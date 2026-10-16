@@ -88,6 +88,13 @@ export function MessageForm({
   onNoteSaved,
 }: MessageFormProps) {
   const [activeTab, setActiveTab] = useState<"message" | "note">("message");
+  // Responder (menu, duplo clique ou deslize): volta para a aba Mensagem e leva o cursor direto ao campo.
+  const replyId = replyTo?.messageId ?? null;
+  const [seenReplyId, setSeenReplyId] = useState<string | null>(replyId);
+  if (replyId !== seenReplyId) {
+    setSeenReplyId(replyId);
+    if (replyId && activeTab !== "message") setActiveTab("message");
+  }
   const [text, setText] = useState("");
   const [voiceActive, setVoiceActive] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -138,6 +145,18 @@ export function MessageForm({
       window.visualViewport?.removeEventListener("resize", resizeTextarea);
     };
   }, [resizeTextarea]);
+
+  useEffect(() => {
+    if (!replyId) return;
+    const timer = window.setTimeout(() => {
+      const element = textareaRef.current;
+      if (!element || element.disabled) return;
+      // preventScroll: o teclado do celular sobe sem empurrar a rolagem da conversa.
+      element.focus({ preventScroll: true });
+      element.setSelectionRange(element.value.length, element.value.length);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [replyId]);
 
   // Depois de inserir uma resposta: cursor no fim do trecho inserido e foco de volta na caixa.
   useEffect(() => {

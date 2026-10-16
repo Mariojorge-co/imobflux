@@ -180,6 +180,7 @@ export function VoiceRecorder({ disabled, onSend, onNotice, onActiveChange }: Vo
     <div
       className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-control border border-border bg-background px-2"
       data-testid="voice-bar"
+      data-voice-recording={phase === "recording" ? "true" : undefined}
       role="group"
       aria-label={phase === "recording" ? "Gravando áudio" : "Áudio gravado"}
     >

@@ -5,6 +5,8 @@ import { ChevronDown, Copy, CornerUpLeft, CornerUpRight, EyeOff, Forward, Histor
 import { AttachmentView } from "@/components/conversations/attachment-view";
 import { EmojiPicker } from "@/components/conversations/emoji-picker";
 import { FloatingMenu } from "@/components/ui/floating-menu";
+import { Reply } from "lucide-react";
+import { isReplyGestureTarget, swipeTriggered, updateSwipe, type SwipeState } from "@/lib/conversations/reply-gesture";
 import { isStickerMessage } from "@/lib/conversations/sticker";
 import { outgoingStatusLabel } from "@/lib/conversations/message-merge";
 import type { ConversationMessage } from "@/lib/conversations/data";
@@ -27,6 +29,8 @@ export type MessageBubbleActions = {
   onForward?: (message: ConversationMessage) => void;
   onReact?: (message: ConversationMessage, emoji: string) => void;
   onCopy?: (message: ConversationMessage) => void;
+  /** Duplo clique ou deslize para responder (o painel confere edição e gravação antes de abrir a resposta). */
+  onQuickReply?: (message: ConversationMessage) => void;
   /** Clicou na citação: rolar até a mensagem original e destacá-la. */
   onJumpToQuoted?: (messageId: string) => void;
   /** Só o dono: texto anterior / original apagado. */
@@ -92,11 +96,14 @@ export function MessageBubble({
   onCopy,
   onJumpToQuoted,
   onViewHistory,
+  onQuickReply,
 }: MessageBubbleProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const swipeRef = useRef<SwipeState | null>(null);
+  const [swipeOffset, setSwipeOffset] = useState(0);
   const showPendingMark = usePendingMark(message.wa_pending_action, message.deleted_at ?? message.edited_at);
 
   // Fecha o menu ao clicar fora ou apertar Esc.
@@ -144,6 +151,49 @@ export function MessageBubble({
   const myReaction = message.reactions?.find((reaction) => reaction.mine)?.emoji ?? null;
   const deleted = Boolean(message.deleted_at);
 
+  const canQuickReply = Boolean(onQuickReply && capabilities.canReply && !deleted && deliveryState !== "sending");
+
+  const triggerQuickReply = () => {
+    window.getSelection()?.removeAllRanges();
+    onQuickReply?.(message);
+  };
+
+  // Duplo clique (mouse) = Responder. Não vale em link, botão, mídia, menu aberto nem mensagem apagada.
+  const handleDoubleClick = (event: React.MouseEvent) => {
+    if (!canQuickReply || menuOpen || pickerOpen || !isReplyGestureTarget(event.target)) return;
+    event.preventDefault();
+    triggerQuickReply();
+  };
+
+  // Deslizar para a direita (toque) = Responder. A rolagem vertical continua do navegador (touch-action: pan-y).
+  const handlePointerDown = (event: React.PointerEvent) => {
+    if (event.pointerType !== "touch" || !canQuickReply || menuOpen || !isReplyGestureTarget(event.target)) return;
+    swipeRef.current = { startX: event.clientX, startY: event.clientY, startAt: Date.now(), locked: "none" };
+  };
+  const handlePointerMove = (event: React.PointerEvent) => {
+    const state = swipeRef.current;
+    if (!state) return;
+    const next = updateSwipe(state, event.clientX, event.clientY);
+    state.locked = next.locked;
+    if (next.locked === "vertical") {
+      swipeRef.current = null;
+      setSwipeOffset(0);
+      return;
+    }
+    setSwipeOffset(next.offset);
+  };
+  const endSwipe = (event: React.PointerEvent) => {
+    const state = swipeRef.current;
+    swipeRef.current = null;
+    const offset = swipeOffset;
+    setSwipeOffset(0);
+    if (!state || event.type === "pointercancel") return;
+    if (swipeTriggered(state, offset, Date.now())) {
+      if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") navigator.vibrate(15);
+      triggerQuickReply();
+    }
+  };
+
   const run = (action?: (message: ConversationMessage) => void) => () => {
     setMenuOpen(false);
     action?.(message);
@@ -167,7 +217,26 @@ export function MessageBubble({
 
   return (
     <div className={["group flex", isOutgoing ? "justify-end" : "justify-start"].join(" ")} ref={wrapperRef}>
-      <div className={["relative max-w-[88%] sm:max-w-[75%]", reactions.length > 0 ? "mb-3" : ""].join(" ")}>
+      <div
+        className={["relative max-w-[88%] sm:max-w-[75%]", reactions.length > 0 ? "mb-3" : ""].join(" ")}
+        data-testid="message-gesture-area"
+        onDoubleClick={handleDoubleClick}
+        onPointerCancel={endSwipe}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={endSwipe}
+        style={{ touchAction: canQuickReply ? "pan-y" : undefined, transform: swipeOffset > 0 ? `translateX(${swipeOffset}px)` : undefined }}
+      >
+        {swipeOffset > 0 ? (
+          <span
+            aria-hidden="true"
+            className="absolute -left-9 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-full bg-neutral-soft text-text-muted"
+            data-testid="swipe-reply-icon"
+            style={{ opacity: Math.min(1, swipeOffset / 56) }}
+          >
+            <Reply size={16} />
+          </span>
+        ) : null}
         <div
           className={[
             "rounded-2xl px-3 py-2",
@@ -220,7 +289,9 @@ export function MessageBubble({
             <>
               {message.attachments?.length
                 ? message.attachments.map((attachment) => (
-                    <AttachmentView attachment={attachment} isOutgoing={isOutgoing} key={attachment.id} messageText={message.text_content} />
+                    <div data-no-reply="" key={attachment.id}>
+                      <AttachmentView attachment={attachment} isOutgoing={isOutgoing} messageText={message.text_content} />
+                    </div>
                   ))
                 : message.has_attachments && (
                     <div

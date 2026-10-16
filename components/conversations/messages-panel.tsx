@@ -435,6 +435,13 @@ export function MessagesPanel({
     setReplyTo({ messageId: message.id, snapshot, author: quoteAuthorLabel(snapshot, viewer) });
   }, [liveConversation.participant_name, viewer]);
 
+  // Duplo clique / deslize: igual ao menu "Responder", mas não atrapalha uma edição nem uma gravação de áudio em andamento.
+  const handleQuickReply = useCallback((message: ConversationMessage) => {
+    if (editing) return;
+    if (document.querySelector('[data-voice-recording="true"]')) return;
+    handleReply(message);
+  }, [editing, handleReply]);
+
   const handleStartEdit = useCallback((message: ConversationMessage) => {
     setReplyTo(null);
     setEditing({ id: message.id, text: message.text_content ?? "" });
@@ -1140,6 +1147,7 @@ export function MessagesPanel({
                     onJumpToQuoted={(id) => void handleJumpToQuoted(id)}
                     onViewHistory={(target) => setHistoryTarget(target.id)}
                     onReact={(target, emoji) => void handleReact(target, emoji)}
+                    onQuickReply={handleQuickReply}
                     onReply={handleReply}
                     onRetry={handleRetryMessage}
                     viewer={viewer}
