@@ -4,7 +4,7 @@
 - **Objetivo**: gestão comercial e relacionamento para corretores e imobiliárias, com WhatsApp integrado.
 - **Versão**: `0.1.0`
 - **Produção**: app em `https://imobflux.vercel.app` (Vercel) e banco no Supabase (`imobflux-prod`).
-- **Última atualização**: 2026-10-15 (pacote de **Mensagens** publicado (banco e app, 2026-10-16) — ver abaixo; antes disso, pacote de Conversas publicado: troca de conversa rápida, contador de espera único, envio otimista e mídia; migration `005100` aplicada em produção em 2026-10-15, ver `RELATORIO_CONVERSAS_PACOTE.md`)
+- **Última atualização**: 2026-10-16 (**Pacote Noite Geral pronto localmente, aguardando "autorizo"** — ver seção abaixo; antes: pacote de **Mensagens** publicado (banco e app, 2026-10-16) — ver abaixo; antes disso, pacote de Conversas publicado: troca de conversa rápida, contador de espera único, envio otimista e mídia; migration `005100` aplicada em produção em 2026-10-15, ver `RELATORIO_CONVERSAS_PACOTE.md`)
 
 ---
 
@@ -137,13 +137,20 @@ Detalhes, números de desempenho, testes e roteiro em [RELATORIO_CONVERSAS_PACOT
 - **Envio:** bolha "Enviando…" na hora, falha marcada como "Não enviada", eco do webhook sem bolha duplicada; a instância de envio vem do banco (a fila devolve `instance_name`). `EVOLUTION_INSTANCE_NAME` na Vercel continua como reserva e **não deve ser removida** por enquanto.
 - **Mídia e espaço:** figurinha pequena sem bolha, foto/vídeo com altura limitada e ampliar, responsáveis no cabeçalho, caixa de texto que cresce.
 
-## Correções pós-teste das mensagens — pronto localmente, NÃO publicado (branch `fix/mensagens-pos-teste`)
+## Correções das mensagens 1 a 4 — publicadas em produção (main `48c1cc9`)
 
-- **Estado**: commits locais sobre a `main` (`fd1163b`); sem push, deploy ou migration em produção. Aguarda "autorizo" (Trava A: migration `006300`; Trava B: app) e, depois, **um clique do dono** em Configurações > WhatsApp ("Ativar avisos de edição e exclusão").
-- **Causas raiz**: webhook da Evolution assinava só `MESSAGES_UPSERT`/`MESSAGES_SET`/`CONNECTION_UPDATE` (edição e exclusão do celular nunca chegavam); editar/apagar/reagir usavam o JID guardado (13 dígitos) em vez do real do WhatsApp (12) e eram marcados no 2xx sem confirmação; reação do CRM e do celular eram "duas pessoas"; menu preso na lista com rolagem; cartão da nota sem botões.
-- **Entrega**: JID real via `whatsappNumbers`; estado "aguardando confirmação do WhatsApp" + "Tentar de novo"; leitor do webhook tolerante (edição, exclusão, citação, reação); reação única da conta; menu em portal sem corte; Editar/Apagar nas notas; diagnóstico de forma sem conteúdo nos logs. Detalhes, limites e roteiro de reteste em [RELATORIO_CORRECOES_MENSAGENS.md](RELATORIO_CORRECOES_MENSAGENS.md).
-- **Qualidade**: lint/tipos limpos; 602 unitários em Node 22 e 24; build ok; pgTAP 44 arquivos / 1.369 testes; regressão completa das suítes de navegador e suíte nova 10/10.
-- **Atenção**: a `feat/pacote-noite` (parada) precisa renumerar suas migrations (`006300`–`006500` → `006400`–`006600`) ao ser rebaseada; ver o relatório.
+- **Publicado**: correções pós-teste (`5c7c1ba`, migration `006300`), correções 2 (`b8d7b8d`), correções 3 (`efda91a`) e correções 4 (`48c1cc9`, migration `006400`: bucket de mídia em 50 MiB). Relatórios: [RELATORIO_CORRECOES_MENSAGENS.md](RELATORIO_CORRECOES_MENSAGENS.md), [RELATORIO_CORRECOES_2.md](RELATORIO_CORRECOES_2.md), [RELATORIO_CORRECOES_3.md](RELATORIO_CORRECOES_3.md), [RELATORIO_CORRECOES_4.md](RELATORIO_CORRECOES_4.md).
+- **Conteúdo**: JID real do WhatsApp via `whatsappNumbers`; estado "enviada ao WhatsApp" (60 s); leitor do webhook tolerante (edição, exclusão, citação, reação); edição do celular via `edit_signal` + `findMessages`; reação única da conta; menu em portal; Editar/Apagar nas notas; responder com duplo clique na linha inteira (mouse) ou deslizando (toque) e foco no campo; vídeo/arquivo recebido até 50 MiB com aviso final e retry limitado; Sair dentro do menu no celular com confirmação.
+- **Atenção**: a avaliação no celular da edição do celular depende de a Evolution guardar o texto editado (ver relatório 3).
+
+## Pacote Noite Geral — pronto localmente, NÃO publicado (branch `feat/pacote-noite`)
+
+- **Estado**: 11+ commits locais rebaseados sobre a `main` (`48c1cc9`); nenhum push, deploy ou migration em produção. Aguarda "autorizo" (Trava A: banco; Trava B: app).
+- **Entrega**: atalhos e Esc em camadas, celular/tablet, painel **Hoje** (`/hoje`), respostas rápidas com anexo, avisos de mensagem nova, busca global, modo claro/escuro/automático e dois estudos (Google Contatos; financiamento). Ver [RELATORIO_PACOTE_NOITE.md](RELATORIO_PACOTE_NOITE.md).
+- **Migrations novas (aditivas, com rollback em `docs/rollback/`)**: `006500` (`get_today_overview`), `006600` (`quick_reply_attachments` + 3 funções), `006700` (`pg_trgm`, índice trigram, `search_global` e auxiliar `private.search_message_candidates`). Ordem de aplicação: `006500` → `006600` → `006700`; compatíveis com o app em produção.
+- **Qualidade**: lint e tipos limpos; 593 testes unitários em Node 22 e 24; build ok; pgTAP 46 arquivos / 1.410 testes; regressão completa das suítes de navegador antigas e das novas passando (instabilidade registrada: 1º teste do `auth-flow` após sincronizar — compilação a frio do servidor de desenvolvimento; passou 17/17 na repetição); contraste WCAG AA sem violações em claro/escuro × 390/1440 px.
+- **Desempenho da busca global**: 1,2 s no termo comum com 300 mil mensagens (a 1ª versão levava 70–140 s e foi corrigida).
+- **Pendente**: "autorizo" das Travas A e B; teste real no aparelho; decisões do Mário sobre os estudos.
 
 ## Publicado em produção em 2026-10-16 — Pacote de Mensagens (ex-branch `feat/pacote-mensagens`)
 

@@ -20,6 +20,7 @@ Planejamento da evolução do **ImobFlux**. Estado atual em [STATUS_PROJETO.md](
   - CI no GitHub (lint, tipos, unitários, build, migrations e pgTAP) e testes sem duplicação.
 - **Em uso real (outubro/2026)**: Evolution API hospedada na VPS, número pareado, envio e recebimento de texto e mídia, histórico, SLA e privacidade testados com número real.
 - **Pacote de Conversas, respostas rápidas e envio de arquivos (outubro/2026)**: desempenho da troca de conversa, SLA único, reabertura, envio otimista e mídia compacta; respostas rápidas com variáveis, painel e atalho "/"; **envio de arquivos pelo WhatsApp** (clipe, arrastar, colar; imagens, vídeo, áudio, PDF, Office, texto, compactados; até 25 MB; bloqueio de executáveis); **fila de envio** que não trava a caixa e preserva a ordem; **prazos configuráveis** (Configurações > Prazos) com pausa/desativação por conversa; grupos liberados um a um (Configurações > Grupos); conversa consigo mesmo; foto e vídeo compactos; auditoria com rótulos próprios (`RELATORIO_RESPOSTAS_RAPIDAS.md`, `RELATORIO_PACOTE_ARQUIVOS_PRAZOS.md`).
+- **Pacote Noite Geral (pronto e testado localmente na branch `feat/pacote-noite`; AGUARDA "autorizo" — Trava A: migrations `006300`, `006400`, `006500`; depois Trava B: app)**: atalhos (Esc em camadas, Alt+setas, rascunho por conversa, ajuda `?`), layout de celular/tablet (duas telas, folhas de toque, 44 px), painel **Hoje**, **respostas rápidas com anexo** (até 5 arquivos), **avisos de mensagem nova** (título, som, aviso do sistema), **busca global** (mensagens, legendas, contatos), **modo escuro** (claro/escuro/automático, contraste AA) e os estudos de Google Contatos e de financiamento. Detalhes e roteiro de teste real em [RELATORIO_PACOTE_NOITE.md](RELATORIO_PACOTE_NOITE.md).
 - **Pacote de Mensagens (publicado em 2026-10-16; migrations `005700`–`006200` em produção desde 2026-10-16)**: responder com citação, editar (15 min), apagar para mim (oculta na equipe, dono restaura) e para todos (48 h), encaminhar para até 5 conversas, reações com emoji, áudio de voz (PTT), fixar conversa (pessoal), busca dentro da conversa, nota interna no meio da conversa e Enter envia na legenda; migrations `005700` a `006200` (ver `RELATORIO_PACOTE_MENSAGENS.md`, com o roteiro de teste real no celular).
 
 ---
@@ -28,7 +29,7 @@ Planejamento da evolução do **ImobFlux**. Estado atual em [STATUS_PROJETO.md](
 
 A Evolution está hospedada e o teste com número real foi feito. Pendências priorizadas (nenhuma em andamento):
 
-0. **Publicar as correções pós-teste das mensagens** (branch `fix/mensagens-pos-teste`; aguarda "autorizo": Trava A e B) e refazer o reteste curto de [RELATORIO_CORRECOES_MENSAGENS.md](RELATORIO_CORRECOES_MENSAGENS.md). Prioridade: **ALTA**.
+0. **Publicar o Pacote Noite** (aguarda "autorizo": Trava A e depois Trava B) e fazer o **teste real em 390 px e no computador** (roteiro em [RELATORIO_PACOTE_NOITE.md](RELATORIO_PACOTE_NOITE.md)). Prioridade: **ALTA**.
 0. **Teste real do pacote de mensagens no celular** (roteiro em [RELATORIO_PACOTE_MENSAGENS.md](RELATORIO_PACOTE_MENSAGENS.md); os passos de edição/exclusão/reação vindas do celular confirmam o formato dos eventos da Evolution). Prioridade: **ALTA**.
 1. **Teste real do envio de arquivos** (foto, PDF, .rar, vídeo, 24 MB, 26 MB recusado, .exe bloqueado, 3 mensagens seguidas) — roteiro em [RELATORIO_PACOTE_ARQUIVOS_PRAZOS.md](RELATORIO_PACOTE_ARQUIVOS_PRAZOS.md). Prioridade: **ALTA**.
 2. **Backup automático da VPS** (Evolution/Postgres/Redis). Prioridade: **ALTA**.
@@ -36,9 +37,9 @@ A Evolution está hospedada e o teste com número real foi feito. Pendências pr
 4. **Exclusão real de contato/conversa e bloqueio de número.**
 5. **Reduzir a cópia de mensagens na Evolution/VPS** (ver `RELATORIO_WHATSAPP_PESSOAL.md`).
 6. **Lembretes ativos de tarefa** (notificações).
-7. **Contatos do Google** (importar/sincronizar).
+7. **Contatos do Google** (importar/sincronizar). Estudo pronto, aguardando decisões do Mário: [ESTUDO_GOOGLE_CONTATOS.md](ESTUDO_GOOGLE_CONTATOS.md).
 8. **Acabamento visual** (rodada de ajustes de interface).
-9. **Acompanhamento de financiamento** e **agenda de visitas** (novos módulos comerciais).
+9. **Acompanhamento de financiamento** e **agenda de visitas** (novos módulos comerciais). Estudo pronto, aguardando decisões do Mário: [ESTUDO_ACOMPANHAMENTO_FINANCIAMENTO.md](ESTUDO_ACOMPANHAMENTO_FINANCIAMENTO.md).
 
 ## Pendências do documento de MVP
 
