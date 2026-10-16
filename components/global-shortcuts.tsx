@@ -11,6 +11,7 @@ export const SHORTCUTS: ReadonlyArray<{ keys: string; description: string }> = [
   { keys: "Alt + ↑ / ↓", description: "Conversa anterior / próxima da lista" },
   { keys: "Enter", description: "Envia a mensagem (Shift + Enter quebra a linha)" },
   { keys: "/", description: "Dentro da caixa de mensagem: respostas rápidas" },
+  { keys: "/", description: "Fora dos campos de texto: busca em todas as conversas" },
   { keys: "?", description: "Abre esta ajuda (fora dos campos de texto)" },
 ];
 

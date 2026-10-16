@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { GlobalShortcuts } from "@/components/global-shortcuts";
+import { GlobalSearch } from "@/components/search/global-search";
 import { ThemeCycleButton } from "@/components/theme-controls";
 import { NavigationLinks } from "@/components/sidebar";
 import { Button } from "@/components/ui";
@@ -28,6 +29,7 @@ export function Topbar({ role }: { role: "owner" | "attendant" }) {
           ImobFlux
         </span>
         <div className="ml-auto flex items-center gap-inline">
+          <GlobalSearch />
           <GlobalShortcuts />
           <ThemeCycleButton />
           <Link

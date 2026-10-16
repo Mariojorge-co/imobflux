@@ -2042,6 +2042,10 @@ export type Database = {
         Args: { p_conversation_id: string; p_query: string; p_limit?: number }
         Returns: Json
       }
+      search_global: {
+        Args: { p_query: string; p_limit?: number; p_offset?: number }
+        Returns: Json
+      }
       update_internal_note: { Args: { p_note_id: string; p_content: string }; Returns: Json }
       archive_internal_note: { Args: { p_note_id: string }; Returns: Json }
       list_conversation_notes: {

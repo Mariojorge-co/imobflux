@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Archive, ArchiveRestore, ArrowLeft, EllipsisVertical, EyeOff, Info, Mail, MailOpen, Pin, PinOff, Plus, Search, Users } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   createOpportunityFromConversationAction,
   loadMoreMessagesAction,
@@ -574,6 +574,13 @@ export function MessagesPanel({
     setSearchSeeking(false);
     return "missing";
   }, [handleLoadOlder]);
+
+  // Veio da busca global (?msg=...): rola até a mensagem achada e a destaca.
+  const jumpMessageId = useSearchParams().get("msg");
+  useEffect(() => {
+    if (!jumpMessageId) return;
+    void revealTarget("message", jumpMessageId);
+  }, [jumpMessageId, conversation.conversation_id, revealTarget]);
 
   const handleJumpToQuoted = useCallback(async (messageId: string) => {
     const found = await revealTarget("message", messageId);
