@@ -2005,6 +2005,10 @@ export type Database = {
         Args: { p_limit?: number }
         Returns: Json
       }
+      get_today_overview: {
+        Args: { p_limit?: number }
+        Returns: Json
+      }
       queue_outgoing_media_message: {
         Args: {
           p_conversation_id: string

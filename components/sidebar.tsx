@@ -1,11 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { ClipboardCheck, Columns3, ContactRound, ListChecks, MessageCircle, Settings } from "lucide-react";
+import { CalendarCheck, ClipboardCheck, Columns3, ContactRound, ListChecks, MessageCircle, Settings } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { classNames } from "@/lib/class-names";
 
 const navigationItems = [
+  {
+    href: "/hoje",
+    label: "Hoje",
+    icon: CalendarCheck,
+  },
   {
     href: "/prioridades",
     label: "Prioridades",

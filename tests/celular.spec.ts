@@ -14,7 +14,7 @@ const CAPTURES = process.env.IMOBFLUX_CAPTURES_DIR ?? path.join(process.env.TEMP
 const LONG = "Mensagem muito longa sem espaços para testar a quebra de linha ".repeat(3) + "SEMESPACOSSEMESPACOSSEMESPACOSSEMESPACOSSEMESPACOSSEMESPACOSSEMESPACOS";
 
 const ROUTES = [
-  "/prioridades", "/contatos", "/conversas", "/kanban", "/tarefas", "/preferencias",
+  "/hoje", "/prioridades", "/contatos", "/conversas", "/kanban", "/tarefas", "/preferencias",
   "/configuracoes", "/configuracoes/equipe", "/configuracoes/grupos", "/configuracoes/prazos",
   "/configuracoes/respostas-rapidas", "/configuracoes/whatsapp", "/configuracoes/auditoria", "/configuracoes/exportacao",
 ];

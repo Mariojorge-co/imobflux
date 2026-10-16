@@ -16,7 +16,7 @@ const CAPTURES = process.env.IMOBFLUX_CAPTURES_DIR ?? path.join(process.env.TEMP
 let fake: FakeEvolution;
 let conversation = "";
 
-const PAGES = ["/prioridades", "/conversas", "/kanban", "/contatos", "/tarefas", "/configuracoes", "/preferencias"];
+const PAGES = ["/hoje", "/prioridades", "/conversas", "/kanban", "/contatos", "/tarefas", "/configuracoes", "/preferencias"];
 
 async function setTheme(page: Page, preference: "light" | "dark" | "system") {
   await page.addInitScript((value) => {
