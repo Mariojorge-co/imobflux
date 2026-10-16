@@ -328,3 +328,47 @@ test.describe("saveWhatsappIngestSettingsAction", () => {
     expect(await actions.saveWhatsappIngestSettingsAction({ ingestGroups: true })).toEqual({ ok: false, error: "Não foi possível salvar agora. Tente novamente." });
   });
 });
+
+test.describe("avisos de edição e exclusão (webhook)", () => {
+  function stubConnectionRows(rows: Array<Record<string, unknown>>) {
+    const chain: Record<string, unknown> = {};
+    for (const name of ["select", "eq", "order"]) chain[name] = () => chain;
+    chain.limit = async () => ({ data: rows, error: null });
+    serverModule.createServerSupabaseClient = async () => ({ rpc: async () => ({ data: null, error: null }), from: () => chain });
+  }
+
+  test("só o OWNER consulta ou reaplica; atendente e sem sessão são recusados sem falar com a Evolution", async () => {
+    for (const who of [{ role: "attendant", workspaceId: WORKSPACE }, null]) {
+      access = who;
+      expect(await actions.getWhatsappWebhookStatusAction()).toMatchObject({ ok: false });
+      expect(await actions.updateWhatsappWebhookEventsAction()).toMatchObject({ ok: false });
+    }
+    expect(evoCalls).toHaveLength(0);
+  });
+
+  test("conexão antiga (sem edição/exclusão): mostra o que falta; reaplicar assina todos os eventos e confirma", async () => {
+    evolution.getInstanceWebhookEvents = async (n: string) => {
+      evoCalls.push(`getInstanceWebhookEvents:${n}`);
+      return { ok: true, data: evoCalls.filter((c) => c.startsWith("setInstanceWebhook")).length === 0 ? ["MESSAGES_UPSERT", "MESSAGES_SET", "CONNECTION_UPDATE"] : ["MESSAGES_UPSERT", "MESSAGES_EDITED", "MESSAGES_DELETE", "CONNECTION_UPDATE", "MESSAGES_SET"] };
+    };
+    const before = await actions.getWhatsappWebhookStatusAction();
+    expect(before).toEqual({ ok: true, connected: true, active: false, missing: ["MESSAGES_EDITED", "MESSAGES_DELETE"] });
+    stubConnectionRows([{ history_window_days: 7 }]);
+    const after = await actions.updateWhatsappWebhookEventsAction();
+    expect(after).toEqual({ ok: true, connected: true, active: true, missing: [] });
+    const set = evoCalls.find((c) => c.startsWith("setInstanceWebhook"));
+    expect(set).toContain(`"url":"https://imobflux.test/api/webhooks/whatsapp"`);
+    expect(set).toContain(`"includeHistory":true`);
+  });
+
+  test("janela de histórico 0 reaplica sem o evento de histórico; instância inexistente = sem conexão; sem segredo recusa", async () => {
+    evolution.getInstanceWebhookEvents = async () => ({ ok: false, code: "NOT_FOUND" });
+    expect(await actions.getWhatsappWebhookStatusAction()).toEqual({ ok: true, connected: false, active: null, missing: [] });
+    stubConnectionRows([{ history_window_days: 0 }]);
+    evolution.getInstanceWebhookEvents = async () => ({ ok: true, data: null });
+    await actions.updateWhatsappWebhookEventsAction();
+    expect(evoCalls.find((c) => c.startsWith("setInstanceWebhook"))).toContain(`"includeHistory":false`);
+    delete process.env.EVOLUTION_WEBHOOK_SECRET;
+    expect(await actions.updateWhatsappWebhookEventsAction()).toMatchObject({ ok: false });
+  });
+});

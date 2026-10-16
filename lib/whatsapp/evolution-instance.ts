@@ -112,7 +112,30 @@ export async function getInstanceNumber(name: string, options: EvolutionOptions 
   return { ok: true, data: phoneFromJid(instance.ownerJid) ?? phoneFromJid(typeof instance.number === "string" ? `${instance.number}@s.whatsapp.net` : null) };
 }
 
-/** Aponta o webhook da instância para o app (mensagens e mudanças de conexão) com o segredo. */
+// Eventos que o app precisa receber. MESSAGES_EDITED e MESSAGES_DELETE são os que a Evolution usa para avisar edição e
+// exclusão feitas no celular (e a confirmação das que o ImobFlux faz); sem eles o WhatsApp nunca "responde" ao app.
+export const WEBHOOK_EVENTS_MESSAGES = ["MESSAGES_UPSERT", "MESSAGES_EDITED", "MESSAGES_DELETE", "CONNECTION_UPDATE"] as const;
+export function webhookEvents(includeHistory: boolean): string[] {
+  return includeHistory ? [...WEBHOOK_EVENTS_MESSAGES, "MESSAGES_SET"] : [...WEBHOOK_EVENTS_MESSAGES];
+}
+
+/** Eventos que faltam na assinatura atual (comparação sem diferenciar maiúsculas/minúsculas nem "." x "_"). */
+export function missingWebhookEvents(current: readonly string[]): string[] {
+  const norm = (value: string) => value.trim().toUpperCase().replace(/[.\-]/g, "_");
+  const have = new Set(current.map(norm));
+  return WEBHOOK_EVENTS_MESSAGES.filter((event) => !have.has(event));
+}
+
+/** Eventos assinados hoje no webhook da instância (GET /webhook/find). Nulo se a Evolution não informar. */
+export async function getInstanceWebhookEvents(name: string, options: EvolutionOptions = {}): Promise<EvolutionResult<string[] | null>> {
+  const result = await evolutionRequest("GET", `/webhook/find/${encodeURIComponent(name)}`, undefined, options);
+  if (!result.ok) return { ok: false, code: result.code };
+  const data = result.data as { events?: unknown; webhook?: { events?: unknown } } | null;
+  const events = data?.events ?? data?.webhook?.events;
+  return { ok: true, data: Array.isArray(events) ? events.filter((item): item is string => typeof item === "string") : null };
+}
+
+/** Aponta o webhook da instância para o app (mensagens, edição/exclusão e mudanças de conexão) com o segredo. */
 export async function setInstanceWebhook(
   name: string,
   config: { url: string; secret: string; base64?: boolean; includeHistory?: boolean },
@@ -126,9 +149,7 @@ export async function setInstanceWebhook(
     headers: { "x-evolution-secret": config.secret },
     // MESSAGES_SET traz o histórico recente que o WhatsApp envia uma única vez, no pareamento.
     // Conexão com janela de histórico 0 não assina esse evento (o histórico nem chega ao app).
-    events: config.includeHistory === false
-      ? ["MESSAGES_UPSERT", "CONNECTION_UPDATE"]
-      : ["MESSAGES_UPSERT", "MESSAGES_SET", "CONNECTION_UPDATE"],
+    events: webhookEvents(config.includeHistory !== false),
   };
   const path = `/webhook/set/${encodeURIComponent(name)}`;
   let result = await evolutionRequest("POST", path, { webhook }, options);

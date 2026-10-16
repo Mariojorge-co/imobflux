@@ -185,6 +185,63 @@ export async function disconnectWhatsappAction(): Promise<WhatsappActionResult> 
   }
 }
 
+export type WebhookEventsStatus =
+  | { ok: true; connected: boolean; active: boolean | null; missing: string[] }
+  | { ok: false; error: string };
+
+/** OWNER: o webhook da instância assina edição e exclusão? (Sem isso, o celular nunca avisa o ImobFlux dessas mudanças.) */
+export async function getWhatsappWebhookStatusAction(): Promise<WebhookEventsStatus> {
+  const owner = await ownerInstance();
+  if (!("instance" in owner)) return { ok: false, error: owner.ok ? ERRORS.FORBIDDEN : owner.error };
+  if (!evolution.isEvolutionConfigured()) return { ok: false, error: ERRORS.NOT_CONFIGURED };
+  try {
+    const events = await evolution.getInstanceWebhookEvents(owner.instance);
+    if (!events.ok) return events.code === "NOT_FOUND" ? { ok: true, connected: false, active: null, missing: [] } : { ok: false, error: ERRORS.EVOLUTION_UNREACHABLE };
+    if (!events.data) return { ok: true, connected: true, active: null, missing: [] };
+    const missing = evolution.missingWebhookEvents(events.data);
+    return { ok: true, connected: true, active: missing.length === 0, missing };
+  } catch (error) {
+    console.error("Erro em getWhatsappWebhookStatusAction:", error);
+    return { ok: false, error: ERRORS.EVOLUTION_UNREACHABLE };
+  }
+}
+
+/**
+ * OWNER: reaplica o webhook da instância com todos os eventos atuais (inclui edição e exclusão). Não mexe na conexão do
+ * número nem pede QR: só atualiza a assinatura de eventos na Evolution.
+ */
+export async function updateWhatsappWebhookEventsAction(): Promise<WebhookEventsStatus> {
+  const owner = await ownerInstance();
+  if (!("instance" in owner)) return { ok: false, error: owner.ok ? ERRORS.FORBIDDEN : owner.error };
+  if (!evolution.isEvolutionConfigured()) return { ok: false, error: ERRORS.NOT_CONFIGURED };
+  const secret = process.env.EVOLUTION_WEBHOOK_SECRET?.trim();
+  if (!secret) return { ok: false, error: ERRORS.WEBHOOK_SECRET_MISSING };
+  const requestHeaders = await headers();
+  const webhook = resolveWebhookUrl({
+    host: requestHeaders.get("x-forwarded-host")?.split(",")[0].trim() || requestHeaders.get("host"),
+    proto: requestHeaders.get("x-forwarded-proto")?.split(",")[0].trim() || null,
+  });
+  if (!webhook.ok) return { ok: false, error: ERRORS.WEBHOOK_UNREACHABLE };
+  try {
+    const supabase = await serverModule.createServerSupabaseClient();
+    const { data } = await supabase
+      .from("channel_connections")
+      .select("history_window_days")
+      .eq("provider", "whatsapp")
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(1);
+    const includeHistory = data?.[0]?.history_window_days !== 0;
+    const hook = await evolution.setInstanceWebhook(owner.instance, { url: webhook.url, secret, includeHistory });
+    if (!hook.ok) return { ok: false, error: hook.code === "UNAUTHORIZED" ? ERRORS.EVOLUTION_REJECTED : ERRORS.EVOLUTION_UNREACHABLE };
+    console.log("[evolution-action] webhook/set eventos de edição e exclusão reaplicados");
+    return await getWhatsappWebhookStatusAction();
+  } catch (error) {
+    console.error("Erro em updateWhatsappWebhookEventsAction:", error);
+    return { ok: false, error: ERRORS.EVOLUTION_UNREACHABLE };
+  }
+}
+
 export type HistoryImportActionResult =
   | { ok: true; view: HistoryImportView; startedAt: string | null }
   | { ok: false };

@@ -1,6 +1,7 @@
 import { PageContainer, PageHeader } from "@/components/ui";
 import { WhatsappConnection } from "@/components/whatsapp/whatsapp-connection";
 import { IngestSettingsCard } from "@/components/whatsapp/ingest-settings-card";
+import { WebhookEventsCard } from "@/components/whatsapp/webhook-events-card";
 import { requireOwnerAccess } from "@/lib/auth/dal";
 import { getWhatsappChannelStatus } from "@/lib/whatsapp/data";
 import { isEvolutionConfigured } from "@/lib/whatsapp/evolution-instance";
@@ -19,6 +20,7 @@ export default async function WhatsappSettingsPage() {
         title="WhatsApp"
       />
       <IngestSettingsCard connectionStatus={channel?.status ?? null} initial={channel?.ingestSettings ?? DEFAULT_INGEST_SETTINGS} />
+      <WebhookEventsCard />
       <WhatsappConnection
         configured={isEvolutionConfigured()}
         initialHistory={channel?.historyImport ?? null}
