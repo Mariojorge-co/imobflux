@@ -114,6 +114,8 @@ export type ConversationMessage = {
   deleted_at?: string | null;
   deleted_source?: string | null;
   forwarded?: boolean;
+  /** O ImobFlux editou/apagou e a Evolution aceitou, mas o WhatsApp ainda não confirmou de volta ('edit' | 'revoke'). */
+  wa_pending_action?: "edit" | "revoke" | null;
   /** A mensagem tem id do WhatsApp (precisa dele para editar, apagar para todos e reagir). */
   has_external_id?: boolean;
   reactions?: MessageReaction[];

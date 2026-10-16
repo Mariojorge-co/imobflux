@@ -353,14 +353,25 @@ test.describe("Pacote de mensagens — chamadas à Evolution", () => {
   const realFetch = globalThis.fetch;
   type Call = { url: string; method: string; body: Record<string, unknown>; apikey: string | null };
   let calls: Call[] = [];
+  let lookups: Array<{ url: string; numbers: unknown }> = [];
+  let lookupJid: ((digits: string) => string | null) | null = null;
   let respond: () => Response = () => new Response(JSON.stringify({ key: { id: "NEW-ID" } }), { status: 201 });
 
   test.beforeEach(() => {
     process.env.EVOLUTION_API_URL = "http://evolution.test:8080/";
     process.env.EVOLUTION_API_KEY = "secret_key_123";
     calls = [];
+    lookups = [];
+    lookupJid = null;
     respond = () => new Response(JSON.stringify({ key: { id: "NEW-ID" } }), { status: 201 });
     globalThis.fetch = (async (url: string, init: RequestInit) => {
+      // POST /chat/whatsappNumbers: confirma o JID real do chat. Por padrão devolve o mesmo JID (nada muda).
+      if (String(url).includes("/chat/whatsappNumbers/")) {
+        const numbers = (JSON.parse(String(init.body)) as { numbers: string[] }).numbers;
+        lookups.push({ url: String(url), numbers });
+        const real = lookupJid ? lookupJid(numbers[0]) : `${numbers[0]}@s.whatsapp.net`;
+        return new Response(JSON.stringify(real ? [{ exists: true, jid: real, number: numbers[0] }] : [{ exists: false, number: numbers[0] }]), { status: 200 });
+      }
       calls.push({ url, method: String(init.method), body: JSON.parse(String(init.body)), apikey: (init.headers as Record<string, string>).apikey ?? null });
       return respond();
     }) as typeof fetch;
@@ -396,6 +407,45 @@ test.describe("Pacote de mensagens — chamadas à Evolution", () => {
     expect(calls[2].body).toEqual({ key: { remoteJid: jid, fromMe: false, id: "MSG-1" }, reaction: "👍" });
     expect(calls[3].body.reaction).toBe("");
     expect(calls.every((call) => call.apikey === "secret_key_123")).toBe(true);
+  });
+
+  test("JID real: conversa com o 9º dígito no JID guardado e sem ele no WhatsApp usa o JID REAL na chave de editar, apagar e reagir", async () => {
+    // O ImobFlux guarda 5582999990000 (13 dígitos); o WhatsApp do contato usa 558299990000 (12 dígitos, sem o 9).
+    lookupJid = (digits) => (digits === "5582999990000" ? "558299990000@s.whatsapp.net" : null);
+    const stored = "5582999990000@s.whatsapp.net";
+    await actionsGateway.editEvolutionMessage("inst", stored, "MSG-9", "novo texto");
+    await actionsGateway.deleteEvolutionMessageForEveryone("inst", stored, "MSG-9");
+    await actionsGateway.sendEvolutionReaction("inst", stored, "MSG-9", true, "👍");
+    expect(lookups.length).toBeGreaterThanOrEqual(1);
+    expect(lookups[0].numbers).toEqual(["5582999990000"]);
+    expect(new URL(lookups[0].url).pathname).toBe("/chat/whatsappNumbers/inst");
+    const real = "558299990000@s.whatsapp.net";
+    expect((calls[0].body.key as { remoteJid: string }).remoteJid).toBe(real);
+    expect(calls[0].body.number).toBe("558299990000");
+    expect(calls[1].body.remoteJid).toBe(real);
+    expect((calls[2].body.key as { remoteJid: string }).remoteJid).toBe(real);
+  });
+
+  test("JID real: se a consulta falha ou não acha o número, usa o JID guardado (nada quebra)", async () => {
+    const stored = "5582988881111@s.whatsapp.net";
+    lookupJid = () => null;
+    await actionsGateway.deleteEvolutionMessageForEveryone("inst", stored, "M1");
+    expect(calls[0].body.remoteJid).toBe(stored);
+    const baseFetch = globalThis.fetch;
+    globalThis.fetch = (async (url: string, init: RequestInit) => {
+      if (String(url).includes("/chat/whatsappNumbers/")) return new Response("erro", { status: 500 });
+      return baseFetch(url, init);
+    }) as typeof fetch;
+    await actionsGateway.deleteEvolutionMessageForEveryone("inst", "5582988882222@s.whatsapp.net", "M2");
+    expect(calls[1].body.remoteJid).toBe("5582988882222@s.whatsapp.net");
+  });
+
+  test("JID real: grupo e @lid não são consultados (já são a chave real)", async () => {
+    await actionsGateway.deleteEvolutionMessageForEveryone("inst", "120363000000000000@g.us", "M3");
+    await actionsGateway.deleteEvolutionMessageForEveryone("inst", "98765432109876@lid", "M4");
+    expect(lookups).toHaveLength(0);
+    expect(calls[0].body.remoteJid).toBe("120363000000000000@g.us");
+    expect(calls[1].body.remoteJid).toBe("98765432109876@lid");
   });
 
   test("áudio de voz: sendWhatsAppAudio com encoding e a URL assinada; sem id na resposta é falha", async () => {

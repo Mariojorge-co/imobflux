@@ -50,7 +50,7 @@ type BeginInfo = {
 
 // ─── Editar ───────────────────────────────────────────────────────────────────────────────────────
 
-export type EditMessageResult = MessageActionResult<{ text: string; editedAt: string }>;
+export type EditMessageResult = MessageActionResult<{ text: string; editedAt: string; pending: boolean }>;
 
 /** Edita o texto de uma mensagem enviada pelo ImobFlux. O banco valida autoria (ou dono), 15 min e só texto. */
 export async function editMessageAction(messageId: string, newText: string): Promise<EditMessageResult> {
@@ -85,7 +85,8 @@ export async function editMessageAction(messageId: string, newText: string): Pro
       return fail("O WhatsApp aceitou a edição, mas não foi possível gravá-la no ImobFlux. Recarregue a conversa.", "COMMIT_ERROR");
     }
     const status = committed as unknown as { edited_at?: string };
-    return { success: true, text: newText, editedAt: status.edited_at ?? new Date().toISOString() };
+    // A Evolution aceitou; o WhatsApp só confirma quando o evento de volta chegar (o banco marca a pendência).
+    return { success: true, text: newText, editedAt: status.edited_at ?? new Date().toISOString(), pending: true };
   } catch {
     logCode("editMessageAction", "EXCEPTION");
     return fail("Erro interno ao editar a mensagem.", "INTERNAL_ERROR");
@@ -94,7 +95,7 @@ export async function editMessageAction(messageId: string, newText: string): Pro
 
 // ─── Apagar para todos ────────────────────────────────────────────────────────────────────────────
 
-export type DeleteForEveryoneResult = MessageActionResult<{ deletedAt: string }>;
+export type DeleteForEveryoneResult = MessageActionResult<{ deletedAt: string; pending: boolean }>;
 
 /** Apaga para todos uma mensagem enviada pelo ImobFlux (WhatsApp + ImobFlux). O original fica só para o dono, em auditoria. */
 export async function deleteMessageForEveryoneAction(messageId: string): Promise<DeleteForEveryoneResult> {
@@ -128,7 +129,7 @@ export async function deleteMessageForEveryoneAction(messageId: string): Promise
       return fail("O WhatsApp apagou a mensagem, mas não foi possível gravar isso no ImobFlux. Recarregue a conversa.", "COMMIT_ERROR");
     }
     const status = committed as unknown as { deleted_at?: string };
-    return { success: true, deletedAt: status.deleted_at ?? new Date().toISOString() };
+    return { success: true, deletedAt: status.deleted_at ?? new Date().toISOString(), pending: true };
   } catch {
     logCode("deleteMessageForEveryoneAction", "EXCEPTION");
     return fail("Erro interno ao apagar a mensagem.", "INTERNAL_ERROR");

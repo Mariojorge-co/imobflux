@@ -63,6 +63,8 @@ test.describe("Ações sobre mensagens (servidor)", () => {
     });
     dalModule.getActiveAccessForAuthUser = async () => ({ memberId: MEMBER, role: "attendant", workspaceId: "w", appUserId: "a", authUserId: "auth-user", displayName: "Ana" });
     globalThis.fetch = (async (url: string, init: RequestInit) => {
+      // Consulta do JID real do chat (antes de editar/apagar/reagir): não é uma ação sobre a mensagem.
+      if (String(url).includes("/chat/whatsappNumbers/")) return new Response(JSON.stringify([]), { status: 200 });
       fetches.push({ url, method: String(init.method), body: JSON.parse(String(init.body)) });
       return new Response(JSON.stringify({ key: { id: "NEW" } }), { status: evolutionStatus });
     }) as typeof fetch;

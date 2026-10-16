@@ -157,6 +157,61 @@ export function validateWebhookSecret(
   return timingSafeEqual(secretDigest(incomingSecret), secretDigest(expectedSecret));
 }
 
+type Loose = Record<string, unknown>;
+
+function asObject(value: unknown): Loose | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Loose) : null;
+}
+
+/** Nomes de evento chegam como "messages.upsert", "MESSAGES_UPSERT" ou "messages-upsert": tudo vira "messages.upsert". */
+export function normalizeEventName(event: string): string {
+  return event.trim().toLowerCase().replace(/[_-]/g, ".");
+}
+
+// Envelopes em que o WhatsApp embrulha a mensagem de verdade (efêmera, visualização única, enviada por outro aparelho da
+// própria conta, documento com legenda e a edição). Cada um guarda a mensagem interna em `.message`.
+const WRAPPER_KEYS = [
+  "ephemeralMessage",
+  "viewOnceMessage",
+  "viewOnceMessageV2",
+  "viewOnceMessageV2Extension",
+  "deviceSentMessage",
+  "documentWithCaptionMessage",
+  "editedMessage",
+];
+
+/** A mensagem e as camadas embrulhadas dentro dela, da mais externa para a mais interna (no máximo 6). */
+export function messageLayers(message: unknown): Loose[] {
+  const layers: Loose[] = [];
+  let current = asObject(message);
+  for (let depth = 0; current && depth < 6; depth += 1) {
+    layers.push(current);
+    let next: Loose | null = null;
+    for (const key of WRAPPER_KEYS) {
+      const inner = asObject(asObject(current[key])?.message);
+      if (inner) {
+        next = inner;
+        break;
+      }
+    }
+    current = next;
+  }
+  return layers;
+}
+
+/** Primeiro texto ou legenda encontrado nas camadas (texto simples, texto estendido ou legenda de mídia). */
+export function textFromLayers(message: unknown): string | null {
+  for (const layer of messageLayers(message)) {
+    const direct = cleanString(layer.conversation) ?? cleanString(asObject(layer.extendedTextMessage)?.text);
+    if (direct) return direct;
+    for (const key of ["imageMessage", "videoMessage", "documentMessage"]) {
+      const caption = cleanString(asObject(layer[key])?.caption);
+      if (caption) return caption;
+    }
+  }
+  return null;
+}
+
 function cleanString(value: unknown): string | null {
   return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
 }
@@ -249,23 +304,24 @@ export function parseEvolutionWebhookPayload(body: unknown): WebhookParseResult 
   }
 
   // Mudança de conexão do WhatsApp (ex.: aparelho desconectado). Só "open"/"close" interessam.
-  if (payload.event === "connection.update") {
+  const eventName = normalizeEventName(payload.event);
+  if (eventName === "connection.update") {
     const state = typeof payload.data.state === "string" ? payload.data.state.toLowerCase() : null;
     return { status: "connection", instance: payload.instance, state: state === "open" || state === "close" ? state : null };
   }
 
-  if (payload.event === "messages.set") {
+  if (eventName === "messages.set") {
     return parseHistoryPayload(payload.instance, body as Record<string, unknown>, payload.data);
   }
 
   // Exclusão que a Evolution anuncia como evento próprio: o alvo é o id da mensagem apagada.
-  if (payload.event === "messages.delete") {
+  if (eventName === "messages.delete") {
     const raw = payload.data as EvolutionPayloadData & { id?: unknown };
     const id = cleanString(raw.key?.id) ?? cleanString(raw.id);
     return id ? { status: "revoke", instance: payload.instance, externalMessageId: id } : { status: "ignored", reason: "non_text_message_ignored" };
   }
 
-  if (payload.event !== "messages.upsert" && payload.event !== "messages.edited") {
+  if (eventName !== "messages.upsert" && eventName !== "messages.edited") {
     return { status: "ignored", reason: "unhandled_event" };
   }
 
@@ -286,17 +342,17 @@ function parseSpecialMessage(
   instance: string,
   data: EvolutionPayloadData,
 ): WebhookParseResult | null {
-  const message = data.message;
-  if (!message) return null;
+  const layers = messageLayers(data.message);
+  if (layers.length === 0) return null;
 
-  const protocol = message.protocolMessage ?? message.editedMessage?.message?.protocolMessage;
-  if (protocol) {
+  for (const layer of layers) {
+    const protocol = asObject(layer.protocolMessage) as EvolutionProtocolMessage | null;
+    if (!protocol) continue;
     const kind = protocolKind(protocol.type);
     const targetId = cleanString(protocol.key?.id);
     if (kind === "revoke" && targetId) return { status: "revoke", instance, externalMessageId: targetId };
     if (kind === "edit" && targetId) {
-      const edited = protocol.editedMessage;
-      const newText = cleanString(edited?.conversation) ?? cleanString(edited?.extendedTextMessage?.text);
+      const newText = textFromLayers(protocol.editedMessage);
       if (!newText) return { status: "ignored", reason: "non_text_message_ignored" };
       const stamp = typeof protocol.timestampMs === "number" ? protocol.timestampMs : Number(protocol.timestampMs);
       return {
@@ -307,21 +363,25 @@ function parseSpecialMessage(
         editedAt: Number.isFinite(stamp) && stamp > 0 ? new Date(stamp).toISOString() : null,
       };
     }
+    // Outros tipos de protocolo (histórico, expiração, sincronização de chave...) não são mensagens do chat.
     return { status: "ignored", reason: "non_text_message_ignored" };
   }
 
-  const reaction = message.reactionMessage;
-  if (reaction) {
-    const key = data.key ?? {};
+  for (const layer of layers) {
+    const reaction = asObject(layer.reactionMessage) as { key?: EvolutionPayloadKey; text?: unknown } | null;
+    if (!reaction) continue;
+    const key = (data.key ?? {}) as EvolutionPayloadKey & { remoteJidAlt?: unknown; senderPn?: unknown };
     const targetId = cleanString(reaction.key?.id);
     const remoteJid = cleanString(key.remoteJid);
     if (!targetId || !remoteJid || remoteJid.endsWith("@g.us")) return { status: "ignored", reason: "non_text_message_ignored" };
     const fromMe = Boolean(key.fromMe);
+    // Contato identificado por @lid: o telefone vem em chaves alternativas, quando a Evolution as manda.
+    const phoneJid = remoteJid.endsWith("@lid") ? (cleanString(key.remoteJidAlt) ?? cleanString(key.senderPn) ?? remoteJid) : remoteJid;
     return {
       status: "reaction",
       instance,
       targetExternalId: targetId,
-      reactorJid: fromMe ? "" : remoteJid,
+      reactorJid: fromMe ? "" : phoneJid,
       fromMe,
       // Texto vazio = a pessoa tirou a reação.
       emoji: typeof reaction.text === "string" ? reaction.text.trim() : "",
@@ -330,23 +390,35 @@ function parseSpecialMessage(
   return null;
 }
 
-/** Mensagem citada (resposta recebida): id dela no WhatsApp e um trecho do que foi citado. */
-export function extractQuoted(message: EvolutionMessageContent | undefined): WebhookQuoted | null {
-  if (!message) return null;
-  const context =
-    message.extendedTextMessage?.contextInfo
-    ?? message.imageMessage?.contextInfo
-    ?? message.videoMessage?.contextInfo
-    ?? message.documentMessage?.contextInfo
-    ?? message.audioMessage?.contextInfo;
+/** O contextInfo (com stanzaId) de uma resposta: no evento, na mensagem de qualquer tipo ou numa camada embrulhada. */
+function findContextInfo(message: unknown, topLevel: unknown): Loose | null {
+  const candidates: Loose[] = [];
+  const top = asObject(topLevel);
+  if (top) candidates.push(top);
+  for (const layer of messageLayers(message)) {
+    const own = asObject(layer.contextInfo);
+    if (own) candidates.push(own);
+    for (const value of Object.values(layer)) {
+      const context = asObject(asObject(value)?.contextInfo);
+      if (context) candidates.push(context);
+    }
+  }
+  return candidates.find((context) => cleanString(context.stanzaId)) ?? null;
+}
+
+const QUOTED_MEDIA_KEYS = ["imageMessage", "videoMessage", "audioMessage", "documentMessage", "stickerMessage", "ptvMessage"];
+
+/**
+ * Mensagem citada (resposta feita pelo cliente OU pelo celular): id dela no WhatsApp e um trecho do que foi citado.
+ * Procura o contexto em qualquer tipo de mensagem (texto, imagem, vídeo, documento, áudio...) e também no nível do evento.
+ */
+export function extractQuoted(message: EvolutionMessageContent | undefined, topLevelContext?: unknown): WebhookQuoted | null {
+  const context = findContextInfo(message, topLevelContext);
   const externalId = cleanString(context?.stanzaId);
-  if (!externalId) return null;
-  const quotedMessage = (context?.quotedMessage ?? {}) as Record<string, unknown>;
-  const extended = quotedMessage.extendedTextMessage as { text?: unknown } | undefined;
-  const image = quotedMessage.imageMessage as { caption?: unknown } | undefined;
-  const video = quotedMessage.videoMessage as { caption?: unknown } | undefined;
-  const text = cleanString(quotedMessage.conversation) ?? cleanString(extended?.text) ?? cleanString(image?.caption) ?? cleanString(video?.caption);
-  const hasMedia = ["imageMessage", "videoMessage", "audioMessage", "documentMessage", "stickerMessage"].some((name) => name in quotedMessage);
+  if (!context || !externalId) return null;
+  const quotedMessage = context.quotedMessage;
+  const text = textFromLayers(quotedMessage);
+  const hasMedia = messageLayers(quotedMessage).some((layer) => QUOTED_MEDIA_KEYS.some((name) => name in layer));
   return { externalId, text: text ? text.slice(0, 200) : null, hasMedia };
 }
 
@@ -387,10 +459,13 @@ function parseMessageData(
   const rawText =
     data.message?.conversation ??
     data.message?.extendedTextMessage?.text ??
+    messageLayers(data.message).map((layer) => cleanString(layer.conversation) ?? cleanString(asObject(layer.extendedTextMessage)?.text)).find(Boolean) ??
     null;
 
   const hasText = typeof rawText === "string" && rawText.trim() !== "";
-  const extracted = hasText ? null : extractWebhookMedia(data.message);
+  const extracted = hasText
+    ? null
+    : (messageLayers(data.message).map((layer) => extractWebhookMedia(layer as EvolutionMessageContent)).find(Boolean) ?? null);
 
   // Mensagens que não são texto nem mídia reconhecida (reações, enquetes, etc.) seguem ignoradas.
   if (!hasText && !extracted) {
@@ -436,7 +511,7 @@ function parseMessageData(
     textContent,
     media: extracted ? { ...extracted.media, inlineBase64: extracted.media.inlineBase64 ?? cleanString(data.base64) } : null,
     occurredAt,
-    quoted: options.requireTimestamp ? null : extractQuoted(data.message),
+    quoted: options.requireTimestamp ? null : extractQuoted(data.message, (data as { contextInfo?: unknown }).contextInfo),
   };
 }
 

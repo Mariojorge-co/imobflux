@@ -443,7 +443,7 @@ export function MessagesPanel({
   const handleSaveEdit = useCallback(async (id: string, text: string): Promise<{ success: boolean; error?: string }> => {
     const result = await editMessageAction(id, text);
     if (!result.success) return { success: false, error: result.error };
-    patchMessage(id, { text_content: result.text, edited_at: result.editedAt });
+    patchMessage(id, { text_content: result.text, edited_at: result.editedAt, wa_pending_action: result.pending ? "edit" : null });
     setEditing(null);
     return { success: true };
   }, [patchMessage]);
@@ -492,6 +492,7 @@ export function MessagesPanel({
       patchMessage(message.id, {
         deleted_at: "deletedAt" in result ? String(result.deletedAt) : new Date().toISOString(),
         deleted_source: "crm",
+        wa_pending_action: "revoke",
         text_content: null,
         has_attachments: false,
         attachments: [],
@@ -1205,7 +1206,7 @@ export function MessagesPanel({
       />
 
       <ConfirmDialog
-        confirmLabel={confirmAction?.kind === "hide" ? "Apagar para mim" : "Apagar para todos"}
+        confirmLabel={confirmError ? "Tentar de novo" : confirmAction?.kind === "hide" ? "Apagar para mim" : "Apagar para todos"}
         description={
           confirmAction?.kind === "hide"
             ? "Isso esconde a mensagem no ImobFlux. Ela continua no WhatsApp."

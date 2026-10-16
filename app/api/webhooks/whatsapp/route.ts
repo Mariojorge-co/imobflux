@@ -6,10 +6,24 @@ import {
 } from "@/lib/conversations/webhook";
 
 import { importHistoryBatch } from "@/lib/conversations/history-import";
+import { webhookShapeLine } from "@/lib/conversations/webhook-shape";
 import { scheduleMediaDownload, storeAttachmentMedia } from "@/lib/conversations/media-download";
 
 // O download da mídia roda depois da resposta (after); dá tempo suficiente para arquivos grandes.
 export const maxDuration = 60;
+
+/**
+ * Diagnóstico do que a Evolution realmente entrega, SEM conteúdo: só o nome do evento, o tipo do resultado e a FORMA do
+ * payload (chaves e tipos, nunca valores). Serve para confirmar como chegam edição, exclusão, reação e resposta citada.
+ */
+function logShape(body: unknown, kind: string) {
+  try {
+    const payload = body as { event?: unknown; data?: unknown } | null;
+    console.log(webhookShapeLine(String(payload?.event ?? "?"), kind, payload?.data));
+  } catch {
+    // diagnóstico nunca derruba o webhook
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -60,6 +74,15 @@ export async function POST(request: Request) {
       return NextResponse.json(syncResult ?? { status: "success" }, { status: 200 });
     }
 
+    // Só os tipos que interessam ao diagnóstico (edição, exclusão, reação, citação, o que foi ignorado e eventos desconhecidos).
+    if (result.status === "edit" || result.status === "revoke" || result.status === "reaction") logShape(body, result.status);
+    else if (result.status === "ignored") {
+      if (result.reason === "unhandled_event") {
+        const unhandled = (body as { event?: unknown } | null)?.event;
+        console.log(`[webhook-event] ignorado event=${String(unhandled ?? "?").replace(/[^a-zA-Z0-9._-]/g, "").slice(0, 40)}`);
+      } else logShape(body, `ignored-${result.reason}`);
+    } else if (result.status === "valid" && result.quoted) logShape(body, "quoted");
+
     if (result.status === "history") {
       try {
         const summary = await importHistoryBatch(createAdminSupabaseClient(), result);
@@ -103,6 +126,8 @@ export async function POST(request: Request) {
         console.error(`Erro ao aplicar ${result.status} do WhatsApp via RPC (código):`, actionError.code ?? "desconhecido");
         return NextResponse.json({ error: "Erro interno no processamento do webhook" }, { status: 500 });
       }
+      const applied = actionResult as { status?: string; reason?: string } | null;
+      console.log(`[webhook-event] ${result.status} aplicado status=${applied?.status ?? "?"} reason=${applied?.reason ?? "-"}`);
       return NextResponse.json(actionResult ?? { status: "success" }, { status: 200 });
     }
 
@@ -155,13 +180,17 @@ export async function POST(request: Request) {
     // Resposta (citação) recebida: liga a mensagem nova à original. É secundário: se falhar, a mensagem já está salva
     // e só fica sem o cartão de citação (não vale pedir reentrega).
     const ingested = rpcResult as { status?: string; message_id?: string } | null;
+    if (result.quoted && !(ingested?.message_id && (ingested.status === "success" || ingested.status === "duplicate"))) {
+      console.log(`[webhook-event] citação não ligada ingest=${ingested?.status ?? "?"}`);
+    }
     if (result.quoted && ingested?.message_id && (ingested.status === "success" || ingested.status === "duplicate")) {
-      const { error: quoteError } = await supabase.rpc("set_incoming_message_reply", {
+      const { data: quoteResult, error: quoteError } = await supabase.rpc("set_incoming_message_reply", {
         p_message_id: ingested.message_id,
         p_quoted_external_id: result.quoted.externalId,
         p_snapshot: { text: result.quoted.text, has_media: result.quoted.hasMedia },
       });
       if (quoteError) console.error("Erro ao ligar a citação recebida (código):", quoteError.code ?? "desconhecido");
+      else console.log(`[webhook-event] citação ligada resolved=${String((quoteResult as { resolved?: boolean } | null)?.resolved ?? "?")} from_me=${result.fromMe}`);
     }
 
     // Mídia: registra os metadados do anexo na mensagem recém-ingerida (idempotente, então

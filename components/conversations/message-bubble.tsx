@@ -227,6 +227,15 @@ export function MessageBubble({
             data-testid={deliveryState ? `message-${deliveryState}` : undefined}
           >
             {message.edited_at && !deleted ? <span className="mr-1 italic" data-testid="edited-mark">editada</span> : null}
+            {message.wa_pending_action ? (
+              <span
+                className="mr-1 italic"
+                data-testid="wa-pending"
+                title="O WhatsApp ainda não confirmou que o celular recebeu esta alteração."
+              >
+                · aguardando confirmação do WhatsApp
+              </span>
+            ) : null}
             {deliveryState === "sending" ? "Enviando…" : deliveryState === "failed" ? "Não enviada" : timeLabel}
           </p>
           {deliveryState === "failed" ? (
