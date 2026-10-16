@@ -16,7 +16,7 @@ export default async function ApplicationLayout({
 
   return (
     <SlaSettingsProvider settings={slaSettings}>
-      <AppLayout role={access.role}>{children}</AppLayout>
+      <AppLayout memberId={access.memberId} role={access.role}>{children}</AppLayout>
     </SlaSettingsProvider>
   );
 }
