@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useSyncExternalStore } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import { Bell, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui";
 import { playNotificationSound } from "@/components/notifications/new-message-notifier";
@@ -53,7 +53,8 @@ export function NotificationSettings({ memberId }: { memberId: string }) {
     () => "",
   );
   const prefs: NotificationPreferences = raw ? parseNotificationPreferences(raw) : DEFAULT_NOTIFICATION_PREFERENCES;
-  const [permission, setPermission] = useState<PermissionState>(() => (typeof window === "undefined" ? "default" : readPermission()));
+  // A permissão vem do navegador; no servidor vale "default" (evita diferença na hidratação). Reavaliada quando as preferências mudam.
+  const permission = useSyncExternalStore(subscribe, readPermission, () => "default" as PermissionState);
 
   const update = useCallback((patch: Partial<NotificationPreferences>) => saveNotificationPreferences(memberId, { ...prefs, ...patch }), [memberId, prefs]);
 
@@ -68,7 +69,6 @@ export function NotificationSettings({ memberId }: { memberId: string }) {
         result = Notification.permission;
       }
     }
-    setPermission(result);
     update({ desktop: result === "granted" });
   };
 

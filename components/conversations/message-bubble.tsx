@@ -239,7 +239,7 @@ export function MessageBubble({
     );
   }
 
-  const muted = isOutgoing ? "text-primary-foreground/70" : "text-text-muted";
+  const muted = isOutgoing ? "text-primary-foreground/80" : "text-text-muted";
 
   return (
     <div
@@ -339,7 +339,7 @@ export function MessageBubble({
                       aria-label="Esta mensagem contém um anexo indisponível"
                       className={[
                         "mb-1.5 flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs",
-                        isOutgoing ? "bg-white/10 text-primary-foreground/70" : "bg-neutral-soft text-text-muted",
+                        isOutgoing ? "bg-white/10 text-primary-foreground/80" : "bg-neutral-soft text-text-muted",
                       ].join(" ")}
                     >
                       <Paperclip aria-hidden="true" size={12} strokeWidth={1.8} />
@@ -356,7 +356,7 @@ export function MessageBubble({
           )}
 
           <p
-            className={["mt-1 text-right text-caption", isOutgoing ? "text-primary-foreground/60" : "text-text-muted"].join(" ")}
+            className={["mt-1 text-right text-caption", isOutgoing ? "text-primary-foreground/80" : "text-text-muted"].join(" ")}
             data-testid={deliveryState ? `message-${deliveryState}` : undefined}
           >
             {message.edited_at && !deleted ? <span className="mr-1 italic" data-testid="edited-mark">editada</span> : null}
