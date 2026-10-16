@@ -74,7 +74,7 @@ Detalhes, testes e decisões em [RELATORIO_NOITE.md](RELATORIO_NOITE.md). Corre�
 
 ## Banco de dados
 
-- **Migrations**: 62 arquivos forward-only (`20260802000100` a `20260802006200`); todas as 62 estão em produção (as 5 mais recentes: `005700`–`006200` em 2026-10-16; antes: 51 até `005100`, +`005200`–`005600` do pacote de arquivos) (`004300` a `004900` em 2026-10-13; `005000` em 2026-10-14; `005100` em 2026-10-15).
+- **Migrations**: 62 arquivos forward-only (`20260802000100` a `20260802006200`); todas as 62 estão em produção (as 6 mais recentes: `005700`–`006200` em 2026-10-16; antes: 51 até `005100`, +`005200`–`005600` do pacote de arquivos) (`004300` a `004900` em 2026-10-13; `005000` em 2026-10-14; `005100` em 2026-10-15).
 - **Tabelas de domínio**: 19 (`public`), com RLS habilitada e forçada.
 - **Funções**: leitura por RPCs `SECURITY INVOKER` (RLS preservada); escrita por RPCs `SECURITY DEFINER`
   auditadas; funções de ingestão e de mídia só para `service_role`.
