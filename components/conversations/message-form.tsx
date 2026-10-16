@@ -20,6 +20,7 @@ import type { OutgoingFiles } from "@/components/conversations/use-outgoing-file
 import { ACCEPT_ATTRIBUTE } from "@/lib/conversations/outgoing-files";
 import { ConfirmDialog } from "@/components/quick-replies/confirm-dialog";
 import { QuickRepliesPanel } from "@/components/quick-replies/quick-replies-panel";
+import { loadQuickReplyFiles } from "@/lib/quick-replies/attachment-client";
 import { SlashMenu, slashOptionId } from "@/components/quick-replies/slash-menu";
 import { useQuickReplies } from "@/components/quick-replies/use-quick-replies";
 import { composerHeight } from "@/lib/quick-replies/composer-size";
@@ -248,6 +249,13 @@ export function MessageForm({
     setText(result.value);
     setFeedback(null);
     quick.recordUse(reply.id);
+    // Arquivos da resposta: entram na bandeja de envio (mesmas validações e envio em fila); nada sai sem a pessoa enviar.
+    if (reply.attachments && reply.attachments.length > 0) {
+      void loadQuickReplyFiles(reply.id).then(({ files, error }) => {
+        if (files.length > 0) void outgoing.addFiles(files);
+        if (error) setFeedback({ type: "error", message: error });
+      });
+    }
   };
 
   // Editar: o texto da mensagem vai para a caixa; Esc cancela. Ao terminar (salvar, cancelar), a caixa volta ao rascunho

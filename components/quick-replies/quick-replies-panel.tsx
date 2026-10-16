@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } f
 import { ChevronDown, ChevronRight, Plus, Search, Settings2, X, Zap } from "lucide-react";
 import { Button } from "@/components/ui";
 import { ESCAPE_PRIORITY, useEscapeLayer } from "@/lib/ui/escape-stack";
+import { AttachmentBadge } from "@/components/quick-replies/attachment-badge";
 import { HighlightedText } from "@/components/quick-replies/highlighted-text";
 import { ItemMenu } from "@/components/quick-replies/item-menu";
 import { useQuickReplyEditors } from "@/components/quick-replies/use-quick-reply-editors";
@@ -117,7 +118,10 @@ export function QuickRepliesPanel({ open, onClose, library, state, error, onRelo
             onClick={() => onInsert(reply)}
             type="button"
           >
-            <span className="block truncate text-body font-semibold text-text">{reply.title}</span>
+            <span className="block truncate text-body font-semibold text-text">
+              {reply.title}
+              <AttachmentBadge count={reply.attachments?.length ?? 0} />
+            </span>
             {!isExpanded ? (
               <span className="mt-0.5 line-clamp-2 whitespace-pre-line break-words text-caption text-text-muted">{reply.body}</span>
             ) : null}

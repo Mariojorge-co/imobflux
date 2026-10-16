@@ -1,11 +1,16 @@
 "use client";
 
-import { useId, useRef, useState, useTransition, type FormEvent } from "react";
+import { useId, useRef, useState, useTransition, type ChangeEvent, type FormEvent } from "react";
+import { Paperclip, X } from "lucide-react";
 import { Button, Input, ModalDialog, Select } from "@/components/ui";
 import { HighlightedText } from "@/components/quick-replies/highlighted-text";
 import { saveQuickReplyAction } from "@/lib/quick-replies/actions";
+import { removeQuickReplyAttachmentAction } from "@/lib/quick-replies/attachment-actions";
+import { checkQuickReplyFile, uploadQuickReplyAttachment } from "@/lib/quick-replies/attachment-client";
+import { ACCEPT_ATTRIBUTE, formatFileSize } from "@/lib/conversations/outgoing-files";
 import { insertAtCursor } from "@/lib/quick-replies/insert";
 import {
+  QUICK_REPLY_ATTACHMENT_MAX,
   QUICK_REPLY_BODY_MAX,
   QUICK_REPLY_TITLE_MAX,
   type QuickReply,
@@ -56,6 +61,29 @@ function QuickReplyForm({
   const [isActive, setIsActive] = useState(reply?.is_active ?? true);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  // Arquivos: os que já estão na resposta (podem ser marcados para remover) e os novos (sobem ao salvar).
+  const [removedIds, setRemovedIds] = useState<string[]>([]);
+  const [newFiles, setNewFiles] = useState<File[]>([]);
+  const [fileNotice, setFileNotice] = useState<string | null>(null);
+  const [savedId, setSavedId] = useState<string | null>(reply?.id ?? null);
+  const keptAttachments = (reply?.attachments ?? []).filter((attachment) => !removedIds.includes(attachment.id));
+  const attachmentCount = keptAttachments.length + newFiles.length;
+
+  const handleFilesChosen = async (event: ChangeEvent<HTMLInputElement>) => {
+    const chosen = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    const room = Math.max(0, QUICK_REPLY_ATTACHMENT_MAX - attachmentCount);
+    const notices: string[] = [];
+    const accepted: File[] = [];
+    for (const file of chosen.slice(0, room)) {
+      const problem = await checkQuickReplyFile(file);
+      if (problem) notices.push(problem);
+      else accepted.push(file);
+    }
+    if (chosen.length > room) notices.push(`Cada resposta aceita até ${QUICK_REPLY_ATTACHMENT_MAX} arquivos.`);
+    setFileNotice(notices.length > 0 ? notices.join(" ") : null);
+    if (accepted.length > 0) setNewFiles((previous) => [...previous, ...accepted]);
+  };
 
   const insertVariable = (token: string) => {
     const element = bodyRef.current;
@@ -74,14 +102,39 @@ function QuickReplyForm({
     setError(null);
     startTransition(async () => {
       const result = await saveQuickReplyAction({
-        id: reply?.id ?? null,
+        id: savedId,
         title,
         body,
         categoryId: categoryId || null,
         isActive,
       });
-      if (result.success) onSaved();
-      else setError(result.error);
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
+      // A resposta já existe: a partir daqui, salvar de novo edita esta mesma (não cria outra).
+      setSavedId(result.id);
+      const problems: string[] = [];
+      for (const attachmentId of removedIds) {
+        const removed = await removeQuickReplyAttachmentAction(attachmentId);
+        if (!removed.success) problems.push(removed.error);
+      }
+      const stillPending: File[] = [];
+      for (const file of newFiles) {
+        const uploaded = await uploadQuickReplyAttachment(result.id, file);
+        if (!uploaded.success) {
+          problems.push(`${file.name}: ${uploaded.error}`);
+          stillPending.push(file);
+        }
+      }
+      if (problems.length > 0) {
+        // O texto foi salvo; os arquivos que falharam continuam na lista para tentar de novo.
+        setRemovedIds([]);
+        setNewFiles(stillPending);
+        setError(`A resposta foi salva, mas houve problema com os arquivos. ${problems.join(" ")}`);
+        return;
+      }
+      onSaved();
     });
   };
 
@@ -168,6 +221,74 @@ function QuickReplyForm({
           </div>
         </div>
       ) : null}
+
+      <div className="space-y-1.5" data-testid="quick-reply-attachments">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-caption font-medium text-text">
+            Arquivos anexados ({attachmentCount} de {QUICK_REPLY_ATTACHMENT_MAX})
+          </span>
+          <label
+            className={[
+              "inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-control border border-border-strong bg-surface px-3 text-caption font-medium text-text hover:bg-neutral-soft focus-within:ring-2 focus-within:ring-primary",
+              attachmentCount >= QUICK_REPLY_ATTACHMENT_MAX ? "pointer-events-none opacity-50" : "",
+            ].join(" ")}
+          >
+            <Paperclip aria-hidden="true" size={14} />
+            Adicionar arquivos
+            <input
+              accept={ACCEPT_ATTRIBUTE}
+              className="sr-only"
+              data-testid="quick-reply-file-input"
+              disabled={attachmentCount >= QUICK_REPLY_ATTACHMENT_MAX}
+              multiple
+              onChange={(event) => void handleFilesChosen(event)}
+              type="file"
+            />
+          </label>
+        </div>
+        <p className="text-caption text-text-muted">
+          Até {QUICK_REPLY_ATTACHMENT_MAX} arquivos de 25 MB. Ao usar a resposta, eles entram na caixa de envio da conversa e só saem quando você enviar.
+        </p>
+        {fileNotice ? (
+          <p className="text-caption font-medium text-danger" role="status">
+            {fileNotice}
+          </p>
+        ) : null}
+        {attachmentCount > 0 ? (
+          <ul className="divide-y divide-border rounded-control border border-border">
+            {keptAttachments.map((attachment) => (
+              <li className="flex min-h-11 items-center gap-2 px-2.5 py-1.5" data-testid="quick-reply-attachment" key={attachment.id}>
+                <Paperclip aria-hidden="true" className="shrink-0 text-text-muted" size={14} />
+                <span className="min-w-0 flex-1 truncate text-body text-text">{attachment.file_name}</span>
+                <span className="shrink-0 text-caption text-text-muted">{formatFileSize(attachment.size_bytes)}</span>
+                <button
+                  aria-label={`Remover ${attachment.file_name}`}
+                  className="flex size-11 shrink-0 items-center justify-center rounded-control text-text-muted hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  onClick={() => setRemovedIds((previous) => [...previous, attachment.id])}
+                  type="button"
+                >
+                  <X aria-hidden="true" size={16} />
+                </button>
+              </li>
+            ))}
+            {newFiles.map((file, index) => (
+              <li className="flex min-h-11 items-center gap-2 px-2.5 py-1.5" data-testid="quick-reply-attachment-new" key={`${file.name}-${index}`}>
+                <Paperclip aria-hidden="true" className="shrink-0 text-primary" size={14} />
+                <span className="min-w-0 flex-1 truncate text-body text-text">{file.name}</span>
+                <span className="shrink-0 text-caption text-text-muted">{formatFileSize(file.size)} · novo</span>
+                <button
+                  aria-label={`Remover ${file.name}`}
+                  className="flex size-11 shrink-0 items-center justify-center rounded-control text-text-muted hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  onClick={() => setNewFiles((previous) => previous.filter((_, position) => position !== index))}
+                  type="button"
+                >
+                  <X aria-hidden="true" size={16} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
 
       <label className="flex min-h-11 items-center gap-2 text-body text-text">
         <input

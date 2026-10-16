@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { AttachmentBadge } from "@/components/quick-replies/attachment-badge";
 import type { QuickReply } from "@/lib/quick-replies/types";
 import type { QuickReplyLoadState } from "@/components/quick-replies/use-quick-replies";
 
@@ -63,7 +64,10 @@ export function SlashMenu({ id, results, activeIndex, state, query, onPick, onHo
                 ref={active ? activeRef : undefined}
                 role="option"
               >
-                <span className="block truncate text-body font-semibold text-text">{reply.title}</span>
+                <span className="block truncate text-body font-semibold text-text">
+                  {reply.title}
+                  <AttachmentBadge count={reply.attachments?.length ?? 0} />
+                </span>
                 <span className="line-clamp-1 whitespace-pre-line break-words text-caption text-text-muted">{reply.body}</span>
               </li>
             );

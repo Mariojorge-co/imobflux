@@ -836,6 +836,42 @@ export type Database = {
         }
         Relationships: []
       }
+      quick_replies: {
+        Row: {
+          id: string
+          workspace_id: string
+          category_id: string | null
+          title: string
+          body: string
+          is_active: boolean
+          use_count: number
+          last_used_at: string | null
+          created_by_member_id: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: never
+        Update: never
+        Relationships: []
+      }
+      quick_reply_attachments: {
+        Row: {
+          id: string
+          workspace_id: string
+          quick_reply_id: string
+          storage_path: string
+          file_name: string
+          mime_type: string
+          size_bytes: number
+          media_kind: string
+          position: number
+          created_by_member_id: string
+          created_at: string
+        }
+        Insert: never
+        Update: never
+        Relationships: []
+      }
       messages: {
         Row: {
           is_history: boolean
@@ -1877,6 +1913,25 @@ export type Database = {
       }
       get_quick_replies: {
         Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      get_quick_reply_attachments: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      add_quick_reply_attachment: {
+        Args: {
+          p_reply_id: string
+          p_storage_path: string
+          p_file_name: string
+          p_mime_type: string
+          p_size_bytes: number
+          p_media_kind: string
+        }
+        Returns: Json
+      }
+      remove_quick_reply_attachment: {
+        Args: { p_attachment_id: string }
         Returns: Json
       }
       save_quick_reply_category: {

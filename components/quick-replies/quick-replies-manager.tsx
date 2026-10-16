@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { Plus, Zap } from "lucide-react";
 import { Button, Card, EmptyState } from "@/components/ui";
+import { AttachmentBadge } from "@/components/quick-replies/attachment-badge";
 import { HighlightedText } from "@/components/quick-replies/highlighted-text";
 import { ItemMenu } from "@/components/quick-replies/item-menu";
 import { useQuickReplyEditors } from "@/components/quick-replies/use-quick-reply-editors";
@@ -163,6 +164,7 @@ export function QuickRepliesManager({ initialLibrary }: { initialLibrary: QuickR
                             <div className="min-w-0 flex-1">
                               <p className="flex flex-wrap items-center gap-2 text-body font-semibold text-text">
                                 {reply.title}
+                                <AttachmentBadge count={reply.attachments?.length ?? 0} />
                                 {!reply.is_active ? (
                                   <span className="rounded-full bg-neutral-soft px-2 text-caption font-medium text-text-muted">
                                     Inativa

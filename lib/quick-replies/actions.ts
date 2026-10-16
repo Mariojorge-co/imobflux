@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getQuickReplyLibrary } from "@/lib/quick-replies/data";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { quickReplyErrorMessage } from "@/lib/quick-replies/permissions";
 import {
@@ -79,8 +80,12 @@ export async function deleteQuickReplyAction(replyId: string): Promise<QuickRepl
   if (!UUID_REGEX.test(replyId)) return { success: false, error: quickReplyErrorMessage("quick_reply_not_found") };
   try {
     const supabase = await createServerSupabaseClient();
+    // Os registros de anexo somem junto com a resposta (cascata); os arquivos do Storage são apagados depois.
+    const { data: stored } = await supabase.from("quick_reply_attachments").select("storage_path").eq("quick_reply_id", replyId);
     const { error } = await supabase.rpc("delete_quick_reply", { p_reply_id: replyId });
     if (error) return failure("deleteQuickReplyAction", error);
+    const paths = (stored ?? []).map((row) => row.storage_path);
+    if (paths.length > 0) await createAdminSupabaseClient().storage.from("whatsapp-media").remove(paths).catch(() => undefined);
     revalidatePath(SETTINGS_PATH);
     return { success: true };
   } catch (error) {

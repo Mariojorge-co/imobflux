@@ -1,6 +1,18 @@
 export const QUICK_REPLY_TITLE_MAX = 60;
 export const QUICK_REPLY_BODY_MAX = 4000;
 export const QUICK_REPLY_CATEGORY_MAX = 40;
+/** Máximo de arquivos por resposta (cada um de até 25 MB, como no envio normal). */
+export const QUICK_REPLY_ATTACHMENT_MAX = 5;
+
+export type QuickReplyAttachment = {
+  id: string;
+  quick_reply_id: string;
+  file_name: string;
+  mime_type: string;
+  size_bytes: number;
+  media_kind: "image" | "video" | "audio" | "document";
+  position: number;
+};
 
 export type QuickReplyCategory = {
   id: string;
@@ -17,6 +29,8 @@ export type QuickReply = {
   use_count: number;
   last_used_at: string | null;
   created_by_member_id: string;
+  /** Arquivos que acompanham a resposta (vazio/ausente = só texto). */
+  attachments?: QuickReplyAttachment[];
 };
 
 export type QuickReplyViewer = { member_id: string; role: "owner" | "attendant" };
