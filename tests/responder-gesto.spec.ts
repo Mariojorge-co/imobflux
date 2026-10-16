@@ -177,7 +177,7 @@ test.describe("Responder: duplo clique, deslizar e foco", () => {
     await bubble.scrollIntoViewIfNeeded();
     const area = (await bubble.boundingBox())!;
     const cdp = await context.newCDPSession(page);
-    const touch = async (type: string, x: number, y: number) =>
+    const touch = async (type: "touchStart" | "touchMove" | "touchEnd", x: number, y: number) =>
       cdp.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [{ x, y, id: 1 }] });
     const y = area.y + area.height / 2;
     const x0 = area.x + 20;

@@ -183,6 +183,36 @@ test.describe("Correções pós-teste das mensagens", () => {
     expect(queryLocalSql("select count(*) from public.messages where external_message_id = 'PH-DEL-1' and deleted_at is not null and deleted_source = 'whatsapp';")).toBe("1");
   });
 
+  test("edição no CELULAR que chega cifrada (secretEncryptedMessage) ou só com a chave: o app pergunta à Evolution o texto atual e aplica", async ({ page, request }) => {
+    test.setTimeout(120_000);
+    await phoneText(request, { text: "Texto s1 do celular", fromMe: true, id: "PH-S1" });
+    fake.behavior.findMessages = (body) => {
+      const id = (body.where as { key?: { id?: string } } | undefined)?.key?.id;
+      return { messages: { total: 1, records: [{ key: { id, fromMe: true }, message: { conversation: "Texto s2 editado no celular" } }] } };
+    };
+    // 1) forma real do reteste: upsert com secretEncryptedMessage (cifrada, sem texto)
+    await post(request, {
+      key: { remoteJid: "123456789012345@lid", remoteJidAlt: REAL_JID, fromMe: true, id: "SECRET-EDIT-1", participant: "", addressingMode: "lid" },
+      message: { secretEncryptedMessage: { targetMessageKey: key("PH-S1", true), encPayload: { 0: 1, 1: 2 }, encIv: { 0: 1 }, secretEncType: 2 } },
+      messageType: "secretEncryptedMessage",
+      messageTimestamp: Math.floor(Date.now() / 1000),
+    });
+    await open(page);
+    const edited = row(page, "Texto s2 editado no celular");
+    await expect(edited).toBeVisible();
+    await expect(edited.getByTestId("edited-mark")).toBeVisible();
+    await expect(edited.getByTestId("wa-pending")).toHaveCount(0);
+    expect(queryLocalSql("select count(*) from public.message_edits where source = 'whatsapp' and new_text = 'Texto s2 editado no celular';")).toBe("1");
+    expect(requestsTo("/chat/findMessages/").length).toBeGreaterThanOrEqual(1);
+    // 2) messages.edited só com { key, type }: repetir não duplica a edição
+    await post(request, { key: key("PH-S1", true), type: "MESSAGE_EDIT" }, "messages.edited");
+    expect(queryLocalSql("select edit_count from public.messages where external_message_id = 'PH-S1';")).toBe("1");
+    // 3) a Evolution ainda sem o texto novo: nada muda e a resposta é 200
+    fake.behavior.findMessages = () => ({ messages: { total: 0, records: [] } });
+    await post(request, { key: key("PH-S1", true), type: "MESSAGE_EDIT" }, "messages.edited");
+    expect(queryLocalSql("select edit_count from public.messages where external_message_id = 'PH-S1';")).toBe("1");
+  });
+
   test("resposta feita no CELULAR mostra a citação (contextInfo na mensagem e no nível do evento)", async ({ page, request }) => {
     test.setTimeout(120_000);
     await open(page);

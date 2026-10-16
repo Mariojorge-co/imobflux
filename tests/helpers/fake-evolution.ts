@@ -21,6 +21,8 @@ export type FakeEvolution = {
     delay?: (request: { path: string; body: Record<string, unknown> }) => number;
     /** JID REAL do WhatsApp para um número (POST /chat/whatsappNumbers). Devolva null para "número não encontrado". Padrão: o próprio número. */
     jidFor?: (digits: string) => string | null;
+    /** Resposta de POST /chat/findMessages (a Evolution guarda a mensagem; depois de uma edição o texto novo está lá). */
+    findMessages?: (body: Record<string, unknown>) => unknown;
   };
   reset: () => void;
   close: () => Promise<void>;
@@ -59,6 +61,12 @@ export async function startFakeEvolution(port: number): Promise<FakeEvolution> {
       }
       // O pedido só aparece em `requests` depois do download (quando há), para o teste nunca ler o registro pela metade.
       requests.push(entry);
+      if (path.includes("/chat/findMessages/")) {
+        const answer = behavior.findMessages ? behavior.findMessages(body) : { messages: { total: 0, records: [] } };
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify(answer));
+        return;
+      }
       // Consulta do JID real do chat (a Evolution responde uma lista com { exists, jid, number }).
       if (path.includes("/chat/whatsappNumbers/")) {
         const numbers = Array.isArray(body.numbers) ? (body.numbers as string[]) : [];
@@ -105,6 +113,7 @@ export async function startFakeEvolution(port: number): Promise<FakeEvolution> {
       behavior.fail = undefined;
       behavior.delay = undefined;
       behavior.jidFor = undefined;
+      behavior.findMessages = undefined;
     },
     close: () => new Promise<void>((resolve) => server.close(() => resolve())),
   };
