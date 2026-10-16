@@ -7,6 +7,7 @@ import { EmojiPicker } from "@/components/conversations/emoji-picker";
 import { FloatingMenu } from "@/components/ui/floating-menu";
 import { Reply } from "lucide-react";
 import { isReplyGestureTarget, swipeTriggered, updateSwipe, type SwipeState } from "@/lib/conversations/reply-gesture";
+import { ESCAPE_PRIORITY, useEscapeLayer } from "@/lib/ui/escape-stack";
 import { isStickerMessage } from "@/lib/conversations/sticker";
 import { outgoingStatusLabel } from "@/lib/conversations/message-merge";
 import type { ConversationMessage } from "@/lib/conversations/data";
@@ -106,17 +107,10 @@ export function MessageBubble({
   const [swipeOffset, setSwipeOffset] = useState(0);
   const showPendingMark = usePendingMark(message.wa_pending_action, message.deleted_at ?? message.edited_at);
 
-  // Fecha o menu ao clicar fora ou apertar Esc.
+  // Fecha o menu ao clicar fora; o Esc fecha uma camada por vez: primeiro o menu, depois o seletor de emoji.
   useEffect(() => {
     if (!menuOpen && !pickerOpen) return;
     const close = (event: Event) => {
-      if (event instanceof KeyboardEvent) {
-        if (event.key === "Escape") {
-          setMenuOpen(false);
-          setPickerOpen(false);
-        }
-        return;
-      }
       // O menu e o seletor de emoji ficam num portal (fora da bolha): clicar neles não é "clicar fora".
       if (event.target instanceof Element && event.target.closest("[data-floating-menu]")) return;
       if (wrapperRef.current && event.target instanceof Node && !wrapperRef.current.contains(event.target)) {
@@ -125,12 +119,10 @@ export function MessageBubble({
       }
     };
     document.addEventListener("mousedown", close);
-    document.addEventListener("keydown", close);
-    return () => {
-      document.removeEventListener("mousedown", close);
-      document.removeEventListener("keydown", close);
-    };
+    return () => document.removeEventListener("mousedown", close);
   }, [menuOpen, pickerOpen]);
+  useEscapeLayer(menuOpen, ESCAPE_PRIORITY.messageMenu, () => setMenuOpen(false));
+  useEscapeLayer(pickerOpen, ESCAPE_PRIORITY.emojiPicker, () => setPickerOpen(false));
 
   // Tentar de novo: mensagem do CRM que falhou (a nova tentativa é uma nova mensagem). Arquivo só se já foi gravado
   // no servidor (id real); senão só dá para remover a bolha.

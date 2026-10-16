@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic, Send, Trash2, Square } from "lucide-react";
 import type { VoiceToSend } from "@/lib/conversations/send-client";
+import { ESCAPE_PRIORITY, useEscapeLayer } from "@/lib/ui/escape-stack";
 import { MAX_VOICE_SECONDS, formatVoiceTime, pickVoiceFormat, voiceErrorMessage } from "@/lib/conversations/voice";
 
 type Phase = "idle" | "recording" | "review";
@@ -159,6 +160,12 @@ export function VoiceRecorder({ disabled, onSend, onNotice, onActiveChange }: Vo
     clearPreview();
     finish("idle");
   };
+
+  // Esc cancela a gravação (ou descarta o áudio gravado que ainda não foi enviado); nada é enviado.
+  useEscapeLayer(phase !== "idle", ESCAPE_PRIORITY.voiceRecording, () => {
+    if (phase === "recording") cancel();
+    else discard();
+  });
 
   if (phase === "idle") {
     return (

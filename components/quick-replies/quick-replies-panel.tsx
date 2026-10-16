@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import { ChevronDown, ChevronRight, Plus, Search, Settings2, X, Zap } from "lucide-react";
 import { Button } from "@/components/ui";
+import { ESCAPE_PRIORITY, useEscapeLayer } from "@/lib/ui/escape-stack";
 import { HighlightedText } from "@/components/quick-replies/highlighted-text";
 import { ItemMenu } from "@/components/quick-replies/item-menu";
 import { useQuickReplyEditors } from "@/components/quick-replies/use-quick-reply-editors";
@@ -48,6 +49,10 @@ export function QuickRepliesPanel({ open, onClose, library, state, error, onRelo
   const [exampleError, setExampleError] = useState<string | null>(null);
   const [isAddingExamples, startExamples] = useTransition();
   const editors = useQuickReplyEditors(library, onReload);
+  // Esc fecha o painel como uma camada (uma por vez, por cima da conversa).
+  useEscapeLayer(open, ESCAPE_PRIORITY.drawer, () => {
+    onClose();
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -57,11 +62,6 @@ export function QuickRepliesPanel({ open, onClose, library, state, error, onRelo
       const target = event.target as Element | null;
       // Esc e Tab dentro de formulários/menus abertos por cima do painel pertencem a eles.
       if (target?.closest?.('dialog, [role="menu"]')) return;
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onClose();
-        return;
-      }
       if (event.key !== "Tab" || !panelRef.current) return;
       const focusable = [
         ...panelRef.current.querySelectorAll<HTMLElement>(

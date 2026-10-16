@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
+import { ESCAPE_PRIORITY, useEscapeLayer } from "@/lib/ui/escape-stack";
 
 type DrawerProps = {
   children: ReactNode;
@@ -15,16 +16,16 @@ export function Drawer({ children, onClose, open, title }: DrawerProps) {
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const panelRef = useRef<HTMLElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  // O Esc fecha o painel como uma camada (uma por vez, na ordem certa em relação ao resto da tela).
+  useEscapeLayer(open, ESCAPE_PRIORITY.drawer, () => {
+    onClose();
+  });
 
   useEffect(() => {
     if (!open) return;
     previousFocusRef.current = document.activeElement as HTMLElement | null;
     const focusFrame = requestAnimationFrame(() => closeButtonRef.current?.focus());
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-        return;
-      }
       if (event.key !== "Tab" || !panelRef.current) return;
 
       const focusable = [...panelRef.current.querySelectorAll<HTMLElement>(

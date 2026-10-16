@@ -3,29 +3,30 @@
 import { Menu, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { LogoutButton } from "@/components/auth/logout-button";
+import { GlobalShortcuts } from "@/components/global-shortcuts";
 import { NavigationLinks } from "@/components/sidebar";
 import { Button } from "@/components/ui";
+import { ESCAPE_PRIORITY, useEscapeLayer } from "@/lib/ui/escape-stack";
 
 export function Topbar({ role }: { role: "owner" | "attendant" }) {
   const [isNavigationOpen, setIsNavigationOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+  useEscapeLayer(isNavigationOpen, ESCAPE_PRIORITY.drawer, () => {
+    setIsNavigationOpen(false);
+    menuButtonRef.current?.focus();
+  });
 
   return (
     <header
       aria-label="Barra superior"
       className="sticky top-0 z-30 h-topbar border-b border-border bg-surface md:static"
-      onKeyDown={(event) => {
-        if (event.key === "Escape" && isNavigationOpen) {
-          setIsNavigationOpen(false);
-          menuButtonRef.current?.focus();
-        }
-      }}
     >
       <div className="flex h-full items-center justify-between px-stack sm:px-page">
         <span className="text-xl font-bold tracking-tight text-text md:hidden">
           ImobFlux
         </span>
         <div className="ml-auto flex items-center gap-inline">
+          <GlobalShortcuts />
           <LogoutButton />
           <Button
             aria-controls="mobile-navigation"

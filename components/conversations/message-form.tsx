@@ -13,6 +13,8 @@ import { FileText, Lock, Maximize2, MessageSquare, Minimize2, Paperclip, Pencil,
 import { OutgoingFilesTray } from "@/components/conversations/outgoing-files-tray";
 import { VoiceRecorder } from "@/components/conversations/voice-recorder";
 import { captionKeyAction, replyPreviewText } from "@/lib/conversations/message-ui";
+import { getDraft, setDraft } from "@/lib/conversations/drafts";
+import { ESCAPE_PRIORITY, useEscapeLayer } from "@/lib/ui/escape-stack";
 import type { ReplyRef } from "@/lib/conversations/message-merge";
 import type { OutgoingFiles } from "@/components/conversations/use-outgoing-files";
 import { ACCEPT_ATTRIBUTE } from "@/lib/conversations/outgoing-files";
@@ -95,7 +97,8 @@ export function MessageForm({
     setSeenReplyId(replyId);
     if (replyId && activeTab !== "message") setActiveTab("message");
   }
-  const [text, setText] = useState("");
+  // O rascunho da conversa volta ao reabri-la (inclusive depois do Esc, que fecha a conversa).
+  const [text, setText] = useState(() => getDraft(conversationId));
   const [voiceActive, setVoiceActive] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{
@@ -213,6 +216,10 @@ export function MessageForm({
     [slash, quick.library],
   );
   const slashOpen = slash !== null;
+  useEscapeLayer(slashOpen, ESCAPE_PRIORITY.slashList, () => {
+    dismissedSlashRef.current = slash?.start ?? null;
+    setSlash(null);
+  });
   const slashMenuId = `${inputId}-slash`;
 
   // Insere a resposta na caixa (NUNCA envia): variáveis resolvidas, texto editável, cursor no fim do trecho inserido.
@@ -243,19 +250,38 @@ export function MessageForm({
     quick.recordUse(reply.id);
   };
 
-  // Editar: o texto da mensagem vai para a caixa; Esc cancela (ao sair, a caixa volta ao rascunho vazio).
+  // Editar: o texto da mensagem vai para a caixa; Esc cancela. Ao terminar (salvar, cancelar), a caixa volta ao rascunho
+  // que a pessoa tinha antes de começar a editar.
   const editingId = editing?.id ?? null;
   const editingText = editing?.text ?? "";
   const [loadedEditId, setLoadedEditId] = useState<string | null>(null);
+  const [textBeforeEdit, setTextBeforeEdit] = useState("");
   if (editingId !== loadedEditId) {
-    // Começou (ou terminou) uma edição: carrega o texto na caixa (ajuste de estado durante a renderização).
+    // Começou (ou terminou) uma edição (ajuste de estado durante a renderização).
     setLoadedEditId(editingId);
     if (editingId) {
+      setTextBeforeEdit(text);
       setActiveTab("message");
       setText(editingText);
       setFeedback(null);
+    } else {
+      setText(textBeforeEdit);
     }
   }
+
+  // Salva o rascunho (só da aba Mensagem e fora da edição).
+  useEffect(() => {
+    if (editingId || activeTab !== "message") return;
+    setDraft(conversationId, text);
+  }, [text, editingId, activeTab, conversationId]);
+
+  // Esc, uma camada por vez (ver lib/ui/escape-stack): edição, citação e a lista "/" de respostas rápidas.
+  useEscapeLayer(Boolean(editing), ESCAPE_PRIORITY.messageEdit, () => {
+    onCancelEdit?.();
+  });
+  useEscapeLayer(Boolean(replyTo) && !editing, ESCAPE_PRIORITY.replyCard, () => {
+    onCancelReply?.();
+  });
   useEffect(() => {
     if (!editingId) return;
     const timer = window.setTimeout(() => {
@@ -282,8 +308,7 @@ export function MessageForm({
       setFeedback(null);
       try {
         const result = await onSaveEdit(editing.id, trimmed);
-        if (result.success) setText("");
-        else setFeedback({ type: "error", message: result.error ?? "Não foi possível editar a mensagem." });
+        if (!result.success) setFeedback({ type: "error", message: result.error ?? "Não foi possível editar a mensagem." });
       } catch {
         setFeedback({ type: "error", message: "Erro de conexão ao editar a mensagem." });
       } finally {
@@ -389,12 +414,6 @@ export function MessageForm({
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (slashOpen) {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        dismissedSlashRef.current = slash?.start ?? null;
-        setSlash(null);
-        return;
-      }
       if (quick.state !== "ready" && e.key === "Enter" && !e.shiftKey) {
         // Lista ainda carregando: Enter não envia a barra solta.
         e.preventDefault();
@@ -416,19 +435,6 @@ export function MessageForm({
           insertQuickReply(slashResults[Math.min(slashIndex, slashResults.length - 1)], "slash");
           return;
         }
-      }
-    }
-    if (e.key === "Escape" && !slashOpen) {
-      if (editing) {
-        e.preventDefault();
-        setText("");
-        onCancelEdit?.();
-        return;
-      }
-      if (replyTo) {
-        e.preventDefault();
-        onCancelReply?.();
-        return;
       }
     }
     if (captionKeyAction({ key: e.key, shiftKey: e.shiftKey, isComposing: e.nativeEvent.isComposing }) === "send") {
@@ -593,10 +599,7 @@ export function MessageForm({
             aria-label="Cancelar edição"
             className="flex size-7 shrink-0 items-center justify-center rounded-control text-warning hover:bg-surface/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             data-testid="edit-cancel"
-            onClick={() => {
-              setText("");
-              onCancelEdit?.();
-            }}
+            onClick={() => onCancelEdit?.()}
             type="button"
           >
             <X aria-hidden="true" size={14} />

@@ -92,6 +92,26 @@ export function ConversationsList({
     itemsRef.current = items;
   }, [items]);
 
+  // Alt + seta para cima/baixo: conversa anterior/próxima da lista (não toma nenhuma tecla do navegador).
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+      if (document.querySelector("dialog[open]")) return;
+      const list = itemsRef.current;
+      if (list.length === 0) return;
+      const index = list.findIndex((item) => item.conversation_id === selectedId);
+      const next = event.key === "ArrowDown"
+        ? (index < 0 ? 0 : Math.min(list.length - 1, index + 1))
+        : (index < 0 ? list.length - 1 : Math.max(0, index - 1));
+      if (next === index) return;
+      event.preventDefault();
+      router.push(`/conversas/${list[next].conversation_id}`);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [router, selectedId]);
+
   // Reseta a lista sempre que a busca mudar
   const handleSearchChange = useCallback(
     (value: string) => {
@@ -122,6 +142,7 @@ export function ConversationsList({
         });
       }
       if (e.key === "Escape") {
+        e.preventDefault(); // só limpa a busca; não fecha a conversa
         setSearch("");
         startTransition(async () => {
           const results = await searchConversationsAction("", undefined, view);

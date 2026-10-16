@@ -40,6 +40,7 @@ import { SlaControl, type SlaMode } from "@/components/conversations/sla-control
 import { resolveOpportunityTargets } from "@/lib/conversations/opportunity-targets";
 import { copyableText, quoteAuthorLabel, snapshotFromMessage, type Viewer } from "@/lib/conversations/message-ui";
 import type { ReplyRef } from "@/lib/conversations/message-merge";
+import { ESCAPE_PRIORITY, isEditableTarget, useEscapeLayer } from "@/lib/ui/escape-stack";
 import type {
   ConversationContextData,
   ConversationListItem,
@@ -641,6 +642,19 @@ export function MessagesPanel({
     setSearchError(null);
     setHighlightedId(null);
   }, []);
+
+  // Esc: a busca na conversa fecha antes de tudo que está abaixo dela; por último, o Esc fecha a própria conversa (como no
+  // WhatsApp Web), devolve o foco ao item da lista e NÃO descarta o rascunho nem a fila de envio (ambos vivem fora da tela).
+  useEscapeLayer(searchOpen, ESCAPE_PRIORITY.conversationSearch, () => {
+    closeSearch();
+  });
+  useEscapeLayer(true, ESCAPE_PRIORITY.closeConversation, (event) => {
+    // Em outro campo de texto (que não seja a caixa de mensagem) o Esc é desse campo.
+    if (isEditableTarget(event.target) && !(event.target as HTMLElement).closest("[data-testid=message-composer]")) return false;
+    const id = conversation.conversation_id;
+    router.push("/conversas");
+    window.setTimeout(() => document.getElementById(`conv-card-${id}`)?.focus(), 150);
+  });
 
   const handleTogglePin = () => {
     startTransition(async () => {

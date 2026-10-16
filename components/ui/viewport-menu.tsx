@@ -2,6 +2,7 @@
 
 import { createPortal } from "react-dom";
 import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { ESCAPE_PRIORITY, useEscapeLayer } from "@/lib/ui/escape-stack";
 
 type ViewportMenuProps = {
   anchorRef: RefObject<HTMLElement | null>;
@@ -28,6 +29,10 @@ export function ViewportMenu({
   open,
 }: ViewportMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
+  // Esc fecha o menu (uma camada, a de cima).
+  useEscapeLayer(open, ESCAPE_PRIORITY.messageMenu, () => {
+    onClose();
+  });
   const [position, setPosition] = useState<MenuPosition>({
     left: 0,
     top: 0,
@@ -67,19 +72,14 @@ export function ViewportMenu({
         onClose();
       }
     };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
 
     updatePosition();
     document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
     window.addEventListener("resize", updatePosition);
     window.addEventListener("scroll", updatePosition, true);
 
     return () => {
       document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
     };
