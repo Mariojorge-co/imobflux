@@ -129,3 +129,11 @@ Se algum passo falhar, anote qual e envie; os passos 6, 9, 10 e 12 são os que c
 1. **Trava A (banco)**: backup → `migration list` → dry-run → parar e pedir "autorizo" → `db push` das migrations `005700` a `006200` → validação somente leitura → apagar backup. As migrations são **retrocompatíveis** com o app que está em produção hoje (só adicionam colunas/tabelas/funções e recriam leituras com campos a mais).
 2. **Trava B (app)**: checklist completo → merge `--ff-only` → push → CI (`gh`) e Vercel (`vercel ls`) → smoke test somente leitura.
 3. Rollbacks em `docs/rollback/` na ordem inversa (`006200` → `005700`); o app novo precisa ser revertido antes ou junto.
+
+## Fechamento da publicação (2026-10-16)
+
+- **Trava A**: backup (esquema e dados, fora do repositório) → `migration list` (só 005700–006200 pendentes) → dry-run → `db push --linked` sem erro → validação somente leitura (20 funções, 4 tabelas com RLS, 266 mensagens intactas, permissões corretas) → backup apagado.
+- **Trava B**: merge ff-only da `feat/pacote-mensagens` na `main` (`104ecfe`), push, CI com os dois jobs em Node 22 (`Banco (migrations + pgTAP)` e `Lint, tipos, testes unitários e build`) em **success**; Vercel: deploy de Production **Ready**.
+- **Smoke test somente leitura**: `/login` 200; `/prioridades`, `/conversas`, `/kanban`, `/contatos`, `/tarefas` e `/configuracoes` 307 (redirecionam para o login); o webhook responde 405 a GET.
+- Variáveis de ambiente da Vercel **não tocadas** (`EVOLUTION_INSTANCE_NAME` mantida).
+- **Falta**: o teste real no celular (roteiro acima).
