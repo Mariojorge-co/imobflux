@@ -1234,6 +1234,10 @@ export function MessagesPanel({
             context={selectedContext}
             conversationId={conversation.conversation_id}
             key={effectiveOpportunityId}
+            liveNotes={threadNotes}
+            onNoteDelete={handleNoteDelete}
+            onNoteEdit={handleNoteEdit}
+            viewer={viewer}
             onOpportunityChange={setSelectedOpportunityId}
             onContactUpdated={handleContactUpdated}
             opportunities={opportunityContexts}

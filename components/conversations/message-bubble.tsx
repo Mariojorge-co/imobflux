@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Copy, CornerUpLeft, CornerUpRight, EyeOff, Forward, History, Paperclip, Pencil, RotateCw, SmilePlus, Trash2 } from "lucide-react";
 import { AttachmentView } from "@/components/conversations/attachment-view";
 import { EmojiPicker } from "@/components/conversations/emoji-picker";
+import { FloatingMenu } from "@/components/ui/floating-menu";
 import { isStickerMessage } from "@/lib/conversations/sticker";
 import { outgoingStatusLabel } from "@/lib/conversations/message-merge";
 import type { ConversationMessage } from "@/lib/conversations/data";
@@ -79,6 +80,7 @@ export function MessageBubble({
   const [menuOpen, setMenuOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   // Fecha o menu ao clicar fora ou apertar Esc.
   useEffect(() => {
@@ -91,6 +93,8 @@ export function MessageBubble({
         }
         return;
       }
+      // O menu e o seletor de emoji ficam num portal (fora da bolha): clicar neles não é "clicar fora".
+      if (event.target instanceof Element && event.target.closest("[data-floating-menu]")) return;
       if (wrapperRef.current && event.target instanceof Node && !wrapperRef.current.contains(event.target)) {
         setMenuOpen(false);
         setPickerOpen(false);
@@ -308,6 +312,7 @@ export function MessageBubble({
                 menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100",
               ].join(" ")}
               data-testid="message-menu-button"
+              ref={menuButtonRef}
               onClick={() => {
                 setPickerOpen(false);
                 setMenuOpen((value) => !value);
@@ -319,13 +324,15 @@ export function MessageBubble({
           </div>
         ) : null}
 
-        {/* Menu e seletor de emoji ancorados na bolha (não no botão): nunca saem da tela no celular */}
-          {menuOpen ? (
-            <div
-              className={["absolute top-9 z-30 w-48 rounded-card border border-border bg-surface py-1 shadow-lg", isOutgoing ? "right-0" : "left-0"].join(" ")}
-              data-testid="message-menu"
-              role="menu"
-            >
+        {/* Menu e seletor de emoji: em portal, sempre dentro da tela (viram para cima quando falta espaço embaixo) */}
+          <FloatingMenu
+            align={isOutgoing ? "end" : "start"}
+            anchorRef={menuButtonRef}
+            className="w-48 rounded-card border border-border bg-surface py-1 shadow-lg"
+            data-testid="message-menu"
+            open={menuOpen}
+            role="menu"
+          >
               {capabilities.canReply ? (
                 <MenuItem icon={<CornerUpLeft size={15} />} label="Responder" onClick={run(onReply)} testId="action-reply" />
               ) : null}
@@ -355,20 +362,17 @@ export function MessageBubble({
               {capabilities.canHide ? (
                 <MenuItem danger icon={<EyeOff size={15} />} label="Apagar para mim" onClick={run(onHide)} testId="action-hide" />
               ) : null}
-            </div>
-          ) : null}
+          </FloatingMenu>
 
-          {pickerOpen ? (
-            <div className={["absolute top-9 z-30", isOutgoing ? "right-0" : "left-0"].join(" ")}>
-              <EmojiPicker
-                current={myReaction}
-                onPick={(emoji) => {
-                  setPickerOpen(false);
-                  onReact?.(message, emoji);
-                }}
-              />
-            </div>
-          ) : null}
+          <FloatingMenu align={isOutgoing ? "end" : "start"} anchorRef={menuButtonRef} data-testid="message-emoji-picker" open={pickerOpen}>
+            <EmojiPicker
+              current={myReaction}
+              onPick={(emoji) => {
+                setPickerOpen(false);
+                onReact?.(message, emoji);
+              }}
+            />
+          </FloatingMenu>
       </div>
     </div>
   );

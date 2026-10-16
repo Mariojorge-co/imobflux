@@ -19,6 +19,8 @@ export type FakeEvolution = {
   behavior: {
     fail?: (request: { path: string; body: Record<string, unknown> }) => number | null;
     delay?: (request: { path: string; body: Record<string, unknown> }) => number;
+    /** JID REAL do WhatsApp para um número (POST /chat/whatsappNumbers). Devolva null para "número não encontrado". Padrão: o próprio número. */
+    jidFor?: (digits: string) => string | null;
   };
   reset: () => void;
   close: () => Promise<void>;
@@ -57,6 +59,17 @@ export async function startFakeEvolution(port: number): Promise<FakeEvolution> {
       }
       // O pedido só aparece em `requests` depois do download (quando há), para o teste nunca ler o registro pela metade.
       requests.push(entry);
+      // Consulta do JID real do chat (a Evolution responde uma lista com { exists, jid, number }).
+      if (path.includes("/chat/whatsappNumbers/")) {
+        const numbers = Array.isArray(body.numbers) ? (body.numbers as string[]) : [];
+        const list = numbers.map((digits) => {
+          const jid = behavior.jidFor ? behavior.jidFor(digits) : `${digits}@s.whatsapp.net`;
+          return jid ? { exists: true, jid, number: digits } : { exists: false, jid: `${digits}@s.whatsapp.net`, number: digits };
+        });
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify(list));
+        return;
+      }
       const wait = behavior.delay?.(info) ?? 0;
       setTimeout(() => {
         const downloadFailed = entry.download !== undefined && entry.download.status !== 200;
@@ -91,6 +104,7 @@ export async function startFakeEvolution(port: number): Promise<FakeEvolution> {
       requests.length = 0;
       behavior.fail = undefined;
       behavior.delay = undefined;
+      behavior.jidFor = undefined;
     },
     close: () => new Promise<void>((resolve) => server.close(() => resolve())),
   };

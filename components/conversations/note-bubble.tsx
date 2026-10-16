@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ConfirmDialog } from "@/components/quick-replies/confirm-dialog";
 import { Lock, Pencil, Trash2 } from "lucide-react";
 import { splitForHighlight } from "@/lib/conversations/message-ui";
 import type { ThreadNote } from "@/lib/conversations/message-actions";
@@ -22,6 +23,7 @@ export function NoteBubble({ note, viewer, highlight, onEdit, onDelete }: NoteBu
   const [draft, setDraft] = useState(note.content);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const isAuthor = Boolean(viewer && viewer.memberId === note.author_member_id);
   const canEdit = isAuthor;
@@ -41,12 +43,12 @@ export function NoteBubble({ note, viewer, highlight, onEdit, onDelete }: NoteBu
 
   const remove = async () => {
     if (busy) return;
-    if (!window.confirm("Apagar esta nota interna? Ela some para toda a equipe.")) return;
     setBusy(true);
     setError(null);
     const result = await onDelete(note.id);
     setBusy(false);
-    if (!result.success) setError(result.error ?? "Não foi possível apagar a nota.");
+    if (result.success) setConfirmOpen(false);
+    else setError(result.error ?? "Não foi possível apagar a nota.");
   };
 
   return (
@@ -120,27 +122,44 @@ export function NoteBubble({ note, viewer, highlight, onEdit, onDelete }: NoteBu
           {!editing && canEdit ? (
             <button
               aria-label="Editar nota"
-              className="flex size-7 items-center justify-center rounded-control hover:bg-amber-100 dark:hover:bg-amber-500/20"
+              className="inline-flex min-h-8 items-center gap-1 rounded-control px-2 font-medium text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600 dark:text-amber-200 dark:hover:bg-amber-500/20 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:px-3"
               data-testid="note-edit"
               onClick={() => setEditing(true)}
               type="button"
             >
-              <Pencil aria-hidden="true" size={13} />
+              <Pencil aria-hidden="true" size={13} /> Editar
             </button>
           ) : null}
           {!editing && canDelete ? (
             <button
               aria-label="Apagar nota"
-              className="flex size-7 items-center justify-center rounded-control hover:bg-amber-100 dark:hover:bg-amber-500/20"
+              className="inline-flex min-h-8 items-center gap-1 rounded-control px-2 font-medium text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600 dark:text-amber-200 dark:hover:bg-amber-500/20 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:px-3"
               data-testid="note-delete"
-              onClick={() => void remove()}
+              onClick={() => setConfirmOpen(true)}
               type="button"
             >
-              <Trash2 aria-hidden="true" size={13} />
+              <Trash2 aria-hidden="true" size={13} /> Apagar
             </button>
           ) : null}
         </div>
       </div>
+
+      <ConfirmDialog
+        confirmLabel="Apagar nota"
+        description="A nota interna some para toda a equipe. Ela nunca foi enviada ao cliente."
+        destructive
+        error={confirmOpen ? error : null}
+        onCancel={() => {
+          if (!busy) {
+            setConfirmOpen(false);
+            setError(null);
+          }
+        }}
+        onConfirm={() => void remove()}
+        open={confirmOpen}
+        pending={busy}
+        title="Apagar esta nota?"
+      />
     </div>
   );
 }

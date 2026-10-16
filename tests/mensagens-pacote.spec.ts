@@ -45,8 +45,10 @@ async function menu(page: Page, text: string): Promise<Locator> {
   const target = row(page, text);
   await target.hover();
   await target.getByTestId("message-menu-button").click();
-  await expect(target.getByTestId("message-menu")).toBeVisible();
-  return target;
+  // O menu fica num portal (fora da bolha, sempre dentro da tela): as ações são procuradas nele.
+  const menuBox = page.getByTestId("message-menu");
+  await expect(menuBox).toBeVisible();
+  return menuBox;
 }
 
 async function send(page: Page, text: string) {
@@ -567,8 +569,8 @@ test.describe("Pacote de mensagens", () => {
     const ownerView = page.getByTestId("internal-note").filter({ hasText: "visita no domingo" });
     await expect(ownerView).toBeVisible();
     await expect(ownerView.getByTestId("note-edit")).toHaveCount(0);
-    page.once("dialog", (dialog) => void dialog.accept());
     await ownerView.getByTestId("note-delete").click();
+    await page.locator("dialog[open]").getByRole("button", { name: "Apagar nota" }).click();
     await expect(page.getByTestId("internal-note").filter({ hasText: "visita no domingo" })).toHaveCount(0);
     expect(queryLocalSql("select count(*) from public.audit_events where action = 'conversation.note_deleted';")).toBe("1");
     expect(fake.requests.length - sendsBefore).toBe(0);

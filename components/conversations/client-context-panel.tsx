@@ -23,10 +23,17 @@ import {
 } from "@/lib/conversations/actions";
 import type { ConversationContextData } from "@/lib/conversations/data";
 import { formatRelativeTime } from "@/lib/date";
+import { InternalNoteCard, type NoteViewer } from "@/components/conversations/internal-note-card";
+import type { ThreadNote } from "@/lib/conversations/message-actions";
 
 import { formatCurrency, formatEnumLabel } from "@/lib/formatters";
 
 type ClientContextPanelProps = {
+  /** Notas internas ao vivo (com autor e edição). Sem elas, usa as notas carregadas com o contexto (só leitura). */
+  liveNotes?: ThreadNote[];
+  viewer?: NoteViewer;
+  onNoteEdit?: (noteId: string, content: string) => Promise<{ success: boolean; error?: string }>;
+  onNoteDelete?: (noteId: string) => Promise<{ success: boolean; error?: string }>;
   conversationId: string;
   context: ConversationContextData;
   stages?: Array<{ id: string; name: string }>;
@@ -37,6 +44,10 @@ type ClientContextPanelProps = {
 };
 
 export function ClientContextPanel({
+  liveNotes,
+  viewer = null,
+  onNoteEdit,
+  onNoteDelete,
   conversationId,
   context,
   stages = [],
@@ -599,7 +610,17 @@ export function ClientContextPanel({
           Notas internas
         </h2>
 
-        {context.notes.length === 0 ? (
+        {liveNotes && onNoteEdit && onNoteDelete ? (
+          liveNotes.length === 0 ? (
+            <p className="text-xs text-text-muted">Nenhuma nota interna registrada</p>
+          ) : (
+            <div className="space-y-2">
+              {liveNotes.map((note) => (
+                <InternalNoteCard key={note.id} note={note} onDelete={onNoteDelete} onEdit={onNoteEdit} viewer={viewer} />
+              ))}
+            </div>
+          )
+        ) : context.notes.length === 0 ? (
           <p className="text-xs text-text-muted">Nenhuma nota interna registrada</p>
         ) : (
           <div className="space-y-2">
