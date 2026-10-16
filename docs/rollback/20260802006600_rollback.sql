@@ -13,5 +13,6 @@ drop function if exists public.remove_quick_reply_attachment(uuid);
 drop function if exists public.add_quick_reply_attachment(uuid, text, text, text, bigint, text);
 drop function if exists public.get_quick_reply_attachments();
 drop table if exists public.quick_reply_attachments;
+alter table public.quick_replies drop constraint if exists uq_quick_replies_workspace_id;
 
 commit;

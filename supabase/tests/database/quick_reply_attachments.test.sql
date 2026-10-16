@@ -2,7 +2,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions, auth, pg_catalog;
 
-select plan(24);
+select plan(27);
 
 insert into auth.users (id, email)
 values
@@ -139,9 +139,17 @@ select ok(
     'o dono remove e recebe o caminho para apagar o arquivo');
 select is(jsonb_array_length(public.get_quick_reply_attachments()), 6, 'sobram 6');
 
--- apagar a resposta apaga os anexos (cascata)
-select public.delete_quick_reply((select id from qa_ids where name = 'r_att1'));
-select is(jsonb_array_length(public.get_quick_reply_attachments()), 1, 'apagar a resposta apaga os registros de anexo dela');
+-- sem cascata: apagar a resposta com anexo é recusado; depois de remover os anexos, apaga
+select throws_ok(
+    format($q$select public.delete_quick_reply(%L)$q$, (select id from qa_ids where name = 'r_att1')),
+    '23503', null, 'apagar a resposta com anexo é recusado pela chave estrangeira (sem cascata)');
+select lives_ok(
+    format($q$select public.remove_quick_reply_attachment((e->>'id')::uuid) from jsonb_array_elements(public.get_quick_reply_attachments()) e where (e->>'quick_reply_id')::uuid = %L$q$, (select id from qa_ids where name = 'r_att1')),
+    'o dono remove os anexos restantes da resposta');
+select lives_ok(
+    format($q$select public.delete_quick_reply(%L)$q$, (select id from qa_ids where name = 'r_att1')),
+    'sem anexos, a resposta é apagada');
+select is(jsonb_array_length(public.get_quick_reply_attachments()), 1, 'sobra só o anexo da outra resposta');
 
 -- ─── Auditoria sem nome de arquivo e privilégios ─────────────────────────────────────────────────
 reset role;

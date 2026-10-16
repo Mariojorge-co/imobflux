@@ -7,8 +7,12 @@
 --
 -- Permissão = a mesma da resposta: o proprietário mexe nos anexos de qualquer resposta; o atendente só nos das respostas que
 -- ele criou. Todo membro ativo do workspace lê (para poder usar a resposta). Escrita só pelas funções (definer, search_path
--- vazio); a tabela não aceita INSERT/UPDATE/DELETE direto. Apagar a resposta apaga os registros (cascata); o app remove os
--- arquivos do Storage. A auditoria não guarda nome nem conteúdo do arquivo.
+-- vazio); a tabela não aceita INSERT/UPDATE/DELETE direto. Não há cascata (regra do projeto): para apagar uma resposta com anexos,
+-- o app remove primeiro cada anexo (remove_quick_reply_attachment, que devolve o caminho para apagar o arquivo do Storage) e só então
+-- chama delete_quick_reply; se ainda houver anexo, o banco recusa o delete (chave estrangeira). A auditoria não guarda nome nem conteúdo do arquivo.
+
+-- Chave composta (workspace, id) para a chave estrangeira do anexo carregar o workspace dos dois lados (regra do projeto).
+alter table public.quick_replies add constraint uq_quick_replies_workspace_id unique (workspace_id, id);
 
 create table public.quick_reply_attachments (
     id uuid default gen_random_uuid() not null,
@@ -28,7 +32,7 @@ create table public.quick_reply_attachments (
     constraint fk_quick_reply_attachments_workspace
         foreign key (workspace_id) references public.workspaces (id) on delete restrict,
     constraint fk_quick_reply_attachments_reply
-        foreign key (quick_reply_id) references public.quick_replies (id) on delete cascade,
+        foreign key (workspace_id, quick_reply_id) references public.quick_replies (workspace_id, id) on delete restrict,
     constraint fk_quick_reply_attachments_creator
         foreign key (workspace_id, created_by_member_id) references public.workspace_members (workspace_id, id) on delete restrict,
     constraint ck_quick_reply_attachments_size check (size_bytes > 0 and size_bytes <= 26214400),

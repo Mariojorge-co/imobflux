@@ -80,11 +80,18 @@ export async function deleteQuickReplyAction(replyId: string): Promise<QuickRepl
   if (!UUID_REGEX.test(replyId)) return { success: false, error: quickReplyErrorMessage("quick_reply_not_found") };
   try {
     const supabase = await createServerSupabaseClient();
-    // Os registros de anexo somem junto com a resposta (cascata); os arquivos do Storage são apagados depois.
-    const { data: stored } = await supabase.from("quick_reply_attachments").select("storage_path").eq("quick_reply_id", replyId);
+    // Sem cascata no banco: primeiro cada anexo é removido (o banco confere a permissão e devolve o caminho do arquivo), depois a
+    // resposta. Os arquivos do Storage são apagados no fim.
+    const { data: attachments } = await supabase.from("quick_reply_attachments").select("id").eq("quick_reply_id", replyId);
+    const paths: string[] = [];
+    for (const attachment of attachments ?? []) {
+      const { data: removed, error: removeError } = await supabase.rpc("remove_quick_reply_attachment", { p_attachment_id: attachment.id });
+      if (removeError) return failure("deleteQuickReplyAction", removeError);
+      const path = (removed as { storage_path?: string } | null)?.storage_path;
+      if (path) paths.push(path);
+    }
     const { error } = await supabase.rpc("delete_quick_reply", { p_reply_id: replyId });
     if (error) return failure("deleteQuickReplyAction", error);
-    const paths = (stored ?? []).map((row) => row.storage_path);
     if (paths.length > 0) await createAdminSupabaseClient().storage.from("whatsapp-media").remove(paths).catch(() => undefined);
     revalidatePath(SETTINGS_PATH);
     return { success: true };
