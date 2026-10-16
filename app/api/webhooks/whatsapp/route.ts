@@ -74,6 +74,16 @@ export async function POST(request: Request) {
       return NextResponse.json(syncResult ?? { status: "success" }, { status: 200 });
     }
 
+    // Visão geral do que chega: nome do evento e, no upsert, o tipo da mensagem (sem conteúdo). Recibos de status ficam de fora.
+    if (!(result.status === "ignored" && result.reason === "status_update")) {
+      const raw = body as { event?: unknown; data?: { messageType?: unknown; key?: { fromMe?: unknown } } } | null;
+      const eventLabel = String(raw?.event ?? "?").replace(/[^a-zA-Z0-9._-]/g, "").slice(0, 40);
+      const typeLabel = String(raw?.data?.messageType ?? "-").replace(/[^a-zA-Z0-9]/g, "").slice(0, 40);
+      if (!/^(conversation|extendedTextMessage|imageMessage|videoMessage|audioMessage|documentMessage|stickerMessage)$/.test(typeLabel) || eventLabel.toLowerCase() !== "messages.upsert") {
+        console.log(`[webhook-event] recebido event=${eventLabel} type=${typeLabel} resultado=${result.status} from_me=${String(raw?.data?.key?.fromMe ?? "-")}`);
+      }
+    }
+
     // Só os tipos que interessam ao diagnóstico (edição, exclusão, reação, citação, o que foi ignorado e eventos desconhecidos).
     if (result.status === "edit" || result.status === "revoke" || result.status === "reaction") logShape(body, result.status);
     else if (result.status === "ignored") {

@@ -38,7 +38,7 @@ import { Button, Drawer, Input, ModalDialog } from "@/components/ui";
 import { SlaBadge } from "@/components/conversations/sla-badge";
 import { SlaControl, type SlaMode } from "@/components/conversations/sla-control";
 import { resolveOpportunityTargets } from "@/lib/conversations/opportunity-targets";
-import { copyableText, snapshotFromMessage, type Viewer } from "@/lib/conversations/message-ui";
+import { copyableText, quoteAuthorLabel, snapshotFromMessage, type Viewer } from "@/lib/conversations/message-ui";
 import type { ReplyRef } from "@/lib/conversations/message-merge";
 import type {
   ConversationContextData,
@@ -432,8 +432,8 @@ export function MessagesPanel({
   const handleReply = useCallback((message: ConversationMessage) => {
     const snapshot = snapshotFromMessage(message, liveConversation.participant_name);
     setEditing(null);
-    setReplyTo({ messageId: message.id, snapshot, author: snapshot.author ?? "Contato" });
-  }, [liveConversation.participant_name]);
+    setReplyTo({ messageId: message.id, snapshot, author: quoteAuthorLabel(snapshot, viewer) });
+  }, [liveConversation.participant_name, viewer]);
 
   const handleStartEdit = useCallback((message: ConversationMessage) => {
     setReplyTo(null);

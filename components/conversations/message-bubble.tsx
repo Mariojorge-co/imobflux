@@ -11,6 +11,7 @@ import type { ConversationMessage } from "@/lib/conversations/data";
 import {
   groupReactions,
   messageCapabilities,
+  quoteAuthorLabel,
   replyPreviewText,
   splitForHighlight,
   type Viewer,
@@ -59,6 +60,21 @@ function Highlighted({ text, term }: { text: string; term?: string }) {
   );
 }
 
+/** A marca "enviada ao WhatsApp" vale por no máximo 60 s depois da ação aceita pela Evolution; depois a bolha fica normal. */
+const PENDING_MARK_MS = 60_000;
+
+function usePendingMark(action: string | null | undefined, since: string | null | undefined): boolean {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!action || !since) return;
+    const left = PENDING_MARK_MS - (Date.now() - new Date(since).getTime());
+    if (left <= 0) return;
+    const timer = window.setTimeout(() => setNow(Date.now()), left + 50);
+    return () => window.clearTimeout(timer);
+  }, [action, since]);
+  return Boolean(action && since && now - new Date(since).getTime() < PENDING_MARK_MS);
+}
+
 export function MessageBubble({
   message,
   isOutgoing,
@@ -81,6 +97,7 @@ export function MessageBubble({
   const [pickerOpen, setPickerOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const showPendingMark = usePendingMark(message.wa_pending_action, message.deleted_at ?? message.edited_at);
 
   // Fecha o menu ao clicar fora ou apertar Esc.
   useEffect(() => {
@@ -189,7 +206,7 @@ export function MessageBubble({
               type="button"
             >
               <span className={["block truncate font-semibold", isOutgoing ? "text-primary-foreground" : "text-primary"].join(" ")}>
-                {message.reply_snapshot.author ?? "Contato"}
+                {quoteAuthorLabel(message.reply_snapshot, viewer)}
               </span>
               <span className={["block truncate", muted].join(" ")}>{replyPreviewText(message.reply_snapshot)}</span>
             </button>
@@ -231,13 +248,9 @@ export function MessageBubble({
             data-testid={deliveryState ? `message-${deliveryState}` : undefined}
           >
             {message.edited_at && !deleted ? <span className="mr-1 italic" data-testid="edited-mark">editada</span> : null}
-            {message.wa_pending_action ? (
-              <span
-                className="mr-1 italic"
-                data-testid="wa-pending"
-                title="O WhatsApp ainda não confirmou que o celular recebeu esta alteração."
-              >
-                · aguardando confirmação do WhatsApp
+            {showPendingMark ? (
+              <span className="mr-1 italic" data-testid="wa-pending" title="A Evolution aceitou; o WhatsApp deve refletir em instantes.">
+                · enviada ao WhatsApp
               </span>
             ) : null}
             {deliveryState === "sending" ? "Enviando…" : deliveryState === "failed" ? "Não enviada" : timeLabel}

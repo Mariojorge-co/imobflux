@@ -165,13 +165,13 @@ test.describe("assinatura do webhook na Evolution", () => {
   }
 
   test("por padrão assina o histórico (MESSAGES_SET)", async () => {
-    expect(await eventsFor()).toEqual(["MESSAGES_UPSERT", "MESSAGES_EDITED", "MESSAGES_DELETE", "CONNECTION_UPDATE", "MESSAGES_SET"]);
+    expect(await eventsFor()).toEqual(["MESSAGES_UPSERT", "MESSAGES_EDITED", "MESSAGES_DELETE", "MESSAGES_UPDATE", "CONNECTION_UPDATE", "MESSAGES_SET"]);
     expect(await eventsFor(true)).toContain("MESSAGES_SET");
   });
 
   test("janela 0: NÃO assina MESSAGES_SET", async () => {
     // Sem histórico, mas SEMPRE com edição e exclusão (o celular precisa conseguir avisar o app delas).
-    expect(await eventsFor(false)).toEqual(["MESSAGES_UPSERT", "MESSAGES_EDITED", "MESSAGES_DELETE", "CONNECTION_UPDATE"]);
+    expect(await eventsFor(false)).toEqual(["MESSAGES_UPSERT", "MESSAGES_EDITED", "MESSAGES_DELETE", "MESSAGES_UPDATE", "CONNECTION_UPDATE"]);
   });
 });
 

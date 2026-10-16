@@ -108,7 +108,7 @@ test.describe("webhook e logout", () => {
         byEvents: false,
         base64: false,
         headers: { "x-evolution-secret": "s3cret" },
-        events: ["MESSAGES_UPSERT", "MESSAGES_EDITED", "MESSAGES_DELETE", "CONNECTION_UPDATE", "MESSAGES_SET"],
+        events: ["MESSAGES_UPSERT", "MESSAGES_EDITED", "MESSAGES_DELETE", "MESSAGES_UPDATE", "CONNECTION_UPDATE", "MESSAGES_SET"],
       },
     });
   });
@@ -148,13 +148,13 @@ test("isEvolutionConfigured exige URL e chave", () => {
 
 test.describe("eventos do webhook (edição e exclusão feitas no celular)", () => {
   test("a assinatura inclui MESSAGES_EDITED e MESSAGES_DELETE, com ou sem histórico", () => {
-    expect(evo.webhookEvents(true)).toEqual(["MESSAGES_UPSERT", "MESSAGES_EDITED", "MESSAGES_DELETE", "CONNECTION_UPDATE", "MESSAGES_SET"]);
-    expect(evo.webhookEvents(false)).toEqual(["MESSAGES_UPSERT", "MESSAGES_EDITED", "MESSAGES_DELETE", "CONNECTION_UPDATE"]);
+    expect(evo.webhookEvents(true)).toEqual(["MESSAGES_UPSERT", "MESSAGES_EDITED", "MESSAGES_DELETE", "MESSAGES_UPDATE", "CONNECTION_UPDATE", "MESSAGES_SET"]);
+    expect(evo.webhookEvents(false)).toEqual(["MESSAGES_UPSERT", "MESSAGES_EDITED", "MESSAGES_DELETE", "MESSAGES_UPDATE", "CONNECTION_UPDATE"]);
   });
 
   test("conexões antigas (só upsert/set/connection) acusam o que falta; maiúsculas e separadores não importam", () => {
-    expect(evo.missingWebhookEvents(["MESSAGES_UPSERT", "MESSAGES_SET", "CONNECTION_UPDATE"])).toEqual(["MESSAGES_EDITED", "MESSAGES_DELETE"]);
-    expect(evo.missingWebhookEvents(["messages.upsert", "messages.edited", "messages-delete", "connection.update"])).toEqual([]);
+    expect(evo.missingWebhookEvents(["MESSAGES_UPSERT", "MESSAGES_SET", "CONNECTION_UPDATE"])).toEqual(["MESSAGES_EDITED", "MESSAGES_DELETE", "MESSAGES_UPDATE"]);
+    expect(evo.missingWebhookEvents(["messages.upsert", "messages.edited", "messages-delete", "messages.update", "connection.update"])).toEqual([]);
   });
 
   test("GET /webhook/find devolve os eventos (envelope plano ou aninhado); sem eles, nulo; instância inexistente é NOT_FOUND", async () => {

@@ -131,6 +131,61 @@ test.describe("Webhook — resposta citada (cliente e celular)", () => {
   });
 });
 
+test.describe("Webhook — formas REAIS de produção (log [webhook-shape] de 16/10, valores anonimizados)", () => {
+  const realKey = (extra: Record<string, unknown> = {}) => ({ remoteJid: "123456789012345@lid", remoteJidAlt: JID, fromMe: true, id: "REAL-ID", participant: "", addressingMode: "lid", ...extra });
+
+  test("resposta do celular: contextInfo no nível do evento (com mentionedJid, quotedType...) e mensagem só com conversation", () => {
+    const payload = base("messages.upsert", {
+      key: realKey(),
+      pushName: "Nome",
+      status: "SERVER_ACK",
+      message: { conversation: "resposta do celular" },
+      contextInfo: { mentionedJid: [], groupMentions: [], statusAttributions: [], stanzaId: "ORIG-REAL", participant: JID, quotedMessage: { conversation: "texto citado" }, quotedType: 0 },
+      messageType: "conversation",
+      messageTimestamp: 1760000000,
+      instanceId: "x",
+      source: "android",
+    });
+    expect(parseEvolutionWebhookPayload(payload)).toMatchObject({ status: "valid", fromMe: true, quoted: { externalId: "ORIG-REAL", text: "texto citado" } });
+  });
+
+  test("reação do celular com remoteJid @lid + remoteJidAlt e senderTimestampMs como Long", () => {
+    const payload = base("messages.upsert", {
+      key: realKey({ id: "REACT-EVENT" }),
+      message: { reactionMessage: { key: { remoteJid: JID, fromMe: false, id: "ALVO" }, text: "❤️", senderTimestampMs: { low: 1, high: 2, unsigned: false } } },
+      messageType: "reactionMessage",
+      messageTimestamp: 1760000000,
+    });
+    expect(parseEvolutionWebhookPayload(payload)).toMatchObject({ status: "reaction", targetExternalId: "ALVO", fromMe: true, emoji: "❤️" });
+  });
+
+  test("secretEncryptedMessage (edição cifrada que o WhatsApp novo manda) é ignorada sem erro e sem virar mensagem", () => {
+    const payload = base("messages.upsert", {
+      key: realKey({ id: "SECRET-EVENT" }),
+      message: { secretEncryptedMessage: { targetMessageKey: { remoteJid: JID, fromMe: true, id: "ALVO" }, encPayload: { 0: 1, 1: 2 }, encIv: { 0: 1 }, secretEncType: 2 } },
+      messageType: "secretEncryptedMessage",
+      messageTimestamp: 1760000000,
+    });
+    expect(parseEvolutionWebhookPayload(payload)).toMatchObject({ status: "ignored", reason: "non_text_message_ignored" });
+  });
+});
+
+test.describe("Webhook — messages.update (recibos e, se a Evolution mandar, edição/exclusão)", () => {
+  test("recibo de entrega/leitura é ignorado em silêncio", () => {
+    expect(parseEvolutionWebhookPayload(base("messages.update", { messageId: "x", keyId: "K1", remoteJid: JID, fromMe: true, status: "DELIVERY_ACK" }))).toEqual({ status: "ignored", reason: "status_update" });
+    expect(parseEvolutionWebhookPayload(base("MESSAGES_UPDATE", { keyId: "K1", status: "READ" }))).toMatchObject({ reason: "status_update" });
+  });
+  test("status DELETED com keyId vira exclusão", () => {
+    expect(parseEvolutionWebhookPayload(base("messages.update", { keyId: "K1", remoteJid: JID, fromMe: true, status: "DELETED" }))).toEqual({ status: "revoke", instance: "inst", externalMessageId: "K1" });
+  });
+  test("update com protocolMessage/editedMessage dentro vira edição ou exclusão", () => {
+    const edit = base("messages.update", { key: key({ id: "UPD" }), message: { protocolMessage: { type: 14, key: key({ id: "ORIG-9" }), editedMessage: { conversation: "novo" } } } });
+    expect(parseEvolutionWebhookPayload(edit)).toMatchObject({ status: "edit", externalMessageId: "ORIG-9", newText: "novo" });
+    const revoke = base("messages.update", { key: key({ id: "UPD" }), message: { protocolMessage: { type: "REVOKE", key: key({ id: "ORIG-9" }) } } });
+    expect(parseEvolutionWebhookPayload(revoke)).toMatchObject({ status: "revoke", externalMessageId: "ORIG-9" });
+  });
+});
+
 test.describe("Webhook — robustez e diagnóstico sem conteúdo", () => {
   test("eventos desconhecidos e formatos estranhos nunca quebram", () => {
     expect(parseEvolutionWebhookPayload(base("presence.update", { id: "x" }))).toMatchObject({ status: "ignored", reason: "unhandled_event" });

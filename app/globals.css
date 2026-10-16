@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/* O app só tem tema claro por enquanto. As classes `dark:` NÃO podem seguir o modo escuro do sistema/navegador (davam texto claro
+   sobre fundo claro, ex.: nota interna ilegível): a variante só vale com a classe .dark, que nada aplica. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+}
+
 @theme {
   --color-background: #f8fafc;
   --color-surface: #ffffff;

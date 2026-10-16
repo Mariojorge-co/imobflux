@@ -117,6 +117,18 @@ export function replyPreviewText(snapshot: ReplySnapshot | null | undefined): st
   return snapshot.has_media ? "📎 Arquivo" : "Mensagem";
 }
 
+/**
+ * Nome mostrado no cartão de citação. Mensagem da NOSSA conta sem membro identificado (enviada pelo celular) ficava como
+ * "Equipe"; para o dono isso é "Você" (o número é o dele); para os demais, "Equipe (celular)".
+ */
+export function quoteAuthorLabel(snapshot: ReplySnapshot | null | undefined, viewer: Viewer | null | undefined): string {
+  const author = snapshot?.author?.trim();
+  if (snapshot?.direction === "outgoing" && (!author || author === "Equipe")) {
+    return viewer?.role === "owner" ? "Você" : "Equipe (celular)";
+  }
+  return author || "Contato";
+}
+
 /** Monta o resumo da mensagem que está sendo respondida a partir da mensagem da tela. */
 export function snapshotFromMessage(message: ConversationMessage, contactName?: string | null): ReplySnapshot {
   const outgoing = message.direction === "outgoing";

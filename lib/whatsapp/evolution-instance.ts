@@ -114,7 +114,7 @@ export async function getInstanceNumber(name: string, options: EvolutionOptions 
 
 // Eventos que o app precisa receber. MESSAGES_EDITED e MESSAGES_DELETE são os que a Evolution usa para avisar edição e
 // exclusão feitas no celular (e a confirmação das que o ImobFlux faz); sem eles o WhatsApp nunca "responde" ao app.
-export const WEBHOOK_EVENTS_MESSAGES = ["MESSAGES_UPSERT", "MESSAGES_EDITED", "MESSAGES_DELETE", "CONNECTION_UPDATE"] as const;
+export const WEBHOOK_EVENTS_MESSAGES = ["MESSAGES_UPSERT", "MESSAGES_EDITED", "MESSAGES_DELETE", "MESSAGES_UPDATE", "CONNECTION_UPDATE"] as const;
 export function webhookEvents(includeHistory: boolean): string[] {
   return includeHistory ? [...WEBHOOK_EVENTS_MESSAGES, "MESSAGES_SET"] : [...WEBHOOK_EVENTS_MESSAGES];
 }

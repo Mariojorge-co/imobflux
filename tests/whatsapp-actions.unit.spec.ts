@@ -349,10 +349,10 @@ test.describe("avisos de edição e exclusão (webhook)", () => {
   test("conexão antiga (sem edição/exclusão): mostra o que falta; reaplicar assina todos os eventos e confirma", async () => {
     evolution.getInstanceWebhookEvents = async (n: string) => {
       evoCalls.push(`getInstanceWebhookEvents:${n}`);
-      return { ok: true, data: evoCalls.filter((c) => c.startsWith("setInstanceWebhook")).length === 0 ? ["MESSAGES_UPSERT", "MESSAGES_SET", "CONNECTION_UPDATE"] : ["MESSAGES_UPSERT", "MESSAGES_EDITED", "MESSAGES_DELETE", "CONNECTION_UPDATE", "MESSAGES_SET"] };
+      return { ok: true, data: evoCalls.filter((c) => c.startsWith("setInstanceWebhook")).length === 0 ? ["MESSAGES_UPSERT", "MESSAGES_SET", "CONNECTION_UPDATE"] : ["MESSAGES_UPSERT", "MESSAGES_EDITED", "MESSAGES_DELETE", "MESSAGES_UPDATE", "CONNECTION_UPDATE", "MESSAGES_SET"] };
     };
     const before = await actions.getWhatsappWebhookStatusAction();
-    expect(before).toEqual({ ok: true, connected: true, active: false, missing: ["MESSAGES_EDITED", "MESSAGES_DELETE"] });
+    expect(before).toEqual({ ok: true, connected: true, active: false, missing: ["MESSAGES_EDITED", "MESSAGES_DELETE", "MESSAGES_UPDATE"] });
     stubConnectionRows([{ history_window_days: 7 }]);
     const after = await actions.updateWhatsappWebhookEventsAction();
     expect(after).toEqual({ ok: true, connected: true, active: true, missing: [] });

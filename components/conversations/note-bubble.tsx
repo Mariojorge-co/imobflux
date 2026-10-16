@@ -116,7 +116,7 @@ export function NoteBubble({ note, viewer, highlight, onEdit, onDelete }: NoteBu
           </p>
         ) : null}
 
-        <div className="mt-1 flex items-center justify-end gap-2 text-caption text-amber-800/80 dark:text-amber-300/80">
+        <div className="mt-1 flex items-center justify-end gap-2 text-caption text-amber-900 dark:text-amber-300/80">
           {edited ? <span className="italic">editada</span> : null}
           <span>{time}</span>
           {!editing && canEdit ? (

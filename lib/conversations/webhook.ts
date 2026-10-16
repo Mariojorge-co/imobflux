@@ -43,7 +43,7 @@ export type WebhookHistoryResult = {
 export type WebhookParseResult =
   | { status: "invalid_secret"; error: string }
   | { status: "malformed"; error: string }
-  | { status: "ignored"; reason: "unhandled_event" | "group_sender_missing" | "non_text_message_ignored" | "missing_timestamp" | "broadcast_or_channel" }
+  | { status: "ignored"; reason: "unhandled_event" | "status_update" | "group_sender_missing" | "non_text_message_ignored" | "missing_timestamp" | "broadcast_or_channel" }
   | { status: "connection"; instance: string; state: "open" | "close" | null }
   | WebhookHistoryResult
   | { status: "edit"; instance: string; externalMessageId: string; newText: string; editedAt: string | null }
@@ -319,6 +319,22 @@ export function parseEvolutionWebhookPayload(body: unknown): WebhookParseResult 
     const raw = payload.data as EvolutionPayloadData & { id?: unknown };
     const id = cleanString(raw.key?.id) ?? cleanString(raw.id);
     return id ? { status: "revoke", instance: payload.instance, externalMessageId: id } : { status: "ignored", reason: "non_text_message_ignored" };
+  }
+
+  // messages.update: na maioria são recibos de entrega/leitura (status). Quando traz uma edição/exclusão (protocolMessage,
+  // editedMessage) ou status de apagada, vira edit/revoke; o resto é ignorado em silêncio.
+  if (eventName === "messages.update") {
+    const raw = payload.data as EvolutionPayloadData & { keyId?: unknown; messageId?: unknown; status?: unknown; remoteJid?: unknown; fromMe?: unknown };
+    if (raw.message) {
+      const special = parseSpecialMessage(payload.instance, { ...raw, key: raw.key ?? { remoteJid: cleanString(raw.remoteJid) ?? undefined, fromMe: Boolean(raw.fromMe) } });
+      if (special) return special;
+    }
+    const status = typeof raw.status === "string" ? raw.status.trim().toUpperCase() : "";
+    const targetId = cleanString(raw.keyId) ?? cleanString(raw.key?.id) ?? cleanString(raw.messageId);
+    if (targetId && (status === "DELETED" || status === "DELETE" || status === "REVOKED")) {
+      return { status: "revoke", instance: payload.instance, externalMessageId: targetId };
+    }
+    return { status: "ignored", reason: "status_update" };
   }
 
   if (eventName !== "messages.upsert" && eventName !== "messages.edited") {

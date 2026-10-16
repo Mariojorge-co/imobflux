@@ -96,7 +96,7 @@ test.describe("Correções pós-teste das mensagens", () => {
 
     const bubble = row(page, "Texto já editado");
     await expect(bubble.getByTestId("edited-mark")).toBeVisible();
-    await expect(bubble.getByTestId("wa-pending")).toContainText("aguardando confirmação do WhatsApp");
+    await expect(bubble.getByTestId("wa-pending")).toContainText("enviada ao WhatsApp");
     expect(messageField("Texto já editado", "wa_pending_action")).toBe("edit");
 
     // O WhatsApp devolve a edição (mesmo texto): a pendência some e não conta como nova edição.
@@ -302,6 +302,114 @@ test.describe("Correções pós-teste das mensagens", () => {
     await attendant.goto("/configuracoes/whatsapp");
     await expect(attendant.getByTestId("webhook-events-card")).toHaveCount(0);
     await attendantContext.close();
+  });
+
+  test("a marca enviada ao WhatsApp some sozinha: bolhas antigas com ação aceita não ficam marcadas", async ({ page }) => {
+    test.setTimeout(120_000);
+    // simula uma bolha antiga (editada há 5 min) que ficou com a pendência gravada
+    runLocalSql(`update public.messages set wa_pending_action = 'edit', edited_at = now() - interval '5 minutes' where conversation_id = '${conversation}' and text_content = 'Texto já editado';`);
+    await open(page);
+    await expect(row(page, "Texto já editado").getByTestId("edited-mark")).toBeVisible();
+    await expect(row(page, "Texto já editado").getByTestId("wa-pending")).toHaveCount(0);
+    // uma ação recente mostra a marca e ela some depois de 60 s
+    runLocalSql(`update public.messages set wa_pending_action = 'edit', edited_at = now() - interval '55 seconds' where conversation_id = '${conversation}' and text_content = 'Texto já editado';`);
+    await open(page);
+    await expect(row(page, "Texto já editado").getByTestId("wa-pending")).toHaveText(/enviada ao WhatsApp/);
+    await expect(row(page, "Texto já editado").getByTestId("wa-pending")).toHaveCount(0, { timeout: 15_000 });
+    runLocalSql(`update public.messages set wa_pending_action = null where conversation_id = '${conversation}';`);
+  });
+
+  test("citação de mensagem enviada pelo celular da conta mostra Você (dono), não Equipe", async ({ page, request }) => {
+    test.setTimeout(120_000);
+    await phoneText(request, { text: "Mensagem r2 do celular", fromMe: true, id: "PH-R2" });
+    await post(request, {
+      key: key("PH-R2-REPLY", true),
+      message: { conversation: "Resposta ao r2" },
+      contextInfo: { stanzaId: "PH-R2", quotedMessage: { conversation: "Mensagem r2 do celular" } },
+      messageTimestamp: Math.floor(Date.now() / 1000),
+    });
+    await open(page);
+    const quote = row(page, "Resposta ao r2").getByTestId("reply-quote");
+    await expect(quote).toContainText("Mensagem r2 do celular");
+    await expect(quote).toContainText("Você");
+    await expect(quote).not.toContainText("Equipe");
+  });
+
+  test("nota interna legível no tema claro mesmo com o navegador em modo escuro (contraste AA)", async ({ browser }) => {
+    test.setTimeout(150_000);
+    const context = await browser.newContext({ colorScheme: "dark" });
+    const dark = await context.newPage();
+    await loginAsDemoOwner(dark);
+    await open(dark);
+    await dark.getByRole("button", { name: "Nota interna" }).click();
+    await dark.getByLabel("Digitar nota interna (apenas CRM)").fill("Nota para checar contraste");
+    await dark.keyboard.press("Enter");
+    const note = dark.getByTestId("internal-note").filter({ hasText: "Nota para checar contraste" });
+    await expect(note).toBeVisible();
+    await dark.getByLabel("Abrir dados do cliente").click();
+    await expect(dark.getByTestId("context-note").filter({ hasText: "Nota para checar contraste" })).toBeVisible();
+    const ratios = await dark.evaluate(() => {
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 1;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+      type Rgba = { r: number; g: number; b: number; a: number };
+      const rgba = (value: string): Rgba => {
+        ctx.clearRect(0, 0, 1, 1);
+        ctx.fillStyle = "#000";
+        ctx.fillStyle = value;
+        ctx.fillRect(0, 0, 1, 1);
+        const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+        return { r, g, b, a: a / 255 };
+      };
+      const over = (top: Rgba, bottom: Rgba): Rgba => ({
+        r: top.r * top.a + bottom.r * (1 - top.a),
+        g: top.g * top.a + bottom.g * (1 - top.a),
+        b: top.b * top.a + bottom.b * (1 - top.a),
+        a: 1,
+      });
+      const background = (element: Element): Rgba => {
+        const layers: Rgba[] = [];
+        for (let node: Element | null = element; node; node = node.parentElement) {
+          const color = rgba(getComputedStyle(node).backgroundColor);
+          if (color.a > 0) layers.push(color);
+          if (color.a >= 1) break;
+        }
+        let base: Rgba = { r: 255, g: 255, b: 255, a: 1 };
+        for (const layer of layers.reverse()) base = over(layer, base);
+        return base;
+      };
+      const luminance = (c: Rgba) => {
+        const f = (v: number) => {
+          const s = v / 255;
+          return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+        };
+        return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+      };
+      const ratio = (element: Element) => {
+        const bg = background(element);
+        const fg = over(rgba(getComputedStyle(element).color), bg);
+        const [hi, lo] = [luminance(fg), luminance(bg)].sort((x, y) => y - x);
+        return Math.round(((hi + 0.05) / (lo + 0.05)) * 100) / 100;
+      };
+      const targets: Record<string, string> = {
+        "texto da nota": '[data-testid="note-text"]',
+        "cabecalho da nota": '[data-testid="internal-note"] p',
+        "Editar (nota)": '[data-testid="note-edit"]',
+        "Apagar (nota)": '[data-testid="note-delete"]',
+        "texto (cartao)": '[data-testid="context-note-text"]',
+        "Editar (cartao)": '[data-testid="context-note-edit"]',
+        "Apagar (cartao)": '[data-testid="context-note-delete"]',
+      };
+      const results: Record<string, number> = {};
+      for (const [name, selector] of Object.entries(targets)) {
+        const element = document.querySelector(selector);
+        if (element) results[name] = ratio(element);
+      }
+      return results;
+    });
+    for (const [name, value] of Object.entries(ratios)) expect(value, `contraste de ${name}`).toBeGreaterThanOrEqual(4.5);
+    expect(Object.keys(ratios).length).toBeGreaterThanOrEqual(6);
+    await context.close();
   });
 
   test("nota interna: o autor vê Editar e Apagar na nota e no painel do cliente; o dono só Apagar; nada vai ao WhatsApp", async ({ page, browser }) => {
