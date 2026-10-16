@@ -4,7 +4,7 @@
 - **Objetivo**: gestão comercial e relacionamento para corretores e imobiliárias, com WhatsApp integrado.
 - **Versão**: `0.1.0`
 - **Produção**: app em `https://imobflux.vercel.app` (Vercel) e banco no Supabase (`imobflux-prod`).
-- **Última atualização**: 2026-10-15 (pacote de **Mensagens** pronto na branch `feat/pacote-mensagens`, **ainda não publicado** — ver abaixo; antes disso, pacote de Conversas publicado: troca de conversa rápida, contador de espera único, envio otimista e mídia; migration `005100` aplicada em produção em 2026-10-15, ver `RELATORIO_CONVERSAS_PACOTE.md`)
+- **Última atualização**: 2026-10-15 (pacote de **Mensagens** publicado (banco e app, 2026-10-16) — ver abaixo; antes disso, pacote de Conversas publicado: troca de conversa rápida, contador de espera único, envio otimista e mídia; migration `005100` aplicada em produção em 2026-10-15, ver `RELATORIO_CONVERSAS_PACOTE.md`)
 
 ---
 
@@ -74,7 +74,7 @@ Detalhes, testes e decisões em [RELATORIO_NOITE.md](RELATORIO_NOITE.md). Corre�
 
 ## Banco de dados
 
-- **Migrations**: 51 arquivos forward-only (`20260802000100` a `20260802005100`); todas as 51 estão em produção (`004300` a `004900` em 2026-10-13; `005000` em 2026-10-14; `005100` em 2026-10-15).
+- **Migrations**: 62 arquivos forward-only (`20260802000100` a `20260802006200`); todas as 62 estão em produção (as 5 mais recentes: `005700`–`006200` em 2026-10-16; antes: 51 até `005100`, +`005200`–`005600` do pacote de arquivos) (`004300` a `004900` em 2026-10-13; `005000` em 2026-10-14; `005100` em 2026-10-15).
 - **Tabelas de domínio**: 19 (`public`), com RLS habilitada e forçada.
 - **Funções**: leitura por RPCs `SECURITY INVOKER` (RLS preservada); escrita por RPCs `SECURITY DEFINER`
   auditadas; funções de ingestão e de mídia só para `service_role`.
@@ -137,11 +137,11 @@ Detalhes, números de desempenho, testes e roteiro em [RELATORIO_CONVERSAS_PACOT
 - **Envio:** bolha "Enviando…" na hora, falha marcada como "Não enviada", eco do webhook sem bolha duplicada; a instância de envio vem do banco (a fila devolve `instance_name`). `EVOLUTION_INSTANCE_NAME` na Vercel continua como reserva e **não deve ser removida** por enquanto.
 - **Mídia e espaço:** figurinha pequena sem bolha, foto/vídeo com altura limitada e ampliar, responsáveis no cabeçalho, caixa de texto que cresce.
 
-## Pacote de Mensagens — pronto em ambiente local, NÃO publicado (branch `feat/pacote-mensagens`)
+## Publicado em produção em 2026-10-16 — Pacote de Mensagens (ex-branch `feat/pacote-mensagens`)
 
 Detalhes, decisões, limites do WhatsApp e **roteiro de teste real no celular** em [RELATORIO_PACOTE_MENSAGENS.md](RELATORIO_PACOTE_MENSAGENS.md). Rollbacks em `docs/rollback/20260802005700` a `…006200`.
 - **Funções**: responder (citação), editar (15 min, só texto nosso), apagar para mim (oculta para a equipe; só o dono restaura) e para todos (48 h), encaminhar (até 5 conversas, com aviso de risco), reações com emoji, áudio de voz (PTT, até 10 min), fixar conversa (pessoal, até 5), busca na conversa, nota interna no meio da conversa (nunca vai ao WhatsApp) e Enter envia na legenda.
-- **Banco**: migrations `20260802005700` a `20260802006200` (só locais até a Trava A); compatíveis com o app em produção (só adicionam colunas, tabelas e funções e recriam leituras com campos a mais).
+- **Banco**: migrations `20260802005700` a `20260802006200` aplicadas em produção em 2026-10-16 (backup feito e apagado; validação somente leitura ok); compatíveis com o app em produção (só adicionam colunas, tabelas e funções e recriam leituras com campos a mais).
 - **Testes**: pgTAP 43 arquivos / 1343 testes; unitários; navegador (`tests/mensagens-pacote.spec.ts`) com Evolution simulada.
 - **Pendência**: formato real dos eventos de edição/exclusão/reação enviados pela Evolution ainda não foi visto com celular real (parser tolerante; roteiro cobre).
 

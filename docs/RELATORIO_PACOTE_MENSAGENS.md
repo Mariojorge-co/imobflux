@@ -1,6 +1,6 @@
 # Relatório — Pacote de Mensagens (branch `feat/pacote-mensagens`)
 
-> Estado: **pronto em ambiente local, nada em produção.** Migrations `005700` a `006200` só existem no banco local. A publicação segue o fluxo de duas travas (Trava A = banco, Trava B = app) e depende do "autorizo" do responsável.
+> Estado: **publicado em 2026-10-16.** Trava A (banco): migrations `005700` a `006200` aplicadas em produção com backup, dry-run e validação somente leitura (20 funções novas, 4 tabelas com RLS, 266 mensagens intactas); backup apagado. Trava B (app): merge ff-only na `main`, CI e Vercel conferidos (ver o fechamento no fim deste arquivo). **O teste real no celular ainda não foi feito.**
 
 ## O que o pacote entrega
 
