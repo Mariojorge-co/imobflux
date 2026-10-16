@@ -19,9 +19,9 @@ const CLIENT_TONE: Record<string, SlaTone> = {
 };
 
 export const SLA_TONE_CLASS: Record<SlaTone, string> = {
-  green: "border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
-  yellow: "border-amber-500/40 bg-amber-500/15 text-amber-700 dark:text-amber-400",
-  orange: "border-orange-500/40 bg-orange-500/15 text-orange-700 dark:text-orange-400",
+  green: "border-emerald-500/30 bg-emerald-500/15 text-emerald-800 dark:text-emerald-400",
+  yellow: "border-amber-500/40 bg-amber-500/15 text-amber-800 dark:text-amber-400",
+  orange: "border-orange-500/40 bg-orange-500/15 text-orange-800 dark:text-orange-400",
   red: "border-rose-500/40 bg-rose-500/15 text-rose-700 dark:text-rose-400",
   neutral: "border-border bg-neutral-soft text-text-muted",
 };

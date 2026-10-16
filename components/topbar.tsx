@@ -1,9 +1,11 @@
 "use client";
 
-import { Menu, X } from "lucide-react";
+import { Menu, SlidersHorizontal, X } from "lucide-react";
+import Link from "next/link";
 import { useRef, useState } from "react";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { GlobalShortcuts } from "@/components/global-shortcuts";
+import { ThemeCycleButton } from "@/components/theme-controls";
 import { NavigationLinks } from "@/components/sidebar";
 import { Button } from "@/components/ui";
 import { ESCAPE_PRIORITY, useEscapeLayer } from "@/lib/ui/escape-stack";
@@ -27,6 +29,16 @@ export function Topbar({ role }: { role: "owner" | "attendant" }) {
         </span>
         <div className="ml-auto flex items-center gap-inline">
           <GlobalShortcuts />
+          <ThemeCycleButton />
+          <Link
+            aria-label="Preferências"
+            className="flex size-9 items-center justify-center rounded-control text-text-muted hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            data-testid="preferences-link"
+            href="/preferencias"
+            title="Preferências (tema e notificações)"
+          >
+            <SlidersHorizontal aria-hidden="true" size={18} />
+          </Link>
           <LogoutButton />
           <Button
             aria-controls="mobile-navigation"

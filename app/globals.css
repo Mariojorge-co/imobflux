@@ -1,12 +1,7 @@
 @import "tailwindcss";
 
-/* O app só tem tema claro por enquanto. As classes `dark:` NÃO podem seguir o modo escuro do sistema/navegador (davam texto claro
-   sobre fundo claro, ex.: nota interna ilegível): a variante só vale com a classe .dark, que nada aplica. */
+/* Tema escuro: a classe `dark` no <html> (escolha da pessoa: claro, escuro ou automático) liga as variantes `dark:` e os tokens abaixo. */
 @custom-variant dark (&:where(.dark, .dark *));
-
-:root {
-  color-scheme: light;
-}
 
 @theme {
   --color-background: #f8fafc;
@@ -14,7 +9,7 @@
   --color-border: #e2e8f0;
   --color-border-strong: #cbd5e1;
   --color-text: #0f172a;
-  --color-text-muted: #64748b;
+  --color-text-muted: #566579;
   --color-primary: #0f172a;
   --color-primary-hover: #1e293b;
   --color-primary-foreground: #ffffff;
@@ -58,6 +53,42 @@
   --text-body--line-height: 1.25rem;
   --text-caption: 0.75rem;
   --text-caption--line-height: 1rem;
+}
+
+/* Paleta escura (contraste conferido: texto >= 7:1, texto de apoio >= 6,7:1, chips >= 8,8:1). Os botões primário e de perigo
+   invertem: fundo claro com texto escuro, como o texto colorido que usa a mesma variável. */
+:root {
+  color-scheme: light;
+}
+
+:root.dark {
+  color-scheme: dark;
+  --color-background: #0b1120;
+  --color-surface: #111a2e;
+  --color-border: #243049;
+  --color-border-strong: #3a4c6e;
+  --color-text: #e6edf7;
+  --color-text-muted: #9fb0c8;
+  --color-primary: #8fb5ff;
+  --color-primary-hover: #b3ceff;
+  --color-primary-foreground: #0b1120;
+  --color-success: #6ee7a1;
+  --color-success-soft: #0f2a1c;
+  --color-success-border: #1f5a3a;
+  --color-warning: #fbbf24;
+  --color-warning-soft: #2b2108;
+  --color-warning-border: #6b5212;
+  --color-danger: #fca5a5;
+  --color-danger-hover: #f87171;
+  --color-danger-soft: #341414;
+  --color-danger-border: #7a2a2a;
+  --color-danger-foreground: #1a0b0b;
+  --color-info: #93c5fd;
+  --color-info-soft: #10223f;
+  --color-info-border: #254a85;
+  --color-neutral: #b4c2d6;
+  --color-neutral-soft: #1b2740;
+  --color-neutral-border: #3a4c6e;
 }
 
 body {
