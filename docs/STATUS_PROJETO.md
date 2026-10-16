@@ -137,6 +137,14 @@ Detalhes, números de desempenho, testes e roteiro em [RELATORIO_CONVERSAS_PACOT
 - **Envio:** bolha "Enviando…" na hora, falha marcada como "Não enviada", eco do webhook sem bolha duplicada; a instância de envio vem do banco (a fila devolve `instance_name`). `EVOLUTION_INSTANCE_NAME` na Vercel continua como reserva e **não deve ser removida** por enquanto.
 - **Mídia e espaço:** figurinha pequena sem bolha, foto/vídeo com altura limitada e ampliar, responsáveis no cabeçalho, caixa de texto que cresce.
 
+## Correções pós-teste das mensagens — pronto localmente, NÃO publicado (branch `fix/mensagens-pos-teste`)
+
+- **Estado**: commits locais sobre a `main` (`fd1163b`); sem push, deploy ou migration em produção. Aguarda "autorizo" (Trava A: migration `006300`; Trava B: app) e, depois, **um clique do dono** em Configurações > WhatsApp ("Ativar avisos de edição e exclusão").
+- **Causas raiz**: webhook da Evolution assinava só `MESSAGES_UPSERT`/`MESSAGES_SET`/`CONNECTION_UPDATE` (edição e exclusão do celular nunca chegavam); editar/apagar/reagir usavam o JID guardado (13 dígitos) em vez do real do WhatsApp (12) e eram marcados no 2xx sem confirmação; reação do CRM e do celular eram "duas pessoas"; menu preso na lista com rolagem; cartão da nota sem botões.
+- **Entrega**: JID real via `whatsappNumbers`; estado "aguardando confirmação do WhatsApp" + "Tentar de novo"; leitor do webhook tolerante (edição, exclusão, citação, reação); reação única da conta; menu em portal sem corte; Editar/Apagar nas notas; diagnóstico de forma sem conteúdo nos logs. Detalhes, limites e roteiro de reteste em [RELATORIO_CORRECOES_MENSAGENS.md](RELATORIO_CORRECOES_MENSAGENS.md).
+- **Qualidade**: lint/tipos limpos; 602 unitários em Node 22 e 24; build ok; pgTAP 44 arquivos / 1.369 testes; regressão completa das suítes de navegador e suíte nova 10/10.
+- **Atenção**: a `feat/pacote-noite` (parada) precisa renumerar suas migrations (`006300`–`006500` → `006400`–`006600`) ao ser rebaseada; ver o relatório.
+
 ## Publicado em produção em 2026-10-16 — Pacote de Mensagens (ex-branch `feat/pacote-mensagens`)
 
 Detalhes, decisões, limites do WhatsApp e **roteiro de teste real no celular** em [RELATORIO_PACOTE_MENSAGENS.md](RELATORIO_PACOTE_MENSAGENS.md). Rollbacks em `docs/rollback/20260802005700` a `…006200`.

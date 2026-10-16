@@ -28,6 +28,7 @@ Planejamento da evolução do **ImobFlux**. Estado atual em [STATUS_PROJETO.md](
 
 A Evolution está hospedada e o teste com número real foi feito. Pendências priorizadas (nenhuma em andamento):
 
+0. **Publicar as correções pós-teste das mensagens** (branch `fix/mensagens-pos-teste`; aguarda "autorizo": Trava A e B) e refazer o reteste curto de [RELATORIO_CORRECOES_MENSAGENS.md](RELATORIO_CORRECOES_MENSAGENS.md). Prioridade: **ALTA**.
 0. **Teste real do pacote de mensagens no celular** (roteiro em [RELATORIO_PACOTE_MENSAGENS.md](RELATORIO_PACOTE_MENSAGENS.md); os passos de edição/exclusão/reação vindas do celular confirmam o formato dos eventos da Evolution). Prioridade: **ALTA**.
 1. **Teste real do envio de arquivos** (foto, PDF, .rar, vídeo, 24 MB, 26 MB recusado, .exe bloqueado, 3 mensagens seguidas) — roteiro em [RELATORIO_PACOTE_ARQUIVOS_PRAZOS.md](RELATORIO_PACOTE_ARQUIVOS_PRAZOS.md). Prioridade: **ALTA**.
 2. **Backup automático da VPS** (Evolution/Postgres/Redis). Prioridade: **ALTA**.

@@ -288,6 +288,22 @@ test.describe("Correções pós-teste das mensagens", () => {
     }
   });
 
+  test("Configurações > WhatsApp mostra o cartão dos avisos de edição e exclusão (só o dono) e nunca quebra a tela", async ({ page, browser }) => {
+    test.setTimeout(120_000);
+    await page.goto("/configuracoes/whatsapp");
+    const card = page.getByTestId("webhook-events-card");
+    await expect(card).toBeVisible();
+    await expect(card).toContainText("Edição e exclusão feitas no celular");
+    // Sem Evolution configurada neste ambiente (ou instância ausente) o selo explica o estado, sem erro na tela.
+    await expect(card.getByText(/Verificando…|Não foi possível verificar|Sem conexão|Estado desconhecido|Ativos|Desativados/)).toBeVisible({ timeout: 20_000 });
+    const attendantContext = await browser.newContext();
+    const attendant = await attendantContext.newPage();
+    await loginAsDemoAttendant(attendant);
+    await attendant.goto("/configuracoes/whatsapp");
+    await expect(attendant.getByTestId("webhook-events-card")).toHaveCount(0);
+    await attendantContext.close();
+  });
+
   test("nota interna: o autor vê Editar e Apagar na nota e no painel do cliente; o dono só Apagar; nada vai ao WhatsApp", async ({ page, browser }) => {
     test.setTimeout(180_000);
     const attendantContext = await browser.newContext();
