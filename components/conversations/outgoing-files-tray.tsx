@@ -4,6 +4,22 @@ import { FileText, Film, Music, X } from "lucide-react";
 import type { OutgoingFiles, OutgoingItem } from "@/components/conversations/use-outgoing-files";
 import { formatFileSize } from "@/lib/conversations/outgoing-files";
 import { captionKeyAction } from "@/lib/conversations/message-ui";
+import { EmojiInsertButton } from "@/components/conversations/emoji-insert-button";
+import { insertAtCursor } from "@/lib/quick-replies/insert";
+
+const CAPTION_LIMIT = 1024;
+
+/** Emoji no cursor da legenda daquele arquivo (o campo é achado pelo id, sem guardar referências). */
+function insertIntoCaption(files: OutgoingFiles, itemId: string, current: string, emoji: string) {
+  const element = document.getElementById(`caption-${itemId}`) as HTMLTextAreaElement | null;
+  const result = insertAtCursor(current, element?.selectionStart, element?.selectionEnd, emoji, CAPTION_LIMIT);
+  if (!result) return;
+  files.setCaption(itemId, result.value);
+  requestAnimationFrame(() => {
+    element?.focus();
+    element?.setSelectionRange(result.caret, result.caret);
+  });
+}
 
 function Thumb({ item }: { item: OutgoingItem }) {
   if (item.previewUrl) {
@@ -24,7 +40,7 @@ function Thumb({ item }: { item: OutgoingItem }) {
  * Bandeja de arquivos escolhidos, acima da caixa de mensagem: miniatura/ícone, nome, tamanho, barra de progresso do
  * upload, cancelar/remover, legenda opcional e (imagem) "enviar como documento".
  */
-export function OutgoingFilesTray({ files, onSubmit }: { files: OutgoingFiles; onSubmit?: () => void }) {
+export function OutgoingFilesTray({ files, onSubmit, memberId }: { files: OutgoingFiles; onSubmit?: () => void; memberId?: string }) {
   if (files.items.length === 0 && !files.notice) return null;
 
   return (
@@ -82,11 +98,13 @@ export function OutgoingFilesTray({ files, onSubmit }: { files: OutgoingFiles; o
 
                 {item.status !== "error" && item.kind !== "audio" ? (
                   // Legenda: Enter ENVIA (o mesmo que o botão Enviar), Shift+Enter quebra a linha.
+                  <div className="flex items-start gap-1.5">
                   <textarea
                     aria-label={`Legenda de ${item.name}`}
                     className="min-h-9 w-full resize-none rounded-control border border-border bg-surface px-2 py-1.5 text-caption text-text placeholder:text-text-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                     data-testid="outgoing-caption"
-                    maxLength={1024}
+                    id={`caption-${item.id}`}
+                    maxLength={CAPTION_LIMIT}
                     onChange={(event) => files.setCaption(item.id, event.target.value)}
                     onKeyDown={(event) => {
                       if (captionKeyAction({ key: event.key, shiftKey: event.shiftKey, isComposing: event.nativeEvent.isComposing }) === "send") {
@@ -98,6 +116,16 @@ export function OutgoingFilesTray({ files, onSubmit }: { files: OutgoingFiles; o
                     rows={Math.min(4, item.caption.split("\n").length)}
                     value={item.caption}
                   />
+                  {memberId ? (
+                    <EmojiInsertButton
+                      className="hidden !size-9 md:flex"
+                      label="Inserir emoji na legenda"
+                      memberId={memberId}
+                      onPick={(emoji) => insertIntoCaption(files, item.id, item.caption, emoji)}
+                      testId="caption-emoji-button"
+                    />
+                  ) : null}
+                  </div>
                 ) : null}
 
                 {item.status !== "error" && item.kind === "image" ? (

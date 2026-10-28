@@ -10,6 +10,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import { FileText, Lock, Maximize2, MessageSquare, Minimize2, Paperclip, Pencil, Send, X, Zap } from "lucide-react";
+import { EmojiInsertButton } from "@/components/conversations/emoji-insert-button";
 import { OutgoingFilesTray } from "@/components/conversations/outgoing-files-tray";
 import { VoiceRecorder } from "@/components/conversations/voice-recorder";
 import { captionKeyAction, replyPreviewText } from "@/lib/conversations/message-ui";
@@ -58,6 +59,8 @@ type MessageFormProps = {
   outgoing: OutgoingFiles;
   /** Arquivos só em conversa individual (grupos: sem envio de arquivos). */
   filesEnabled?: boolean;
+  /** Quem está logado: os emojis recentes do seletor são guardados por pessoa. */
+  memberId?: string;
   /** Mensagem que está sendo respondida (cartão acima da caixa, com X). */
   replyTo?: (ReplyRef & { author: string }) | null;
   onCancelReply?: () => void;
@@ -82,6 +85,7 @@ export function MessageForm({
   onMessageFailed,
   outgoing,
   filesEnabled = true,
+  memberId,
   replyTo = null,
   onCancelReply,
   onReplyConsumed,
@@ -224,6 +228,20 @@ export function MessageForm({
   const slashMenuId = `${inputId}-slash`;
 
   // Insere a resposta na caixa (NUNCA envia): variáveis resolvidas, texto editável, cursor no fim do trecho inserido.
+  // Emoji no cursor (o campo é o mesmo da mensagem e da nota interna).
+  const insertEmoji = (emoji: string) => {
+    const element = textareaRef.current;
+    const result = insertAtCursor(text, element?.selectionStart, element?.selectionEnd, emoji, MAX_CHAR_LIMIT);
+    if (!result) return;
+    setText(result.value);
+    requestAnimationFrame(() => {
+      const target = textareaRef.current;
+      if (!target) return;
+      target.focus();
+      target.setSelectionRange(result.caret, result.caret);
+    });
+  };
+
   const insertQuickReply = (reply: QuickReply, via: "panel" | "slash") => {
     const resolved = resolveVariables(reply.body, {
       contactName,
@@ -622,7 +640,7 @@ export function MessageForm({
         </p>
       ) : null}
 
-      {activeTab === "message" && !editing ? <OutgoingFilesTray files={outgoing} onSubmit={() => void handleSubmit()} /> : null}
+      {activeTab === "message" && !editing ? <OutgoingFilesTray files={outgoing} memberId={memberId} onSubmit={() => void handleSubmit()} /> : null}
 
       <input
         accept={ACCEPT_ATTRIBUTE}
@@ -666,6 +684,10 @@ export function MessageForm({
         >
           <Paperclip aria-hidden="true" size={18} />
         </button>
+
+        {memberId ? (
+          <EmojiInsertButton className={voiceActive ? "hidden" : "hidden md:flex"} memberId={memberId} onPick={insertEmoji} />
+        ) : null}
 
         <div className={["relative flex-1", voiceActive ? "hidden" : ""].join(" ")}>
           <label className="sr-only" htmlFor={inputId}>

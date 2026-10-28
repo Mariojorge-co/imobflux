@@ -1229,6 +1229,7 @@ export function MessagesPanel({
           conversationId={conversation.conversation_id}
           contactName={liveConversation.participant_name}
           editing={editing}
+          memberId={viewer?.memberId}
           onCancelEdit={() => setEditing(null)}
           onCancelReply={() => updateReply(null)}
           onNoteSaved={() => void refreshThreadNotes()}
