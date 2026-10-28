@@ -52,11 +52,11 @@ export function ConfirmDialog({
               {error}
             </p>
           ) : null}
-          <div className="flex justify-end gap-2">
-            <Button autoFocus onClick={onCancel} variant="secondary">
+          <div className="flex justify-end gap-4">
+            <Button autoFocus className="min-h-11" onClick={onCancel} variant="secondary">
               {cancelLabel}
             </Button>
-            <Button disabled={pending} onClick={onConfirm} variant={destructive ? "danger" : "primary"}>
+            <Button className="min-h-11" disabled={pending} onClick={onConfirm} variant={destructive ? "danger" : "primary"}>
               {pending ? "Aguarde…" : confirmLabel}
             </Button>
           </div>

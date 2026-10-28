@@ -56,6 +56,9 @@ export function Topbar({ role }: { role: "owner" | "attendant" }) {
             onNavigate={() => setIsNavigationOpen(false)}
             role={role}
           />
+          <div className="border-t border-border px-stack py-4">
+            <LogoutButton variant="menu" />
+          </div>
         </div>
       ) : null}
     </header>

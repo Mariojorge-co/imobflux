@@ -216,11 +216,19 @@ export function MessageBubble({
   const muted = isOutgoing ? "text-primary-foreground/70" : "text-text-muted";
 
   return (
-    <div className={["group flex", isOutgoing ? "justify-end" : "justify-start"].join(" ")} ref={wrapperRef}>
+    <div
+      className={[
+        "group flex rounded-lg transition-colors",
+        isOutgoing ? "justify-end" : "justify-start",
+        canQuickReply ? "hover:bg-neutral-soft/40" : "",
+      ].join(" ")}
+      data-testid="message-row"
+      onDoubleClick={handleDoubleClick}
+      ref={wrapperRef}
+    >
       <div
         className={["relative max-w-[88%] sm:max-w-[75%]", reactions.length > 0 ? "mb-3" : ""].join(" ")}
         data-testid="message-gesture-area"
-        onDoubleClick={handleDoubleClick}
         onPointerCancel={endSwipe}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}

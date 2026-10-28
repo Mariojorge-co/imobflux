@@ -23,6 +23,8 @@ export type FakeEvolution = {
     jidFor?: (digits: string) => string | null;
     /** Resposta de POST /chat/findMessages (a Evolution guarda a mensagem; depois de uma edição o texto novo está lá). */
     findMessages?: (body: Record<string, unknown>) => unknown;
+    /** Resposta de POST /chat/getBase64FromMediaMessage (arquivo recebido em base64). Sem isso, devolve a resposta genérica (sem arquivo). */
+    media?: (body: Record<string, unknown>) => { base64: string; mimetype: string } | null;
   };
   reset: () => void;
   close: () => Promise<void>;
@@ -68,6 +70,14 @@ export async function startFakeEvolution(port: number): Promise<FakeEvolution> {
         return;
       }
       // Consulta do JID real do chat (a Evolution responde uma lista com { exists, jid, number }).
+      if (path.includes("/chat/getBase64FromMediaMessage/") && behavior.media) {
+        const file = behavior.media(body);
+        if (file) {
+          res.writeHead(201, { "content-type": "application/json" });
+          res.end(JSON.stringify(file));
+          return;
+        }
+      }
       if (path.includes("/chat/whatsappNumbers/")) {
         const numbers = Array.isArray(body.numbers) ? (body.numbers as string[]) : [];
         const list = numbers.map((digits) => {
@@ -114,6 +124,7 @@ export async function startFakeEvolution(port: number): Promise<FakeEvolution> {
       behavior.delay = undefined;
       behavior.jidFor = undefined;
       behavior.findMessages = undefined;
+      behavior.media = undefined;
     },
     close: () => new Promise<void>((resolve) => server.close(() => resolve())),
   };
