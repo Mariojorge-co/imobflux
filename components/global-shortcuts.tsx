@@ -3,21 +3,24 @@
 import { useEffect, useId, useState } from "react";
 import { Keyboard } from "lucide-react";
 import { Button, ModalDialog } from "@/components/ui";
-import { handleEscape, isEditableTarget } from "@/lib/ui/escape-stack";
+import { handleEscape } from "@/lib/ui/escape-stack";
 
-/** Lista de atalhos mostrada pela ajuda ("?"). Mantida aqui para a ajuda e os testes falarem da mesma coisa. */
+/** Qualquer parte da tela (ex.: o menu do celular) abre a ajuda de atalhos por este evento. */
+export const OPEN_SHORTCUTS_EVENT = "imobflux:open-shortcuts";
+
+/** Lista de atalhos mostrada pela ajuda (botão do teclado no topo). Mantida aqui para a ajuda e os testes falarem da mesma coisa. */
 export const SHORTCUTS: ReadonlyArray<{ keys: string; description: string }> = [
   { keys: "Esc", description: "Fecha uma camada por vez: menu da mensagem, emojis, painel, busca, citação, gravação, edição, lista \"/\" e, por fim, a conversa" },
   { keys: "Alt + ↑ / ↓", description: "Conversa anterior / próxima da lista" },
   { keys: "Enter", description: "Envia a mensagem (Shift + Enter quebra a linha)" },
   { keys: "/", description: "Dentro da caixa de mensagem: respostas rápidas" },
   { keys: "/", description: "Fora dos campos de texto: busca em todas as conversas" },
-  { keys: "?", description: "Abre esta ajuda (fora dos campos de texto)" },
   { keys: "Duplo clique", description: "Na linha da mensagem — Responder (no celular: deslize a bolha para a direita)" },
 ];
 
 /**
- * Atalhos globais do aplicativo: o Esc em camadas (ver lib/ui/escape-stack) e a ajuda com "?". Não toma Ctrl+F, Ctrl+K,
+ * Atalhos globais do aplicativo: o Esc em camadas (ver lib/ui/escape-stack) e o botão de ajuda (não existe atalho de teclado
+ * para a ajuda: a tecla "?" não funciona em todos os teclados). Não toma Ctrl+F, Ctrl+K,
  * Ctrl+R nem qualquer tecla com Ctrl/Cmd: continuam do navegador.
  */
 export function GlobalShortcuts() {
@@ -34,14 +37,14 @@ export function GlobalShortcuts() {
         }
         return;
       }
-      if (event.key === "?" && !event.ctrlKey && !event.metaKey && !event.altKey && !isEditableTarget(event.target)) {
-        if (document.querySelector("dialog[open]")) return;
-        event.preventDefault();
-        setHelpOpen(true);
-      }
     };
+    const onOpen = () => setHelpOpen(true);
     document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
+    window.addEventListener(OPEN_SHORTCUTS_EVENT, onOpen);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener(OPEN_SHORTCUTS_EVENT, onOpen);
+    };
   }, []);
 
   return (
@@ -51,7 +54,7 @@ export function GlobalShortcuts() {
         className="hidden size-9 items-center justify-center rounded-control text-text-muted hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:flex"
         data-testid="shortcuts-button"
         onClick={() => setHelpOpen(true)}
-        title="Atalhos do teclado (?)"
+        title="Atalhos do teclado"
         type="button"
       >
         <Keyboard aria-hidden="true" size={18} />

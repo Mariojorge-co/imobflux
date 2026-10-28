@@ -1,10 +1,10 @@
 "use client";
 
-import { Menu, SlidersHorizontal, X } from "lucide-react";
+import { Keyboard, Menu, SlidersHorizontal, X } from "lucide-react";
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { LogoutButton } from "@/components/auth/logout-button";
-import { GlobalShortcuts } from "@/components/global-shortcuts";
+import { GlobalShortcuts, OPEN_SHORTCUTS_EVENT } from "@/components/global-shortcuts";
 import { GlobalSearch } from "@/components/search/global-search";
 import { ThemeCycleButton } from "@/components/theme-controls";
 import { NavigationLinks } from "@/components/sidebar";
@@ -71,7 +71,18 @@ export function Topbar({ role }: { role: "owner" | "attendant" }) {
             onNavigate={() => setIsNavigationOpen(false)}
             role={role}
           />
-          <div className="border-t border-border px-stack py-4">
+          <div className="space-y-4 border-t border-border px-stack py-4">
+            <button
+              className="flex min-h-11 w-full items-center gap-3 rounded-control px-1 text-left text-body text-text hover:bg-neutral-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              data-testid="menu-shortcuts"
+              onClick={() => {
+                setIsNavigationOpen(false);
+                window.dispatchEvent(new Event(OPEN_SHORTCUTS_EVENT));
+              }}
+              type="button"
+            >
+              <Keyboard aria-hidden="true" className="text-text-muted" size={18} /> Atalhos do teclado
+            </button>
             <LogoutButton variant="menu" />
           </div>
         </div>

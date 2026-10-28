@@ -3,7 +3,7 @@ import { startFakeEvolution, type FakeEvolution } from "./helpers/fake-evolution
 import { loginAsDemoOwner, resetAndLoadDemoMode } from "./helpers/local-test-state";
 import { ingestText } from "./helpers/webhook";
 
-// Atalhos: Esc em camadas, rascunho preservado, Alt+setas, "?" e atalhos do navegador intactos.
+// Atalhos: Esc em camadas, rascunho preservado, Alt+setas, ajuda só pelo botão (sem a tecla "?") e atalhos do navegador intactos.
 
 const FAKE_PORT = 3099;
 const JID_A = "5582988889001@s.whatsapp.net";
@@ -208,7 +208,7 @@ test.describe("Atalhos", () => {
     await expect(page).toHaveURL(new RegExp(`/conversas/${convB}$`));
   });
 
-  test("'?' abre a ajuda fora dos campos de texto; dentro da caixa é só um '?'; Ctrl+K/F/R seguem do navegador", async ({ page }) => {
+  test("a tecla '?' NÃO abre nada; a ajuda abre só pelo botão do topo; Ctrl+K/F/R seguem do navegador", async ({ page }) => {
     await open(page);
     await composer(page).fill("");
     await composer(page).press("?");
@@ -217,8 +217,13 @@ test.describe("Atalhos", () => {
     await composer(page).fill("");
     await page.locator("body").click({ position: { x: 5, y: 5 } });
     await page.keyboard.press("?");
+    await expect(page.getByTestId("shortcuts-help")).toHaveCount(0);
+    await page.getByTestId("shortcuts-button").click();
     await expect(page.getByTestId("shortcuts-help")).toBeVisible();
     await expect(page.getByTestId("shortcuts-help")).toContainText("Esc");
+    await expect(page.getByTestId("shortcuts-help")).toContainText("Alt + ↑ / ↓");
+    // A ajuda não lista mais o atalho "?".
+    await expect(page.getByTestId("shortcuts-help").locator("kbd", { hasText: /^?$/ })).toHaveCount(0);
     await page.keyboard.press("Escape");
     await expect(page.getByTestId("shortcuts-help")).toHaveCount(0);
     await expect(page).toHaveURL(new RegExp(`/conversas/${convA}$`));
