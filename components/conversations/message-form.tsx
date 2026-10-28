@@ -497,7 +497,7 @@ export function MessageForm({
   return (
     <div className="shrink-0 border-t border-border bg-surface px-3 py-1.5 sm:px-4" data-testid="message-composer">
       {/* Abas: Mensagem vs Nota Interna */}
-      <div className="mb-1 flex items-center gap-1 border-b border-border/60 pb-0.5 text-caption">
+      <div className="composer-tabs mb-1 flex items-center gap-1 border-b border-border/60 pb-0.5 text-caption">
         <button
           aria-pressed={activeTab === "message"}
           className={[

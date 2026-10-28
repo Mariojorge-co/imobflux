@@ -14,10 +14,12 @@ import { ESCAPE_PRIORITY, useEscapeLayer } from "@/lib/ui/escape-stack";
 export function Topbar({ role }: { role: "owner" | "attendant" }) {
   const [isNavigationOpen, setIsNavigationOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
-  useEscapeLayer(isNavigationOpen, ESCAPE_PRIORITY.drawer, () => {
+  // Fechar por qualquer caminho (Esc, toque fora, escolher uma tela) devolve o foco ao botão ☰.
+  const closeNavigation = () => {
     setIsNavigationOpen(false);
     menuButtonRef.current?.focus();
-  });
+  };
+  useEscapeLayer(isNavigationOpen, ESCAPE_PRIORITY.drawer, closeNavigation);
 
   return (
     <header
@@ -63,12 +65,22 @@ export function Topbar({ role }: { role: "owner" | "attendant" }) {
       </div>
 
       {isNavigationOpen ? (
+        <>
+        {/* Fundo escuro: tocar fora do menu o fecha (é um botão, então o toque também funciona no iOS). */}
+        <button
+          aria-label="Fechar menu principal"
+          className="fixed inset-x-0 bottom-0 top-topbar -z-10 bg-text/40 lg:hidden"
+          data-testid="nav-backdrop"
+          onClick={closeNavigation}
+          tabIndex={-1}
+          type="button"
+        />
         <div
           className="absolute inset-x-0 top-full border-b border-border bg-surface lg:hidden"
           id="mobile-navigation"
         >
           <NavigationLinks
-            onNavigate={() => setIsNavigationOpen(false)}
+            onNavigate={closeNavigation}
             role={role}
           />
           <div className="space-y-4 border-t border-border px-stack py-4">
@@ -86,6 +98,7 @@ export function Topbar({ role }: { role: "owner" | "attendant" }) {
             <LogoutButton variant="menu" />
           </div>
         </div>
+        </>
       ) : null}
     </header>
   );

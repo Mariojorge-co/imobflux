@@ -1,5 +1,6 @@
 import { Suspense, type ReactNode } from "react";
 import { ConversationsList, type ConversationsEmptyHint } from "@/components/conversations/conversations-list";
+import { ConversationsViewportFrame } from "@/components/conversations/conversations-viewport-frame";
 import { ConversationsShell } from "@/components/conversations/conversations-shell";
 import { ConversationsListSkeleton } from "@/components/conversations/conversations-skeletons";
 import { getConversationsInbox } from "@/lib/conversations/data";
@@ -20,7 +21,7 @@ type ConversasLayoutProps = {
  */
 export default function ConversasLayout({ children }: ConversasLayoutProps) {
   return (
-    <div className="flex h-[calc(100dvh-64px)] w-full flex-col overflow-hidden">
+    <ConversationsViewportFrame>
       <div className="flex h-full min-h-0 w-full flex-1 overflow-hidden">
         <ConversationsShell
           list={(
@@ -32,7 +33,7 @@ export default function ConversasLayout({ children }: ConversasLayoutProps) {
           {children}
         </ConversationsShell>
       </div>
-    </div>
+    </ConversationsViewportFrame>
   );
 }
 

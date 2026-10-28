@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
-import { Archive, ArchiveRestore, ArrowLeft, EllipsisVertical, EyeOff, Info, Mail, MailOpen, Pin, PinOff, Plus, Search, Users } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowLeft, Clock, EllipsisVertical, EyeOff, Info, Mail, MailOpen, Pin, PinOff, Plus, Search, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -12,6 +12,7 @@ import {
   refreshConversationMessagesAction,
   refreshVisibleInternalNotesAction,
   setConversationArchivedAction,
+  setConversationSlaModeAction,
   setGroupTeamVisibilityAction,
 } from "@/lib/conversations/actions";
 import {
@@ -62,6 +63,12 @@ import { failPendingMessage, isDismissedFailure, isPendingMessage, mergeMessages
 import { retryMediaQueued, sendTextQueued } from "@/lib/conversations/send-client";
 import { conversationHasSla, conversationPatchFromMessage, isConversationClosed, pickSlaMessage } from "@/lib/conversations/sla-display";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+
+const SLA_SHEET_OPTIONS: ReadonlyArray<{ mode: SlaMode; label: string }> = [
+  { mode: "active", label: "Prazo ativo" },
+  { mode: "paused", label: "Pausar prazo até o cliente falar de novo" },
+  { mode: "disabled", label: "Desativar o prazo desta conversa" },
+];
 
 type MessagesPanelProps = {
   conversation: ConversationListItem;
@@ -861,6 +868,14 @@ export function MessagesPanel({
     }
   };
 
+  const chooseSlaMode = (next: SlaMode) => {
+    if (next === ((liveConversation.sla_mode ?? "active") as SlaMode)) return;
+    startTransition(async () => {
+      const result = await setConversationSlaModeAction(conversation.conversation_id, next);
+      if (result.success) handleSlaChanged(result);
+    });
+  };
+
   const displayName =
     conversation.participant_name ?? "Participante desconhecido";
   const displayPhone = conversation.participant_phone || context?.contact?.phone;
@@ -880,8 +895,8 @@ export function MessagesPanel({
           </div>
         ) : null}
         {/* Cabeçalho do painel de mensagens */}
-        <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-border bg-surface px-3 py-1.5 sm:px-4" data-testid="conversation-header">
-          <div className="flex min-w-0 flex-1 basis-48 items-center gap-2 sm:gap-3">
+        <div className="flex shrink-0 items-center gap-x-2 border-b border-border bg-surface px-3 py-1.5 md:flex-wrap md:gap-x-3 md:gap-y-1 md:px-4" data-testid="conversation-header">
+          <div className="flex min-w-0 flex-1 items-center gap-2 md:basis-48 md:gap-3">
             {showBackButton && (
               <Link
                 aria-label="Voltar para a lista de conversas"
@@ -924,11 +939,13 @@ export function MessagesPanel({
                       variant="full"
                     />
                     {liveConversation.is_self ? null : (
-                      <SlaControl
-                        conversationId={conversation.conversation_id}
-                        mode={(liveConversation.sla_mode ?? "active") as SlaMode}
-                        onChanged={handleSlaChanged}
-                      />
+                      <span className="hidden md:contents">
+                        <SlaControl
+                          conversationId={conversation.conversation_id}
+                          mode={(liveConversation.sla_mode ?? "active") as SlaMode}
+                          onChanged={handleSlaChanged}
+                        />
+                      </span>
                     )}
                   </>
                 )}
@@ -938,20 +955,22 @@ export function MessagesPanel({
 
           {/* Responsáveis: dentro do cabeçalho, compacto (antes era uma linha própria que roubava altura das mensagens) */}
           {members.length > 0 ? (
-            <AssigneesBar
-              assignees={assignees}
-              conversationId={conversation.conversation_id}
-              key={conversation.conversation_id}
-              members={members}
-              visibility={liveConversation.visibility}
-            />
+            <div className="hidden md:contents">
+              <AssigneesBar
+                assignees={assignees}
+                conversationId={conversation.conversation_id}
+                key={conversation.conversation_id}
+                members={members}
+                visibility={liveConversation.visibility}
+              />
+            </div>
           ) : null}
 
           {/* Ações do Cabeçalho */}
-          <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5 sm:flex-none sm:gap-2">
+          <div className="flex shrink-0 items-center justify-end gap-1 md:min-w-0 md:flex-none md:gap-2">
             {/* Troca de Etapa do Kanban diretamente na conversa */}
             {activeOpp ? (
-              <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:flex-none">
+              <div className="hidden min-w-0 flex-1 items-center gap-1.5 md:flex md:flex-none">
                 <span className="hidden lg:inline text-xs text-text-muted font-medium">
                   Etapa:
                 </span>
@@ -971,20 +990,22 @@ export function MessagesPanel({
                 </select>
               </div>
             ) : (
-              <Button
-                onClick={() => setIsCreateOppOpen(true)}
-                variant="secondary"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline 2xl:hidden">Oportunidade</span>
-                <span className="hidden 2xl:inline">Criar oportunidade</span>
-              </Button>
+              <span className="hidden md:inline-flex">
+                <Button
+                  onClick={() => setIsCreateOppOpen(true)}
+                  variant="secondary"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span className="2xl:hidden">Oportunidade</span>
+                  <span className="hidden 2xl:inline">Criar oportunidade</span>
+                </Button>
+              </span>
             )}
 
             {/* Marcar como Não Lida (Desktop direto, no Mobile via menu de 44px) */}
             <button
               aria-label={liveConversation.is_unread ? "Marcar como lida" : "Marcar como não lida"}
-              className="hidden size-9 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-neutral-soft hover:text-text sm:flex"
+              className="hidden size-9 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-neutral-soft hover:text-text md:flex"
               onClick={handleToggleUnread}
               title={liveConversation.is_unread ? "Marcar como lida" : "Marcar como não lida"}
               type="button"
@@ -997,7 +1018,7 @@ export function MessagesPanel({
               aria-label="Buscar nesta conversa"
               aria-pressed={searchOpen}
               className={[
-                "flex size-11 shrink-0 items-center justify-center rounded-control transition-colors hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:size-9",
+                "flex size-11 shrink-0 items-center justify-center rounded-control transition-colors hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:size-9",
                 searchOpen ? "bg-neutral-soft text-text" : "text-text-muted",
               ].join(" ")}
               data-testid="conversation-search-toggle"
@@ -1012,7 +1033,7 @@ export function MessagesPanel({
             {viewer?.role === "owner" ? (
               <button
                 aria-label="Mensagens escondidas"
-                className="hidden size-9 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-neutral-soft hover:text-text sm:flex"
+                className="hidden size-9 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-neutral-soft hover:text-text md:flex"
                 data-testid="hidden-messages-toggle"
                 onClick={() => setHiddenOpen(true)}
                 title="Mensagens escondidas (restaurar)"
@@ -1026,7 +1047,7 @@ export function MessagesPanel({
             <button
               aria-label={liveConversation.is_pinned ? "Desafixar conversa" : "Fixar conversa no topo"}
               aria-pressed={Boolean(liveConversation.is_pinned)}
-              className="hidden size-9 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-neutral-soft hover:text-text sm:flex"
+              className="hidden size-9 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-neutral-soft hover:text-text md:flex"
               data-testid="conversation-pin-toggle"
               onClick={handleTogglePin}
               title={liveConversation.is_pinned ? "Desafixar conversa" : "Fixar conversa no topo da sua lista"}
@@ -1037,7 +1058,7 @@ export function MessagesPanel({
 
             <button
               aria-label={liveConversation.archived_at ? "Desarquivar conversa" : "Arquivar conversa"}
-              className="hidden size-9 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-neutral-soft hover:text-text sm:flex"
+              className="hidden size-9 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-neutral-soft hover:text-text md:flex"
               onClick={handleArchive}
               title={liveConversation.archived_at ? "Desarquivar conversa" : "Arquivar conversa"}
               type="button"
@@ -1047,7 +1068,7 @@ export function MessagesPanel({
             {isGroup && canManagePrivacy ? (
               <button
                 className={[
-                  "inline-flex min-h-9 items-center rounded-control border px-2.5 text-caption font-medium hover:bg-neutral-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                  "hidden min-h-9 items-center rounded-control border px-2.5 md:inline-flex text-caption font-medium hover:bg-neutral-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                   liveConversation.visibility === "commercial" ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-400" : "border-border text-text-muted",
                 ].join(" ")}
                 data-testid="group-visibility-toggle"
@@ -1066,7 +1087,7 @@ export function MessagesPanel({
             {/* Celular: as ações que não cabem no cabeçalho ficam neste menu (nada do desktop fica inalcançável) */}
             <button
               aria-label="Mais ações da conversa"
-              className="flex size-11 shrink-0 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:hidden"
+              className="flex size-11 shrink-0 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:hidden"
               data-testid="conversation-more"
               onClick={() => setMoreOpen(true)}
               type="button"
@@ -1077,7 +1098,7 @@ export function MessagesPanel({
             {/* Contexto sempre sob demanda, em drawer no desktop e no mobile. */}
             <button
               aria-label="Abrir dados do cliente"
-              className="flex size-11 shrink-0 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:size-9"
+              className="hidden size-9 shrink-0 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:flex"
               onClick={() => setIsContextOpen(true)}
               title="Informações do cliente"
               type="button"
@@ -1248,6 +1269,69 @@ export function MessagesPanel({
       </div>
 
       <BottomSheet onClose={() => setMoreOpen(false)} open={moreOpen} testId="conversation-more-sheet" title="Conversa">
+        <SheetItem
+          icon={<Info size={18} />}
+          label="Informações do cliente"
+          onClick={() => {
+            setMoreOpen(false);
+            setIsContextOpen(true);
+          }}
+          testId="more-info"
+        />
+        {members.length > 0 ? (
+          <div className="border-y border-border py-1" data-testid="more-assign">
+            <AssigneesBar
+              assignees={assignees}
+              conversationId={conversation.conversation_id}
+              key={conversation.conversation_id}
+              members={members}
+              variant="list"
+              visibility={liveConversation.visibility}
+            />
+          </div>
+        ) : null}
+        {activeOpp ? (
+          <label className="flex min-h-12 items-center gap-3 px-4 text-body text-text" data-testid="more-stage">
+            <span className="shrink-0">Etapa</span>
+            <select
+              aria-label="Alterar etapa da oportunidade ativa"
+              className="min-h-11 min-w-0 flex-1 rounded-control border border-border bg-background px-2.5 text-body font-semibold text-text focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
+              onChange={(e) => handleStageSelect(e.target.value)}
+              value={displayedStageId ?? activeOpp.current_stage_id}
+            >
+              {stages.map((stg) => (
+                <option key={stg.id} value={stg.id}>
+                  {stg.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <SheetItem
+            icon={<Plus size={18} />}
+            label="Criar oportunidade"
+            onClick={() => {
+              setMoreOpen(false);
+              setIsCreateOppOpen(true);
+            }}
+            testId="more-opportunity"
+          />
+        )}
+        {!isGroup && !liveConversation.is_self
+          ? SLA_SHEET_OPTIONS.map((option) => (
+              <SheetItem
+                active={((liveConversation.sla_mode ?? "active") as SlaMode) === option.mode}
+                icon={<Clock size={18} />}
+                key={option.mode}
+                label={option.label}
+                onClick={() => {
+                  setMoreOpen(false);
+                  chooseSlaMode(option.mode);
+                }}
+                testId={`more-sla-${option.mode}`}
+              />
+            ))
+          : null}
         <SheetItem
           icon={liveConversation.is_unread ? <MailOpen size={18} /> : <Mail size={18} />}
           label={liveConversation.is_unread ? "Marcar como lida" : "Marcar como não lida"}

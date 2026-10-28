@@ -106,3 +106,9 @@ body {
     font-size: 16px;
   }
 }
+
+/* Teclado do celular aberto: a faixa de abas da caixa de mensagem ocupa o mínimo de altura (a área útil já é pequena). */
+html[data-keyboard-open] .composer-tabs { margin-bottom: 0; padding-bottom: 0; }
+html[data-keyboard-open] .composer-tabs > button,
+html[data-keyboard-open] .composer-tabs > div > button { min-height: 32px; height: 32px; }
+html[data-keyboard-open] .composer-tabs > div > button[data-testid="composer-expand"] { width: 32px; }

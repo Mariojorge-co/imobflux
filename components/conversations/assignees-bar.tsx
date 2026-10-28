@@ -20,6 +20,8 @@ type AssigneesBarProps = {
   visibility: string;
   assignees: ConversationAssignee[];
   members: DirectoryMember[];
+  /** "list": versão em coluna, com áreas de toque de 44px, para a folha ⋯ do celular. */
+  variant?: "bar" | "list";
 };
 
 const selectClass =
@@ -29,7 +31,8 @@ const selectClass =
  * Responsáveis da conversa (fluxos 18 e 19). Atribuir indica responsabilidade e não muda quem
  * enxerga a conversa; o banco recusa membros inativos e conversas que o membro não poderia ver.
  */
-export function AssigneesBar({ conversationId, visibility, assignees: initialAssignees, members }: AssigneesBarProps) {
+export function AssigneesBar({ conversationId, visibility, assignees: initialAssignees, members, variant = "bar" }: AssigneesBarProps) {
+  const list = variant === "list";
   const router = useRouter();
   const [assignees, setAssignees] = useState(initialAssignees);
   const [error, setError] = useState<string | null>(null);
@@ -52,10 +55,13 @@ export function AssigneesBar({ conversationId, visibility, assignees: initialAss
   };
 
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-caption" data-testid="assignees-bar">
+    <div
+      className={list ? "flex min-w-0 flex-col items-stretch gap-2 px-4 py-2 text-body" : "flex min-w-0 flex-wrap items-center gap-1.5 text-caption"}
+      data-testid={list ? "assignees-list" : "assignees-bar"}
+    >
       <span className="flex items-center gap-1 text-text-muted" title="Responsáveis pela conversa">
         <UserCheck aria-hidden="true" size={14} />
-        <span className="max-2xl:sr-only">Resp.:</span>
+        <span className={list ? "" : "max-2xl:sr-only"}>{list ? "Responsáveis" : "Resp.:"}</span>
       </span>
 
       {assignees.length === 0 ? <span className="text-text-muted max-2xl:sr-only" data-testid="assignees-empty">ninguém ainda</span> : null}
@@ -63,12 +69,12 @@ export function AssigneesBar({ conversationId, visibility, assignees: initialAss
       {assignees.map((assignee) => {
         const swapOptions = options.filter((member) => member.member_id !== assignee.member_id);
         return (
-          <span className="inline-flex items-center gap-1 rounded-pill border border-border bg-neutral-soft py-0.5 pl-2.5 pr-1" data-testid="assignee-chip" key={assignee.member_id}>
+          <span className={list ? "flex min-h-11 items-center gap-2 rounded-control border border-border bg-neutral-soft pl-3 pr-1" : "inline-flex items-center gap-1 rounded-pill border border-border bg-neutral-soft py-0.5 pl-2.5 pr-1"} data-testid="assignee-chip" key={assignee.member_id}>
             <span className="font-medium text-text">{assignee.display_name ?? nameOf(assignee.member_id)}</span>
             {swapOptions.length > 0 ? (
               <select
                 aria-label={`Passar a conversa de ${assignee.display_name ?? "membro"} para outro membro`}
-                className="max-w-20 rounded-control bg-transparent text-caption text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className={list ? "ml-auto min-h-11 max-w-40 rounded-control bg-transparent text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" : "max-w-20 rounded-control bg-transparent text-caption text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"}
                 disabled={isPending}
                 onChange={(event) => {
                   const toId = event.target.value;
@@ -94,7 +100,7 @@ export function AssigneesBar({ conversationId, visibility, assignees: initialAss
             ) : null}
             <button
               aria-label={`Remover ${assignee.display_name ?? "membro"} dos responsáveis`}
-              className="flex size-6 items-center justify-center rounded-full text-text-muted hover:bg-border hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className={list ? "flex size-11 shrink-0 items-center justify-center rounded-full text-text-muted hover:bg-border hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" : "flex size-6 items-center justify-center rounded-full text-text-muted hover:bg-border hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"}
               disabled={isPending}
               onClick={() =>
                 run(
@@ -113,7 +119,7 @@ export function AssigneesBar({ conversationId, visibility, assignees: initialAss
       {options.length > 0 ? (
         <select
           aria-label="Atribuir um responsável à conversa"
-          className={selectClass}
+          className={list ? `${selectClass} sm:min-h-11` : selectClass}
           disabled={isPending}
           onChange={(event) => {
             const memberId = event.target.value;
