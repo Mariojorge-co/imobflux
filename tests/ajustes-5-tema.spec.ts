@@ -53,15 +53,21 @@ test.describe("Ajustes 5 — contraste e capturas", () => {
 
         // Rascunho na lista: texto numa conversa, olhando outra.
         await page.goto(`/conversas/${convA}`);
+        // Espera a conversa hidratar: um clique antes disso na lista não navega.
+        await expect(page.locator('[data-testid="conversation-column"][data-ready="true"]')).toBeVisible();
         const box = page.getByLabel("Digitar mensagem de texto");
         await expect(box).toBeVisible();
         await box.fill(`Rascunho do tema ${theme} ${width}`);
         if (width >= 1000) {
           await press(page.locator(`#conv-card-${convB}`));
-          await expect(page.locator(`#conv-card-${convA}`).getByTestId("conversation-draft")).toBeVisible();
+          await expect(page).toHaveURL(new RegExp(`/conversas/${convB}$`), { timeout: 20_000 });
+          await expect(page.locator(`#conv-card-${convA}`).getByTestId("conversation-draft")).toBeVisible({ timeout: 15_000 });
           await check("lista-rascunho");
           await press(page.locator(`#conv-card-${convA}`));
+          await expect(page).toHaveURL(new RegExp(`/conversas/${convA}$`), { timeout: 20_000 });
+          await expect(page.locator('[data-testid="conversation-column"][data-ready="true"]')).toBeVisible();
           await expect(box).toBeVisible();
+          await expect(box).toHaveValue(/Rascunho do tema/);
 
           // Seletor de emoji (só no computador).
           await press(page.getByTestId("emoji-insert-button"));
@@ -86,7 +92,6 @@ test.describe("Ajustes 5 — contraste e capturas", () => {
           await expect(page.getByTestId("shortcuts-help")).toBeVisible();
           await check("ajuda-atalhos");
         }
-        await box.fill("").catch(() => undefined);
 
         const total = Object.values(found).reduce((sum, list) => sum + list.length, 0);
         if (total > 0) console.log(`CONTRASTE ${theme} ${width}px:`, JSON.stringify(found, null, 1).slice(0, 6000));
