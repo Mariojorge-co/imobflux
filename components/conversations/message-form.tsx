@@ -503,7 +503,7 @@ export function MessageForm({
           className={[
             "flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-control px-3 font-medium transition-colors sm:min-h-8",
             activeTab === "note"
-              ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
+              ? "bg-amber-500/15 text-amber-800 dark:text-amber-400"
               : "text-text-muted hover:text-text",
           ].join(" ")}
           onClick={() => {
