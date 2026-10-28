@@ -1,7 +1,14 @@
 // Regras puras de tipo de mídia (sem dependências de servidor), usadas pelo download e pela tela.
 
 export const WHATSAPP_MEDIA_BUCKET = "whatsapp-media";
-export const MAX_MEDIA_BYTES = 25 * 1024 * 1024; // mesmo limite do bucket
+/** Limite do bucket whatsapp-media (migration 20260802006400: 50 MiB). Mídia recebida acima disso não é guardada. */
+export const MAX_MEDIA_BYTES = 50 * 1024 * 1024;
+export const MAX_MEDIA_LABEL = "50 MB";
+
+/** O tamanho declarado pelo WhatsApp já passa do limite: nem vale tentar baixar. */
+export function isMediaTooLarge(sizeBytes: number | null | undefined): boolean {
+  return typeof sizeBytes === "number" && Number.isFinite(sizeBytes) && sizeBytes > MAX_MEDIA_BYTES;
+}
 
 export type ViewerKind = "image" | "pdf" | "audio" | "video" | "file";
 

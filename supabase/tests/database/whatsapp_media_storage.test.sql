@@ -32,8 +32,8 @@ select is(
 );
 select is(
     (select file_size_limit from storage.buckets where id = 'whatsapp-media'),
-    26214400::bigint,
-    'bucket limits files to 25 MB'
+    52428800::bigint,
+    'bucket limits files to 50 MiB (migration 20260802006400)'
 );
 
 -- ─── Anexo nasce 'pending' ───────────────────────────────────────────────────────────────

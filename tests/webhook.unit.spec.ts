@@ -12,7 +12,7 @@ const originalCreateAdminSupabaseClient = adminModule.createAdminSupabaseClient;
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const mediaModule = require("@/lib/conversations/media-download");
 const originalScheduleMediaDownload = mediaModule.scheduleMediaDownload;
-const originalStoreAttachmentMedia = mediaModule.storeAttachmentMedia;
+const originalStoreAttachmentMedia = mediaModule.storeAttachmentMediaWithRetry;
 
 // Helper para construir requisições HTTP mockadas
 function createMockRequest(options: {
@@ -62,7 +62,7 @@ test.describe("Evolution API Webhook Route Handler & Parser Complete Unit Tests"
     scheduledDownloads = [];
     storedDownloads = [];
     mediaModule.scheduleMediaDownload = (task: () => Promise<unknown>) => { scheduledDownloads.push(task); };
-    mediaModule.storeAttachmentMedia = async (_admin: unknown, attachmentId: string, source: unknown) => {
+    mediaModule.storeAttachmentMediaWithRetry = async (_admin: unknown, attachmentId: string, source: unknown) => {
       storedDownloads.push({ attachmentId, source });
       return { status: "available" };
     };
@@ -86,7 +86,7 @@ test.describe("Evolution API Webhook Route Handler & Parser Complete Unit Tests"
     };
     adminModule.createAdminSupabaseClient = originalCreateAdminSupabaseClient;
     mediaModule.scheduleMediaDownload = originalScheduleMediaDownload;
-    mediaModule.storeAttachmentMedia = originalStoreAttachmentMedia;
+    mediaModule.storeAttachmentMediaWithRetry = originalStoreAttachmentMedia;
   });
 
   // 1. POST sem segredo retorna 401
@@ -309,6 +309,14 @@ test.describe("Evolution API Webhook Route Handler & Parser Complete Unit Tests"
     });
   }
 
+  test("6j2. vídeo acima do limite (50 MB): não agenda download e marca o anexo como indisponível", async () => {
+    adminWithAttachment({ data: { status: "success", attachment_id: "att-big", attachment_status: "pending" }, error: null });
+    const res = await POST(mediaRequest({ videoMessage: { mimetype: "video/mp4", fileLength: 60 * 1024 * 1024 } }));
+    expect(res.status).toBe(200);
+    expect(scheduledDownloads).toHaveLength(0);
+    expect(rpcCalls.at(-1)).toEqual({ fnName: "mark_attachment_download_state", args: { p_attachment_id: "att-big", p_state: "unavailable" } });
+  });
+
   test("6j. mídia nova agenda o download depois da resposta, com a chave da mensagem e a instância", async () => {
     adminWithAttachment({ data: { status: "success", attachment_id: "att-1", attachment_status: "pending" }, error: null });
     const res = await POST(mediaRequest({ documentMessage: { mimetype: "application/pdf", fileName: "rg.pdf" } }));
@@ -365,7 +373,7 @@ test.describe("Evolution API Webhook Route Handler & Parser Complete Unit Tests"
 
   test("6o. o webhook responde 200 mesmo que o download falhe depois (a mensagem já foi gravada)", async () => {
     adminWithAttachment({ data: { status: "success", attachment_id: "att-1", attachment_status: "pending" }, error: null });
-    mediaModule.storeAttachmentMedia = async () => ({ status: "failed", code: "NETWORK_ERROR" });
+    mediaModule.storeAttachmentMediaWithRetry = async () => ({ status: "failed", code: "NETWORK_ERROR" });
     const res = await POST(mediaRequest({ imageMessage: { mimetype: "image/png" } }));
     expect(res.status).toBe(200);
     expect((await res.json()).status).toBe("success");

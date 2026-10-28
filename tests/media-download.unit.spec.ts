@@ -93,7 +93,7 @@ test.describe("fetchEvolutionMedia", () => {
   });
 
   test("arquivo acima do limite é recusado", async () => {
-    const huge = "A".repeat(40_000_000); // ~30 MB decodificado
+    const huge = "A".repeat(72_000_000); // ~54 MB decodificado (limite 50 MiB)
     const result = await media.fetchEvolutionMedia(SOURCE, {
       env: ENV,
       fetchImpl: (async () => jsonResponse({ base64: huge })) as unknown as typeof fetch,
@@ -254,5 +254,60 @@ test.describe("loadMediaSource", () => {
     expect(await media.loadMediaSource(rpcAdmin({ ...base, external_message_id: null }), "att-1")).toBeNull();
     expect(await media.loadMediaSource(rpcAdmin({ ...base, instance: null }), "att-1")).toBeNull();
     expect(await media.loadMediaSource(rpcAdmin([]), "att-1")).toBeNull();
+  });
+});
+test.describe("storeAttachmentMediaWithRetry (download automático)", () => {
+  const failing = (calls: { n: number }) => (async () => { calls.n += 1; throw new TypeError("fetch failed"); }) as unknown as typeof fetch;
+
+  test("falha passageira: tenta de novo com espera crescente e, acabadas as tentativas, desiste (sem laço infinito)", async () => {
+    const { admin } = fakeAdmin();
+    const calls = { n: 0 };
+    const waits: number[] = [];
+    const result = await media.storeAttachmentMediaWithRetry(admin, "att-1", SOURCE, {
+      env: ENV, fetchImpl: failing(calls), sleep: async (ms) => { waits.push(ms); },
+    });
+    expect(result).toEqual({ status: "failed", code: "NETWORK_ERROR" });
+    expect(calls.n).toBe(3);
+    expect(waits).toEqual([2000, 6000]);
+  });
+
+  test("a segunda tentativa que dá certo encerra o ciclo", async () => {
+    const { admin, uploads } = fakeAdmin();
+    let n = 0;
+    const flaky = (async () => { n += 1; if (n === 1) throw new TypeError("fetch failed"); return jsonResponse({ base64: PDF.toString("base64"), mimetype: "application/pdf" }); }) as unknown as typeof fetch;
+    const result = await media.storeAttachmentMediaWithRetry(admin, "att-1", SOURCE, { env: ENV, fetchImpl: flaky, sleep: async () => undefined });
+    expect(result).toEqual({ status: "available" });
+    expect(n).toBe(2);
+    expect(uploads).toHaveLength(1);
+  });
+
+  test("falha final (arquivo grande demais ou inexistente) não repete", async () => {
+    const calls = { n: 0 };
+    const tooLarge = (async () => { calls.n += 1; return jsonResponse({ base64: "A".repeat(80), mimetype: "video/mp4" }); }) as unknown as typeof fetch;
+    const big = media.decodeBase64Media("A".repeat(80), 10);
+    expect(big).toBe("TOO_LARGE");
+    const notFound = (async () => { calls.n += 1; return jsonResponse({}, 404); }) as unknown as typeof fetch;
+    const result = await media.storeAttachmentMediaWithRetry(fakeAdmin().admin, "att-1", SOURCE, { env: ENV, fetchImpl: notFound, sleep: async () => undefined });
+    expect(result).toEqual({ status: "failed", code: "NOT_FOUND" });
+    expect(calls.n).toBe(1);
+    void tooLarge;
+  });
+
+  test("respeita o orçamento de tempo da rota (não começa tentativa que não cabe)", async () => {
+    const calls = { n: 0 };
+    const result = await media.storeAttachmentMediaWithRetry(fakeAdmin().admin, "att-1", SOURCE, {
+      env: ENV, fetchImpl: failing(calls), budgetMs: 1000, sleep: async () => undefined,
+    });
+    expect(result).toMatchObject({ status: "failed" });
+    expect(calls.n).toBe(1);
+  });
+});
+
+test.describe("downloadTimeoutMs", () => {
+  test("20 s + 1 s por MB, no máximo 50 s", () => {
+    expect(media.downloadTimeoutMs(null)).toBe(20_000);
+    expect(media.downloadTimeoutMs(10 * 1024 * 1024)).toBe(30_000);
+    expect(media.downloadTimeoutMs(50 * 1024 * 1024)).toBe(50_000);
+    expect(media.downloadTimeoutMs(500 * 1024 * 1024)).toBe(50_000);
   });
 });

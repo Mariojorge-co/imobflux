@@ -17,6 +17,7 @@ type AttachmentViewProps = {
   messageText?: string | null;
 };
 
+const RETRY_TIMEOUT_MS = 70_000;
 const linkClass = "inline-flex min-h-9 items-center gap-1 rounded-control px-2 text-xs font-medium underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary";
 
 /**
@@ -194,7 +195,7 @@ export function AttachmentView({ attachment, isOutgoing, messageText }: Attachme
   }
 
   return (
-    <div className={cardClass}>
+    <div className={cardClass} data-testid="attachment-unavailable">
       <Paperclip aria-hidden="true" className="mt-0.5 shrink-0" size={12} strokeWidth={1.8} />
       <span className="min-w-0">
         <span className="block break-words font-medium">{description.title}</span>
@@ -210,13 +211,20 @@ export function AttachmentView({ attachment, isOutgoing, messageText }: Attachme
             onClick={() => {
               setRetry({ state: "running" });
               startTransition(async () => {
-                const result = await retryAttachmentDownloadAction(attachment.id);
+                // Nunca fica "Tentando…" para sempre: passados 70 s sem resposta o estado vira erro e o botão volta.
+                const timeout = new Promise<{ success: false; error: string }>((resolve) =>
+                  setTimeout(() => resolve({ success: false, error: "Demorou demais. Tente de novo ou abra no WhatsApp." }), RETRY_TIMEOUT_MS),
+                );
+                const result = await Promise.race([retryAttachmentDownloadAction(attachment.id), timeout]).catch(() => ({
+                  success: false as const,
+                  error: "Não foi possível carregar o arquivo agora. Tente de novo ou abra no WhatsApp.",
+                }));
                 setRetry(result.success ? { state: "done" } : { state: "error", message: result.error });
               });
             }}
             type="button"
           >
-            <RotateCw aria-hidden="true" size={12} /> {retry.state === "running" ? "Tentando…" : "Tentar novamente"}
+            <RotateCw aria-hidden="true" size={12} /> {retry.state === "running" ? "Tentando…" : "Tentar de novo"}
           </button>
         ) : (
           <a className={linkClass} href={src} rel="noreferrer" target="_blank">

@@ -182,6 +182,48 @@ export async function storeAttachmentMedia(
   }
 }
 
+/** Falhas que podem passar sozinhas (rede, tempo, Evolution/Storage fora do ar). TOO_LARGE, NOT_FOUND etc. são finais. */
+const TRANSIENT_FAILURES: ReadonlySet<MediaFailureCode> = new Set(["TIMEOUT", "NETWORK_ERROR", "HTTP_ERROR", "STORAGE_ERROR"]);
+
+/** Tempo para a Evolution entregar o arquivo: 20 s + 1 s por MB (o base64 de um vídeo grande demora), no máximo 50 s. */
+export function downloadTimeoutMs(sizeBytes?: number | null): number {
+  const megabytes = typeof sizeBytes === "number" && sizeBytes > 0 ? Math.ceil(sizeBytes / (1024 * 1024)) : 0;
+  return Math.min(50_000, 20_000 + megabytes * 1000);
+}
+
+/**
+ * Download automático (webhook): tenta de novo só nas falhas passageiras, com espera crescente e dentro de um
+ * orçamento de tempo (a rota roda no máximo 60 s). Acabadas as tentativas, o anexo fica "indisponível" de vez,
+ * com o botão manual "Tentar de novo" — nunca um laço infinito.
+ */
+export async function storeAttachmentMediaWithRetry(
+  admin: AdminClient,
+  attachmentId: string,
+  source: MediaSource,
+  options: {
+    fetchImpl?: typeof fetch;
+    env?: EvolutionEnv;
+    sizeBytes?: number | null;
+    backoffMs?: number[];
+    budgetMs?: number;
+    sleep?: (ms: number) => Promise<void>;
+  } = {},
+): Promise<StoreMediaResult> {
+  const backoff = options.backoffMs ?? [2_000, 6_000];
+  const budget = options.budgetMs ?? 52_000;
+  const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const timeoutMs = downloadTimeoutMs(options.sizeBytes);
+  const startedAt = Date.now();
+  let result = await storeAttachmentMedia(admin, attachmentId, source, { fetchImpl: options.fetchImpl, env: options.env, timeoutMs });
+  for (const wait of backoff) {
+    if (result.status === "available" || !TRANSIENT_FAILURES.has(result.code)) break;
+    if (Date.now() - startedAt + wait + 5_000 > budget) break;
+    await sleep(wait);
+    result = await storeAttachmentMedia(admin, attachmentId, source, { fetchImpl: options.fetchImpl, env: options.env, timeoutMs });
+  }
+  return result;
+}
+
 type AttachmentContext = {
   attachment_id: string;
   storage_bucket: string;

@@ -414,7 +414,7 @@ const originalStoreAttachmentMedia = mediaDownloadModule.storeAttachmentMedia;
 test.describe("retryAttachmentDownloadAction", () => {
   const ATTACHMENT_ID = "d3b0b8a2-6f5e-4c1a-9e57-0c1f2a9b7e11";
   let user: { id: string } | null;
-  let attachmentRow: { id: string; status: string; created_at: string } | null;
+  let attachmentRow: { id: string; status: string; created_at: string; size_bytes?: number } | null;
   let source: unknown;
   let storeResult: { status: string; code?: string };
   let storeCalls: string[];
@@ -446,6 +446,13 @@ test.describe("retryAttachmentDownloadAction", () => {
   test("anexo indisponível: baixa de novo e confirma", async () => {
     expect(await retryAttachmentDownloadAction(ATTACHMENT_ID)).toEqual({ success: true });
     expect(storeCalls).toEqual([ATTACHMENT_ID]);
+  });
+
+  test("arquivo acima do limite: recusa com o motivo, sem chamar a Evolution", async () => {
+    attachmentRow = { ...attachmentRow!, size_bytes: 60 * 1024 * 1024 };
+    expect(await retryAttachmentDownloadAction(ATTACHMENT_ID)).toEqual({ success: false, error: "O arquivo é maior que o limite de 50 MB. Abra no WhatsApp para vê-lo." });
+    expect(loadCalls).toBe(0);
+    expect(storeCalls).toHaveLength(0);
   });
 
   test("valida identificador e sessão antes de qualquer chamada externa", async () => {

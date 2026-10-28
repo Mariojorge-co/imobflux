@@ -24,7 +24,20 @@ test("chip de anexo indisponível orienta a abrir no WhatsApp", () => {
   expect(unavailable.hint).toContain("abra no WhatsApp");
 
   const unknownSize = describeAttachment({ file_name: "imagem", mime_type: "image/jpeg", size_bytes: 0, status: "pending" });
-  expect(unknownSize.title).toBe("Imagem · imagem");
+  expect(unknownSize.title).toBe("Imagem");
 
   expect(describeAttachment({ file_name: "a.pdf", mime_type: "application/pdf", size_bytes: 10, status: "available" }).hint).toBeNull();
+});
+
+test("nome genérico não repete o tipo e vídeo grande demais mostra o aviso final com tamanho e limite", () => {
+  const ok = describeAttachment({ file_name: "video", mime_type: "video/mp4", size_bytes: 9_053_307, status: "available" });
+  expect(ok.title).toBe("Vídeo · 8,6 MB");
+  const named = describeAttachment({ file_name: "contrato.pdf", mime_type: "application/pdf", size_bytes: 1024, status: "available" });
+  expect(named.title).toBe("PDF · contrato.pdf · 1 KB");
+  const big = describeAttachment({ file_name: "video", mime_type: "video/mp4", size_bytes: 60 * 1024 * 1024, status: "unavailable" });
+  expect(big.tooLarge).toBe(true);
+  expect(big.hint).toBe("Arquivo grande demais para o ImobFlux (60,0 MB; limite 50 MB). Abra no WhatsApp.");
+  const edge = describeAttachment({ file_name: "video", mime_type: "video/mp4", size_bytes: 50_042_451, status: "unavailable" });
+  expect(edge.tooLarge).toBe(false);
+  expect(edge.hint).toContain("tente de novo");
 });

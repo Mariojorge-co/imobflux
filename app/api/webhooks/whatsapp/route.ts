@@ -8,7 +8,8 @@ import {
 import { importHistoryBatch } from "@/lib/conversations/history-import";
 import { webhookShapeLine } from "@/lib/conversations/webhook-shape";
 import { findEvolutionMessageText, logEvolutionAction } from "@/lib/supabase/gateway-actions";
-import { scheduleMediaDownload, storeAttachmentMedia } from "@/lib/conversations/media-download";
+import { scheduleMediaDownload, storeAttachmentMediaWithRetry } from "@/lib/conversations/media-download";
+import { isMediaTooLarge } from "@/lib/conversations/media-types";
 
 // O download da mídia roda depois da resposta (after); dá tempo suficiente para arquivos grandes.
 export const maxDuration = 60;
@@ -267,7 +268,13 @@ export async function POST(request: Request) {
           },
           inlineBase64: result.media.inlineBase64,
         };
-        scheduleMediaDownload(() => storeAttachmentMedia(supabase, attachmentId, source));
+        if (isMediaTooLarge(result.media.sizeBytes)) {
+          // Acima do limite do bucket: não adianta baixar. Fica "indisponível" (a tela mostra o aviso final de arquivo grande).
+          await supabase.rpc("mark_attachment_download_state", { p_attachment_id: attachmentId, p_state: "unavailable" });
+          console.warn("[whatsapp-media] arquivo acima do limite, download não tentado", { attachmentId, sizeBytes: result.media.sizeBytes });
+        } else {
+          scheduleMediaDownload(() => storeAttachmentMediaWithRetry(supabase, attachmentId, source, { sizeBytes: result.media?.sizeBytes }));
+        }
       }
     }
 

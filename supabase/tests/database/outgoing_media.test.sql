@@ -67,10 +67,10 @@ select ok(
     'funções novas: SECURITY DEFINER com search_path vazio'
 );
 
--- ─── Bucket privado, 25 MB, sem policies para usuários ───────────────────────────────────────────
+-- ─── Bucket privado, 50 MiB, sem policies para usuários ───────────────────────────────────────────
 select ok(
-    (select not b.public and b.file_size_limit = 26214400 from storage.buckets b where b.id = 'whatsapp-media'),
-    'bucket whatsapp-media: privado e limitado a 25 MB'
+    (select not b.public and b.file_size_limit = 52428800 from storage.buckets b where b.id = 'whatsapp-media'),
+    'bucket whatsapp-media: privado e limitado a 50 MiB (recepção); o envio segue em 25 MiB'
 );
 select is(
     (select count(*)::int from pg_catalog.pg_policies

@@ -31,7 +31,7 @@ import { assignmentErrorMessage } from "@/lib/conversations/assignment";
 import { attachReply } from "@/lib/conversations/reply";
 import { taskErrorMessage } from "@/lib/tasks/model";
 import * as mediaModule from "@/lib/conversations/media-download";
-import { isDownloadInProgress } from "@/lib/conversations/media-types";
+import { isDownloadInProgress, isMediaTooLarge, MAX_MEDIA_LABEL } from "@/lib/conversations/media-types";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -487,7 +487,7 @@ const MEDIA_RETRY_ERRORS: Record<mediaModule.MediaFailureCode, string> = {
   NETWORK_ERROR: "Não foi possível falar com o WhatsApp agora. Tente novamente em instantes.",
   HTTP_ERROR: "O WhatsApp não entregou o arquivo. Tente novamente em instantes.",
   INVALID_RESPONSE: "O WhatsApp devolveu o arquivo em formato inesperado.",
-  TOO_LARGE: "O arquivo é maior que o limite de 25 MB.",
+  TOO_LARGE: `O arquivo é maior que o limite de ${MAX_MEDIA_LABEL}. Abra no WhatsApp para vê-lo.`,
   STORAGE_ERROR: "Não foi possível guardar o arquivo agora. Tente novamente em instantes.",
   NOT_FOUND: "O WhatsApp não tem mais este arquivo. Abra a conversa no WhatsApp para vê-lo.",
 };
@@ -510,7 +510,7 @@ export async function retryAttachmentDownloadAction(
 
     const { data: attachment } = await supabase
       .from("attachments")
-      .select("id, status, created_at")
+      .select("id, status, created_at, size_bytes")
       .eq("id", attachmentId)
       .maybeSingle();
     if (!attachment) return { success: false, error: "Anexo não encontrado." };
@@ -518,13 +518,15 @@ export async function retryAttachmentDownloadAction(
     if (attachment.status === "archived") return { success: false, error: "Este anexo foi arquivado." };
     if (isDownloadInProgress(attachment)) return { success: false, error: "O arquivo já está sendo carregado." };
 
+    if (isMediaTooLarge(attachment.size_bytes)) return { success: false, error: MEDIA_RETRY_ERRORS.TOO_LARGE };
+
     const admin = adminModule.createAdminSupabaseClient();
     const source = await mediaModule.loadMediaSource(admin, attachmentId);
     if (!source) {
       return { success: false, error: "Não foi possível localizar este arquivo na conexão do WhatsApp." };
     }
 
-    const result = await mediaModule.storeAttachmentMedia(admin, attachmentId, source);
+    const result = await mediaModule.storeAttachmentMedia(admin, attachmentId, source, { timeoutMs: mediaModule.downloadTimeoutMs(attachment.size_bytes) });
     if (result.status === "available") return { success: true };
     return { success: false, error: MEDIA_RETRY_ERRORS[result.code] };
   } catch (error) {
