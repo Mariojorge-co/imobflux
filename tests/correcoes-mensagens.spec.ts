@@ -292,9 +292,11 @@ test.describe("Correções pós-teste das mensagens", () => {
         await target.hover();
         const scrollBefore = await page.evaluate(() => window.scrollY);
         await target.getByTestId("message-menu-button").click();
-        const menu = page.getByTestId("message-menu");
+        // Celular (< 768 px): o menu vira a folha de toque (BottomSheet) do Pacote Noite; no desktop segue o FloatingMenu em portal.
+        const compact = viewport.width < 768;
+        const menu = page.getByTestId(compact ? "message-sheet" : "message-menu");
         await expect(menu).toBeVisible();
-        const items = menu.getByRole("menuitem");
+        const items = compact ? menu.locator("[data-testid^='action-']") : menu.getByRole("menuitem");
         const count = await items.count();
         expect(count).toBeGreaterThanOrEqual(3);
         const box = await menu.boundingBox();
@@ -311,7 +313,7 @@ test.describe("Correções pós-teste das mensagens", () => {
         expect(await page.evaluate(() => window.scrollY)).toBe(scrollBefore);
         // clicável: o primeiro item ("Responder") age
         await items.first().click();
-        await expect(menu).toHaveCount(0);
+        await expect(menu).toBeHidden();
         await page.getByLabel("Digitar mensagem de texto").press("Escape");
       }
       await context.close();

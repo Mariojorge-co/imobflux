@@ -31,7 +31,8 @@ test.describe("Painel Hoje", () => {
     await expect(waiting.getByTestId("hoje-conversation").filter({ hasText: "Cliente Hoje" })).toBeVisible();
     await expect(waiting).toContainText("Cliente aguardando há");
     await expect(page.getByTestId("hoje-new").getByTestId("hoje-new-item").filter({ hasText: "Cliente Hoje" })).toBeVisible();
-    await expect(page.getByTestId("hoje-counter-incoming")).toContainText("1");
+    // O demo traz mensagens de "algumas horas atrás": perto da meia-noite elas contam como "hoje". Basta o contador incluir a nova (>= 1).
+    await expect.poll(async () => Number(((await page.getByTestId("hoje-counter-incoming").innerText()).match(/[0-9]+/) ?? ["0"])[0])).toBeGreaterThanOrEqual(1);
     await expect(page.getByTestId("hoje-filter")).toBeVisible();
     await page.getByTestId("hoje-conversation").filter({ hasText: "Cliente Hoje" }).click();
     await expect(page).toHaveURL(new RegExp(`/conversas/${conversation}`));

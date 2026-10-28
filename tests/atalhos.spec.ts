@@ -26,7 +26,7 @@ async function openMenu(page: Page, text: string) {
   const row = history(page).locator("[data-message-id]").filter({ hasText: text }).first();
   await row.hover();
   await row.getByTestId("message-menu-button").click();
-  await expect(row.getByTestId("message-menu")).toBeVisible();
+  await expect(page.getByTestId("message-menu")).toBeVisible();
   return row;
 }
 
@@ -72,9 +72,9 @@ test.describe("Atalhos", () => {
     // Busca aberta + menu da mensagem aberto: Esc fecha o menu primeiro.
     await page.getByTestId("conversation-search-toggle").click();
     await expect(page.getByTestId("conversation-search")).toBeVisible();
-    const row = await openMenu(page, "primeira conversa");
+    await openMenu(page, "primeira conversa");
     await page.keyboard.press("Escape");
-    await expect(row.getByTestId("message-menu")).toHaveCount(0);
+    await expect(page.getByTestId("message-menu")).toHaveCount(0);
     await expect(page.getByTestId("conversation-search")).toBeVisible();
     await expect(page).toHaveURL(new RegExp(`/conversas/${convA}$`));
     // Segundo Esc: a busca.
@@ -88,8 +88,8 @@ test.describe("Atalhos", () => {
 
   test("Esc: seletor de emoji fecha antes da conversa", async ({ page }) => {
     await open(page);
-    const row = await openMenu(page, "primeira conversa");
-    await row.getByTestId("action-react").click();
+    await openMenu(page, "primeira conversa");
+    await page.getByTestId("action-react").click();
     await expect(page.getByTestId("emoji-picker")).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.getByTestId("emoji-picker")).toHaveCount(0);
@@ -99,8 +99,8 @@ test.describe("Atalhos", () => {
   test("Esc: cartão de citação, depois a conversa — e o rascunho continua na caixa", async ({ page }) => {
     await open(page);
     await composer(page).fill("rascunho que não pode sumir");
-    const row = await openMenu(page, "primeira conversa");
-    await row.getByTestId("action-reply").click();
+    await openMenu(page, "primeira conversa");
+    await page.getByTestId("action-reply").click();
     await expect(page.getByTestId("reply-card")).toBeVisible();
     await composer(page).press("Escape");
     await expect(page.getByTestId("reply-card")).toHaveCount(0);
@@ -145,8 +145,8 @@ test.describe("Atalhos", () => {
     await expect(history(page).getByText("minha mensagem editável")).toBeVisible();
     await expect(history(page).getByTestId("message-sending")).toHaveCount(0, { timeout: 20_000 });
     await composer(page).fill("outro rascunho");
-    const row = await openMenu(page, "minha mensagem editável");
-    await row.getByTestId("action-edit").click();
+    await openMenu(page, "minha mensagem editável");
+    await page.getByTestId("action-edit").click();
     await expect(page.getByTestId("edit-banner")).toBeVisible();
     await expect(composer(page)).toHaveValue("minha mensagem editável");
     await composer(page).press("Escape");
@@ -169,8 +169,8 @@ test.describe("Atalhos", () => {
 
   test("Esc com o modal de encaminhar aberto fecha só o modal", async ({ page }) => {
     await open(page);
-    const row = await openMenu(page, "primeira conversa");
-    await row.getByTestId("action-forward").click();
+    await openMenu(page, "primeira conversa");
+    await page.getByTestId("action-forward").click();
     await expect(page.getByTestId("forward-dialog")).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.getByTestId("forward-dialog")).toHaveCount(0);

@@ -119,7 +119,8 @@ test.describe("Responder: duplo clique, deslizar e foco", () => {
     await target.hover();
     await target.getByTestId("message-menu-button").dblclick();
     await expect(page.getByTestId("reply-card")).toHaveCount(0);
-    await page.keyboard.press("Escape");
+    // (o duplo clique abre e fecha o menu; com o Esc em camadas do Pacote Noite, um Esc sem camada aberta fecha a CONVERSA)
+    if (await page.getByTestId("message-menu").isVisible()) await page.keyboard.press("Escape");
 
     // anexo (cartão do documento): duplo clique nele não responde
     await page.getByTestId("file-input").setInputFiles([{ name: "contrato.pdf", mimeType: "application/pdf", buffer: pdf }]);
@@ -188,11 +189,14 @@ test.describe("Responder: duplo clique, deslizar e foco", () => {
     await touch("touchEnd", x0, y + 72);
     await expect(page.getByTestId("reply-card")).toHaveCount(0);
 
-    // horizontal para a direita: responde, com o ícone aparecendo no caminho
-    await touch("touchStart", x0, y);
-    for (let i = 1; i <= 7; i += 1) await touch("touchMove", x0 + i * 10, y + 1);
+    // horizontal para a direita: responde, com o ícone aparecendo no caminho (a rolagem vertical acima pode ter movido a bolha: mede de novo)
+    const moved = (await bubble.boundingBox())!;
+    const y2 = moved.y + moved.height / 2;
+    const x1 = moved.x + 20;
+    await touch("touchStart", x1, y2);
+    for (let i = 1; i <= 7; i += 1) await touch("touchMove", x1 + i * 10, y2 + 1);
     await expect(page.getByTestId("swipe-reply-icon")).toBeVisible();
-    await touch("touchEnd", x0 + 70, y + 1);
+    await touch("touchEnd", x1 + 70, y2 + 1);
     await expect(page.getByTestId("reply-card")).toContainText("Mensagem do cliente para responder");
     await expect.poll(() => focusedIsComposer(page)).toBe(true);
     const size = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, inner: window.innerWidth }));
