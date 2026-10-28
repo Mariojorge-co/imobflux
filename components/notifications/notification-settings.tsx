@@ -3,7 +3,8 @@
 import { useCallback, useSyncExternalStore } from "react";
 import { Bell, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui";
-import { playNotificationSound } from "@/components/notifications/new-message-notifier";
+import { NotificationDiagnostics } from "@/components/notifications/notification-diagnostics";
+import { playNotificationSound, unlockAudio } from "@/lib/notifications/sound";
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
   NOTIFICATION_PREFS_EVENT,
@@ -104,7 +105,9 @@ export function NotificationSettings({ memberId }: { memberId: string }) {
         />
         <Button
           disabled={!prefs.sound}
-          onClick={() => playNotificationSound(prefs.volume)}
+          onClick={() => {
+            void unlockAudio().then(() => playNotificationSound(prefs.volume));
+          }}
           type="button"
           variant="secondary"
         >

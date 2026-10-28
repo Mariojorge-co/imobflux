@@ -2,7 +2,10 @@ import { expect, test } from "@playwright/test";
 import {
   applyTitleCount,
   buildDesktopNotification,
+  classifyConversation,
+  classifyIncomingMessage,
   DEFAULT_NOTIFICATION_PREFERENCES,
+  IGNORE_REASON_TEXT,
   isAlreadyBeingRead,
   isFreshIncomingMessage,
   isNotifiableConversation,
@@ -45,13 +48,35 @@ test.describe("Notificações — quais conversas contam", () => {
     expect(isNotifiableConversation(conversation())).toBe(true);
   });
 
-  test("não conta: invisível (nula), arquivada, prazo pausado/desativado e grupo não liberado", () => {
+  test("não conta: invisível (nula), arquivada, prazo desativado, conversa consigo mesmo e grupo não liberado", () => {
     expect(isNotifiableConversation(null)).toBe(false);
     expect(isNotifiableConversation(conversation({ archived_at: "2026-10-01T00:00:00Z" }))).toBe(false);
     expect(isNotifiableConversation(conversation({ operational_status: "archived" }))).toBe(false);
-    expect(isNotifiableConversation(conversation({ sla_mode: "paused" }))).toBe(false);
     expect(isNotifiableConversation(conversation({ sla_mode: "disabled" }))).toBe(false);
+    expect(isNotifiableConversation(conversation({ is_self: true }))).toBe(false);
     expect(isNotifiableConversation(conversation({ conversation_type: "group", visibility: "owner_only" }))).toBe(false);
+  });
+
+  test("prazo PAUSADO avisa (a pausa dura só até o cliente falar de novo); desativado avisa só se a pessoa pedir", () => {
+    expect(isNotifiableConversation(conversation({ sla_mode: "paused" }))).toBe(true);
+    expect(isNotifiableConversation(conversation({ sla_mode: "disabled" }), { includeDisabled: true })).toBe(true);
+    // Mesmo pedindo, a conversa consigo mesmo continua em silêncio.
+    expect(isNotifiableConversation(conversation({ sla_mode: "disabled", is_self: true }), { includeDisabled: true })).toBe(false);
+  });
+
+  test("cada recusa tem um motivo com texto legível (sem texto de mensagem)", () => {
+    expect(classifyIncomingMessage({ ...message, direction: "outgoing" })).toBe("sent_by_team");
+    expect(classifyIncomingMessage({ ...message, origin: "crm" })).toBe("sent_by_team");
+    expect(classifyIncomingMessage({ ...message, is_history: true })).toBe("history");
+    expect(classifyIncomingMessage({ ...message, deleted_at: "2026-10-16T10:00:00Z" })).toBe("hidden");
+    expect(classifyIncomingMessage(null)).toBe("invalid");
+    expect(classifyIncomingMessage(message)).toBeNull();
+    expect(classifyConversation(null)).toBe("invisible");
+    expect(classifyConversation(conversation({ archived_at: "2026-10-01T00:00:00Z" }))).toBe("archived");
+    expect(classifyConversation(conversation({ sla_mode: "disabled" }))).toBe("sla_disabled");
+    expect(classifyConversation(conversation({ is_self: true }))).toBe("self_chat");
+    expect(classifyConversation(conversation({ conversation_type: "group", visibility: "owner_only" }))).toBe("group_owner_only");
+    for (const text of Object.values(IGNORE_REASON_TEXT)) expect(text.length).toBeGreaterThan(5);
   });
 
   test("grupo liberado à equipe conta", () => {
@@ -94,8 +119,8 @@ test.describe("Notificações — preferências pessoais", () => {
   });
 
   test("lê o que foi guardado e limita o volume entre 0 e 1", () => {
-    const prefs = parseNotificationPreferences(JSON.stringify({ sound: true, volume: 7, desktop: true, hidePreview: true }));
-    expect(prefs).toEqual({ sound: true, volume: 1, desktop: true, hidePreview: true });
+    const prefs = parseNotificationPreferences(JSON.stringify({ sound: true, volume: 7, desktop: true, hidePreview: true, includeDisabled: true }));
+    expect(prefs).toEqual({ sound: true, volume: 1, desktop: true, hidePreview: true, includeDisabled: true });
     expect(parseNotificationPreferences(JSON.stringify({ sound: "sim", volume: -3 }))).toMatchObject({ sound: false, volume: 0 });
   });
 
@@ -106,5 +131,19 @@ test.describe("Notificações — preferências pessoais", () => {
   test("som e aviso do sistema começam desligados (ninguém é surpreendido)", () => {
     expect(DEFAULT_NOTIFICATION_PREFERENCES.sound).toBe(false);
     expect(DEFAULT_NOTIFICATION_PREFERENCES.desktop).toBe(false);
+  });
+});
+
+test.describe("Notificações — o que funciona em cada aparelho", () => {
+  test("reconhece iPhone, iPad moderno, Android e computador; instalado só importa no iPhone", async () => {
+    const { detectPlatform, detectDeviceSupport, deviceSummary, DEVICE_GUIDES } = await import("../lib/notifications/device");
+    expect(detectPlatform("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)")).toBe("ios");
+    expect(detectPlatform("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)", 5)).toBe("ios");
+    expect(detectPlatform("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)", 0)).toBe("desktop");
+    expect(detectPlatform("Mozilla/5.0 (Linux; Android 14; Pixel 8)")).toBe("android");
+    expect(detectPlatform("Mozilla/5.0 (Windows NT 10.0; Win64; x64)")).toBe("desktop");
+    expect(deviceSummary(detectDeviceSupport("iPhone", 5, false))).toContain("instalar");
+    expect(deviceSummary(detectDeviceSupport("iPhone", 5, true))).toContain("instalado");
+    expect(DEVICE_GUIDES.map((guide) => guide.platform)).toEqual(["desktop", "android", "ios"]);
   });
 });

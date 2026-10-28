@@ -10,6 +10,8 @@ export type NotificationPreferences = {
   desktop: boolean;
   /** Esconde o nome e o texto no aviso do sistema (aparece só "Nova mensagem"). */
   hidePreview: boolean;
+  /** Avisa também as conversas com o prazo desativado (por padrão ficam em silêncio). */
+  includeDisabled: boolean;
 };
 
 export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
@@ -17,6 +19,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   volume: 0.6,
   desktop: false,
   hidePreview: false,
+  includeDisabled: false,
 };
 
 export const NOTIFICATION_PREFS_EVENT = "imobflux:notification-prefs-change";
@@ -41,6 +44,7 @@ export function parseNotificationPreferences(raw: string | null | undefined): No
       volume: clampVolume(value.volume),
       desktop: value.desktop === true,
       hidePreview: value.hidePreview === true,
+      includeDisabled: value.includeDisabled === true,
     };
   } catch {
     return DEFAULT_NOTIFICATION_PREFERENCES;
@@ -84,29 +88,72 @@ export type NotifiableConversation = {
   operational_status: string;
   archived_at?: string | null;
   sla_mode?: string | null;
+  is_self?: boolean | null;
   participant_name?: string | null;
 } | null;
 
-/** A mensagem é um fato novo, recebida do cliente, e não é eco, histórico, apagada nem escondida? */
-export function isFreshIncomingMessage(row: IncomingMessageRow | null | undefined): boolean {
-  if (!row || !row.conversation_id || !row.id) return false;
-  if (row.direction !== "incoming") return false;
+/** Por que um aviso NÃO saiu (mostrado no painel de diagnóstico das Preferências; nunca guarda texto de mensagem). */
+export type IgnoreReason =
+  | "invalid"
+  | "sent_by_team"
+  | "history"
+  | "hidden"
+  | "invisible"
+  | "lookup_failed"
+  | "archived"
+  | "sla_disabled"
+  | "group_owner_only"
+  | "self_chat"
+  | "reading";
+
+export const IGNORE_REASON_TEXT: Record<IgnoreReason, string> = {
+  invalid: "mensagem sem os dados necessários",
+  sent_by_team: "mensagem enviada por você ou pela equipe",
+  history: "mensagem antiga (histórico do WhatsApp)",
+  hidden: "mensagem apagada ou escondida",
+  invisible: "conversa que você não enxerga",
+  lookup_failed: "não foi possível consultar a conversa",
+  archived: "conversa arquivada",
+  sla_disabled: "conversa com o prazo desativado (dá para avisar também, nas opções acima)",
+  group_owner_only: "grupo não liberado à equipe",
+  self_chat: "conversa do número com ele mesmo",
+  reading: "você já estava lendo essa conversa",
+};
+
+/** Por que a mensagem não é um fato novo do cliente (eco, histórico, apagada…)? `null` = é novidade. */
+export function classifyIncomingMessage(row: IncomingMessageRow | null | undefined): IgnoreReason | null {
+  if (!row || !row.conversation_id || !row.id) return "invalid";
   // Mensagem que a própria equipe enviou (CRM ou celular) nunca é "recebida": cobre o eco do envio.
-  if (row.origin === "crm") return false;
-  if (row.is_history) return false;
-  if (row.hidden_at || row.deleted_at) return false;
-  return true;
+  if (row.direction !== "incoming" || row.origin === "crm") return "sent_by_team";
+  if (row.is_history) return "history";
+  if (row.hidden_at || row.deleted_at) return "hidden";
+  return null;
 }
 
-/** A conversa deve gerar aviso? Só as que a pessoa vê, abertas, com a atenção ligada e (grupo) liberadas à equipe. */
-export function isNotifiableConversation(conversation: NotifiableConversation): boolean {
-  if (!conversation) return false;
-  if (conversation.archived_at || conversation.operational_status === "archived") return false;
-  // Prazo pausado ou desativado = a conversa foi silenciada pela equipe.
-  if (conversation.sla_mode === "paused" || conversation.sla_mode === "disabled") return false;
-  // Grupo não liberado é restrito ao proprietário: não avisa nem ele (não é trabalho da equipe).
-  if (conversation.conversation_type === "group" && conversation.visibility === "owner_only") return false;
-  return true;
+/** A mensagem é um fato novo, recebido do cliente, e não é eco, histórico, apagado nem escondido? */
+export function isFreshIncomingMessage(row: IncomingMessageRow | null | undefined): boolean {
+  return classifyIncomingMessage(row) === null;
+}
+
+/**
+ * Por que a conversa não gera aviso? `null` = gera. Só as que a pessoa vê, abertas e (grupo) liberadas à equipe.
+ * Prazo "pausado" AVISA: ele só dura "até o cliente falar de novo", que é exatamente o que acabou de acontecer.
+ * Prazo "desativado" fica em silêncio, a menos que a pessoa peça para avisar também.
+ */
+export function classifyConversation(
+  conversation: NotifiableConversation,
+  options: { includeDisabled?: boolean } = {},
+): IgnoreReason | null {
+  if (!conversation) return "invisible";
+  if (conversation.archived_at || conversation.operational_status === "archived") return "archived";
+  if (conversation.is_self) return "self_chat";
+  if (conversation.conversation_type === "group" && conversation.visibility === "owner_only") return "group_owner_only";
+  if (conversation.sla_mode === "disabled" && !options.includeDisabled) return "sla_disabled";
+  return null;
+}
+
+export function isNotifiableConversation(conversation: NotifiableConversation, options: { includeDisabled?: boolean } = {}): boolean {
+  return classifyConversation(conversation, options) === null;
 }
 
 export type AttentionState = {
