@@ -142,7 +142,7 @@ test.describe("Notificações — o que funciona em cada aparelho", () => {
     expect(detectPlatform("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)", 0)).toBe("desktop");
     expect(detectPlatform("Mozilla/5.0 (Linux; Android 14; Pixel 8)")).toBe("android");
     expect(detectPlatform("Mozilla/5.0 (Windows NT 10.0; Win64; x64)")).toBe("desktop");
-    expect(deviceSummary(detectDeviceSupport("iPhone", 5, false))).toContain("instalar");
+    expect(deviceSummary(detectDeviceSupport("iPhone", 5, false))).toContain("instalar o ImobFlux na tela inicial");
     expect(deviceSummary(detectDeviceSupport("iPhone", 5, true))).toContain("instalado");
     expect(DEVICE_GUIDES.map((guide) => guide.platform)).toEqual(["desktop", "android", "ios"]);
   });

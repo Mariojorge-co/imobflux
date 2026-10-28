@@ -119,6 +119,29 @@ export function NotificationDiagnostics({ memberId }: { memberId: string }) {
         ))}
       </dl>
 
+      {platform === "ios" ? (
+        <div className="rounded-control border border-border bg-neutral-soft px-3 py-2 text-caption text-text" data-testid="ios-notice" role="note">
+          <p className="font-medium">No iPhone, o que vale hoje</p>
+          <ul className="mt-1 list-disc space-y-1 pl-4">
+            <li>Aviso do sistema e som <strong>não funcionam</strong> com o ImobFlux aberto no navegador (Safari, Opera ou outro) quando você sai da página ou bloqueia a tela.</li>
+            <li>Título com o número e som funcionam <strong>só com a página aberta e em primeiro plano</strong>.</li>
+            <li>Só o app instalado na tela inicial pode receber avisos, e isso exige Web Push com servidor, que ainda não está pronto.</li>
+          </ul>
+        </div>
+      ) : null}
+
+      <div className="space-y-2" data-testid="install-help">
+        <p className="text-body font-medium text-text">Como instalar no iPhone</p>
+        <ol className="list-decimal space-y-1 pl-5 text-caption text-text-muted">
+          <li>Abra o ImobFlux no navegador do iPhone.</li>
+          <li>Toque em <strong>Compartilhar</strong> (o quadrado com a seta para cima).</li>
+          <li>Escolha <strong>Adicionar à Tela de Início</strong> e confirme.</li>
+        </ol>
+        <p className="text-caption text-text-muted">
+          O app instalado abre em tela cheia, sem as barras do navegador. Instalar não liga os avisos por si só. Se o Opera não mostrar essa opção, abra o ImobFlux no Safari para instalar.
+        </p>
+      </div>
+
       <div className="space-y-2" data-testid="notif-device-guide">
         <p className="text-body font-medium text-text">O que funciona em cada aparelho</p>
         <p className="text-caption text-text-muted" data-testid="notif-device-summary">

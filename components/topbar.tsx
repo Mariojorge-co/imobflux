@@ -24,7 +24,7 @@ export function Topbar({ role }: { role: "owner" | "attendant" }) {
   return (
     <header
       aria-label="Barra superior"
-      className="sticky top-0 z-30 h-topbar border-b border-border bg-surface lg:static"
+      className="sticky top-0 z-30 h-[calc(var(--spacing-topbar)+env(safe-area-inset-top))] border-b border-border bg-surface pt-[env(safe-area-inset-top)] lg:static"
     >
       <div className="flex h-full items-center justify-between px-stack sm:px-page">
         <span className="text-xl font-bold tracking-tight text-text lg:hidden">
@@ -69,7 +69,7 @@ export function Topbar({ role }: { role: "owner" | "attendant" }) {
         {/* Fundo escuro: tocar fora do menu o fecha (é um botão, então o toque também funciona no iOS). */}
         <button
           aria-label="Fechar menu principal"
-          className="fixed inset-x-0 bottom-0 top-topbar -z-10 bg-text/40 lg:hidden"
+          className="fixed inset-x-0 bottom-0 top-[calc(var(--spacing-topbar)+env(safe-area-inset-top))] -z-10 bg-text/40 lg:hidden"
           data-testid="nav-backdrop"
           onClick={closeNavigation}
           tabIndex={-1}

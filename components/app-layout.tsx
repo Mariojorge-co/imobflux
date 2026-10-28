@@ -12,7 +12,7 @@ type AppLayoutProps = {
 
 export function AppLayout({ children, memberId, role }: AppLayoutProps) {
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-screen bg-background pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
       <NewMessageNotifier memberId={memberId} />
       <Sidebar role={role} />
       <div className="flex min-w-0 flex-1 flex-col">

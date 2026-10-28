@@ -39,7 +39,7 @@ export function ConversationsViewportFrame({ children }: { children: ReactNode }
 
   return (
     <div
-      className="flex h-[calc(100dvh-64px)] w-full flex-col overflow-hidden bg-background"
+      className="flex h-[calc(100dvh-64px-env(safe-area-inset-top))] w-full flex-col overflow-hidden bg-background"
       data-keyboard-open={keyboard.open ? "true" : undefined}
       data-testid="conversations-frame"
       ref={frameRef}

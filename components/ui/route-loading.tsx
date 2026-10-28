@@ -10,7 +10,7 @@ type RouteLoadingProps = {
 export function RouteLoading({ title, variant = "page" }: RouteLoadingProps) {
   if (variant === "conversations") {
     return (
-      <div aria-busy="true" aria-label={`Carregando ${title.toLowerCase()}`} className="flex h-[calc(100dvh-64px)] w-full overflow-hidden bg-background">
+      <div aria-busy="true" aria-label={`Carregando ${title.toLowerCase()}`} className="flex h-[calc(100dvh-64px-env(safe-area-inset-top))] w-full overflow-hidden bg-background">
         <div className="w-full shrink-0 border-r border-border bg-surface p-stack md:w-[19rem] xl:w-80">
           <div className="h-7 w-28 animate-pulse rounded-control bg-neutral-soft" />
           <div className="mt-stack h-11 animate-pulse rounded-control bg-neutral-soft" />

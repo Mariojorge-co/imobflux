@@ -37,9 +37,9 @@ export const DEVICE_GUIDES: DeviceGuide[] = [
   },
   {
     platform: "ios",
-    label: "iPhone e iPad (Safari)",
-    works: "Número no título e som (depois do primeiro toque) com a tela aberta. O aviso do sistema só existe com o ImobFlux instalado na tela inicial (Compartilhar › Adicionar à Tela de Início), no iOS 16.4 ou mais novo.",
-    limits: "O iPhone congela a página assim que você sai dela; sem Web Push (próxima etapa) não há aviso com o app fechado ou em segundo plano.",
+    label: "iPhone e iPad (Safari, Opera e outros navegadores)",
+    works: "Número no título e som (depois do primeiro toque), só com a página do ImobFlux aberta e em primeiro plano.",
+    limits: "Página aberta no navegador (Safari, Opera ou outro) não recebe aviso do sistema nem toca som em segundo plano: o iPhone congela a página assim que você sai dela. Só o app instalado na tela inicial pode receber avisos, e isso exige o envio pelo servidor (Web Push), que o ImobFlux ainda não tem.",
   },
 ];
 
@@ -47,8 +47,8 @@ export const DEVICE_GUIDES: DeviceGuide[] = [
 export function deviceSummary(device: DeviceSupport): string {
   if (device.platform === "ios") {
     return device.installed
-      ? "iPhone com o app instalado na tela inicial: o aviso do sistema pode funcionar."
-      : "iPhone no navegador: o aviso do sistema só funciona depois de instalar o ImobFlux na tela inicial.";
+      ? "iPhone com o app instalado na tela inicial: ainda não chega aviso com o app fechado, porque o envio pelo servidor (Web Push) não foi implementado."
+      : "iPhone no navegador: não chega aviso do sistema nem toca som em segundo plano. Para usar o ImobFlux como app, basta instalar o ImobFlux na tela inicial; isso ainda não liga os avisos.";
   }
   if (device.platform === "android") return "Android: o aviso do sistema usa um serviço do navegador e funciona com o app aberto ou recente em segundo plano.";
   return "Computador: título, som e aviso do sistema funcionam com o ImobFlux aberto numa aba.";
