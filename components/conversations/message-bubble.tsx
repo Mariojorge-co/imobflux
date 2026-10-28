@@ -122,8 +122,8 @@ export function MessageBubble({
         setPickerOpen(false);
       }
     };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
   }, [menuOpen, pickerOpen]);
   useEscapeLayer(menuOpen, ESCAPE_PRIORITY.messageMenu, () => setMenuOpen(false));
   useEscapeLayer(pickerOpen, ESCAPE_PRIORITY.emojiPicker, () => setPickerOpen(false));

@@ -1,8 +1,10 @@
 "use client";
 
 import { createPortal } from "react-dom";
-import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { captureFocusTarget } from "@/lib/ui/focus-return";
 import { ESCAPE_PRIORITY, useEscapeLayer } from "@/lib/ui/escape-stack";
+import { useIsCompact } from "@/lib/ui/use-compact";
 
 type ViewportMenuProps = {
   anchorRef: RefObject<HTMLElement | null>;
@@ -29,6 +31,8 @@ export function ViewportMenu({
   open,
 }: ViewportMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
+  const compact = useIsCompact();
+  const returnFocusRef = useRef<HTMLElement | null>(null);
   // Esc fecha o menu (uma camada, a de cima).
   useEscapeLayer(open, ESCAPE_PRIORITY.messageMenu, () => {
     onClose();
@@ -66,7 +70,7 @@ export function ViewportMenu({
       setPosition({ left, top, visibility: "visible" });
     };
 
-    const handlePointerDown = (event: MouseEvent) => {
+    const handlePointerDown = (event: PointerEvent) => {
       const target = event.target as Node;
       if (!menuRef.current?.contains(target) && !anchorRef.current?.contains(target)) {
         onClose();
@@ -74,20 +78,39 @@ export function ViewportMenu({
     };
 
     updatePosition();
-    document.addEventListener("mousedown", handlePointerDown);
+    // pointerdown (e não mousedown): no celular o toque em área sem ação nunca gera "mousedown" e o menu não fechava.
+    document.addEventListener("pointerdown", handlePointerDown);
     window.addEventListener("resize", updatePosition);
     window.addEventListener("scroll", updatePosition, true);
 
     return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("pointerdown", handlePointerDown);
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
     };
   }, [anchorRef, onClose, open]);
 
+  // O foco volta a quem abriu o menu (em telas de toque o botão tocado nem sempre fica com o foco).
+  useEffect(() => {
+    if (!open) return;
+    returnFocusRef.current = anchorRef.current ?? captureFocusTarget();
+    return () => returnFocusRef.current?.focus?.();
+  }, [anchorRef, open]);
+
   if (!open || typeof document === "undefined") return null;
 
   return createPortal(
+    <>
+      {compact ? (
+        <button
+          aria-label="Fechar menu"
+          className="fixed inset-0 z-[65] cursor-default bg-transparent"
+          data-testid="menu-backdrop"
+          onClick={onClose}
+          tabIndex={-1}
+          type="button"
+        />
+      ) : null}
     <div
       aria-labelledby={labelledBy}
       className="fixed z-[70] max-h-[calc(100vh-1rem)] min-w-44 overflow-y-auto rounded-card border border-border bg-surface py-1 text-body shadow-lg ring-1 ring-black/5"
@@ -96,7 +119,8 @@ export function ViewportMenu({
       style={{ left: position.left, top: position.top, visibility: position.visibility }}
     >
       {children}
-    </div>,
+    </div>
+    </>,
     document.body,
   );
 }

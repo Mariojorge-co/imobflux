@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { captureFocusTarget } from "@/lib/ui/focus-return";
 import { ESCAPE_PRIORITY, useEscapeLayer } from "@/lib/ui/escape-stack";
 
 type BottomSheetProps = {
@@ -19,6 +20,8 @@ type BottomSheetProps = {
 export function BottomSheet({ open, onClose, title, children, testId = "bottom-sheet" }: BottomSheetProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const dragStartRef = useRef<number | null>(null);
+  const [dragY, setDragY] = useState(0);
 
   useEscapeLayer(open, ESCAPE_PRIORITY.messageMenu, () => {
     onClose();
@@ -26,13 +29,30 @@ export function BottomSheet({ open, onClose, title, children, testId = "bottom-s
 
   useEffect(() => {
     if (!open) return;
-    previousFocusRef.current = document.activeElement as HTMLElement | null;
+    previousFocusRef.current = captureFocusTarget();
     const frame = requestAnimationFrame(() => panelRef.current?.querySelector<HTMLElement>("button, a[href]")?.focus());
     return () => {
       cancelAnimationFrame(frame);
       previousFocusRef.current?.focus?.();
     };
   }, [open]);
+
+  // Arrastar a alça/título para baixo fecha a folha (passou de ~80px) ou ela volta ao lugar.
+  const startDrag = (event: ReactPointerEvent) => {
+    dragStartRef.current = event.clientY;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+  const moveDrag = (event: ReactPointerEvent) => {
+    if (dragStartRef.current === null) return;
+    setDragY(Math.max(0, event.clientY - dragStartRef.current));
+  };
+  const endDrag = (event: ReactPointerEvent) => {
+    if (dragStartRef.current === null) return;
+    const distance = event.clientY - dragStartRef.current;
+    dragStartRef.current = null;
+    setDragY(0);
+    if (distance > 80) onClose();
+  };
 
   if (!open || typeof document === "undefined") return null;
 
@@ -54,9 +74,19 @@ export function BottomSheet({ open, onClose, title, children, testId = "bottom-s
         className="relative max-h-[85dvh] w-full overflow-y-auto rounded-t-2xl border-t border-border bg-surface pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl"
         ref={panelRef}
         role="dialog"
+        style={dragY ? { transform: `translateY(${dragY}px)` } : undefined}
       >
-        <div aria-hidden="true" className="mx-auto mt-2 h-1 w-10 rounded-full bg-border-strong" />
-        <p className="px-4 pb-1 pt-2 text-caption font-semibold uppercase tracking-wide text-text-muted">{title}</p>
+        <div
+          className="touch-none"
+          data-testid="sheet-handle"
+          onPointerCancel={endDrag}
+          onPointerDown={startDrag}
+          onPointerMove={moveDrag}
+          onPointerUp={endDrag}
+        >
+          <div aria-hidden="true" className="mx-auto mt-2 h-1 w-10 rounded-full bg-border-strong" />
+          <p className="px-4 pb-1 pt-2 text-caption font-semibold uppercase tracking-wide text-text-muted">{title}</p>
+        </div>
         <div className="pb-1" role="menu">{children}</div>
       </div>
     </div>,
