@@ -147,6 +147,22 @@ export function NotificationSettings({ memberId }: { memberId: string }) {
           <span className="block text-caption text-text-muted">O aviso mostra só “nova mensagem”, útil se outras pessoas veem sua tela.</span>
         </span>
       </label>
+
+      <label className={rowClass}>
+        <input
+          checked={prefs.includeDisabled}
+          className={checkClass}
+          data-testid="notif-include-disabled"
+          onChange={(event) => update({ includeDisabled: event.target.checked })}
+          type="checkbox"
+        />
+        <span>
+          Avisar também as conversas com o prazo desativado
+          <span className="block text-caption text-text-muted">Por padrão elas ficam em silêncio. Conversas com o prazo pausado avisam normalmente quando o cliente volta a falar.</span>
+        </span>
+      </label>
+
+      <NotificationDiagnostics memberId={memberId} />
     </div>
   );
 }

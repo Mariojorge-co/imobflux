@@ -223,7 +223,7 @@ test.describe("Atalhos", () => {
     await expect(page.getByTestId("shortcuts-help")).toContainText("Esc");
     await expect(page.getByTestId("shortcuts-help")).toContainText("Alt + ↑ / ↓");
     // A ajuda não lista mais o atalho "?".
-    await expect(page.getByTestId("shortcuts-help").locator("kbd", { hasText: /^?$/ })).toHaveCount(0);
+    await expect(page.getByTestId("shortcuts-help").locator("kbd", { hasText: /^[?]$/ })).toHaveCount(0);
     await page.keyboard.press("Escape");
     await expect(page.getByTestId("shortcuts-help")).toHaveCount(0);
     await expect(page).toHaveURL(new RegExp(`/conversas/${convA}$`));

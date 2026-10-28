@@ -535,10 +535,13 @@ type ConversationCardProps = {
 };
 
 import { SlaBadge } from "@/components/conversations/sla-badge";
+import { useDraftPreview } from "@/lib/conversations/use-draft-preview";
 import { conversationHasSla, conversationPatchFromMessage, isConversationClosed } from "@/lib/conversations/sla-display";
 
 function ConversationCard({ item, isSelected, onClick, onPrefetch }: ConversationCardProps) {
   const displayName = item.participant_name ?? "Participante desconhecido";
+  // Na conversa aberta o texto já está na caixa de mensagem (e a prévia não deve piscar enquanto se digita): o rascunho só aparece nas outras.
+  const draft = useDraftPreview(item.conversation_id, !isSelected);
   const snippet = item.last_msg_text
     ? truncate(item.last_msg_text, 60)
     : "Sem mensagens";
@@ -580,7 +583,13 @@ function ConversationCard({ item, isSelected, onClick, onPrefetch }: Conversatio
         </div>
           <span className="shrink-0 text-caption text-text-muted" suppressHydrationWarning>{timeLabel}</span>
         </div>
-        <p className="mt-0.5 truncate text-caption text-text-muted">{snippet}</p>
+        {draft ? (
+          <p className="mt-0.5 truncate text-caption text-text-muted" data-testid="conversation-draft">
+            <span className="font-semibold text-primary">Rascunho:</span> {draft}
+          </p>
+        ) : (
+          <p className="mt-0.5 truncate text-caption text-text-muted">{snippet}</p>
+        )}
         {assigneeNames ? (
           <p className="mt-0.5 truncate text-caption text-text-muted" data-testid="conversation-assignees" title={`Responsáveis: ${assigneeNames}`}>
             {item.assigned_to_me ? "Você" : "Resp."}{item.assigned_to_me && item.assignees && item.assignees.length > 1 ? ` e mais ${item.assignees.length - 1}` : item.assigned_to_me ? "" : `: ${assigneeNames}`}

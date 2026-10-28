@@ -40,6 +40,7 @@ import { SlaControl, type SlaMode } from "@/components/conversations/sla-control
 import { resolveOpportunityTargets } from "@/lib/conversations/opportunity-targets";
 import { copyableText, quoteAuthorLabel, snapshotFromMessage, type Viewer } from "@/lib/conversations/message-ui";
 import type { ReplyRef } from "@/lib/conversations/message-merge";
+import { getReplyDraft, setReplyDraft } from "@/lib/conversations/drafts";
 import { ESCAPE_PRIORITY, isEditableTarget, useEscapeLayer } from "@/lib/ui/escape-stack";
 import { consumeOpenedFromList } from "@/lib/conversations/navigation";
 import type {
@@ -98,7 +99,7 @@ export function MessagesPanel({
   const [, startTransition] = useTransition();
   const [messages, setMessages] = useState<ConversationMessage[]>(initialMessages);
   // Ações sobre mensagens (responder, editar, apagar, encaminhar) e notas no meio da conversa.
-  const [replyTo, setReplyTo] = useState<(ReplyRef & { author: string }) | null>(null);
+  const [replyTo, setReplyTo] = useState<(ReplyRef & { author: string }) | null>(() => getReplyDraft(conversation.conversation_id));
   const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
   const [forwardTarget, setForwardTarget] = useState<ConversationMessage | null>(null);
   const [historyTarget, setHistoryTarget] = useState<string | null>(null);
@@ -432,11 +433,17 @@ export function MessagesPanel({
     setMessages((previous) => previous.map((message) => (message.id === id ? { ...message, ...patch } : message)));
   }, []);
 
+  // A citação em andamento também é um rascunho: a lista de conversas mostra "Rascunho: respondendo a …" e ela volta ao reabrir.
+  const conversationDraftId = conversation.conversation_id;
+  const updateReply = useCallback((value: (ReplyRef & { author: string }) | null) => {
+    setReplyTo(value);
+    setReplyDraft(conversationDraftId, value);
+  }, [conversationDraftId]);
   const handleReply = useCallback((message: ConversationMessage) => {
     const snapshot = snapshotFromMessage(message, liveConversation.participant_name);
     setEditing(null);
-    setReplyTo({ messageId: message.id, snapshot, author: quoteAuthorLabel(snapshot, viewer) });
-  }, [liveConversation.participant_name, viewer]);
+    updateReply({ messageId: message.id, snapshot, author: quoteAuthorLabel(snapshot, viewer) });
+  }, [liveConversation.participant_name, updateReply, viewer]);
 
   // Duplo clique / deslize: igual ao menu "Responder", mas não atrapalha uma edição nem uma gravação de áudio em andamento.
   const handleQuickReply = useCallback((message: ConversationMessage) => {
@@ -446,9 +453,9 @@ export function MessagesPanel({
   }, [editing, handleReply]);
 
   const handleStartEdit = useCallback((message: ConversationMessage) => {
-    setReplyTo(null);
+    updateReply(null);
     setEditing({ id: message.id, text: message.text_content ?? "" });
-  }, []);
+  }, [updateReply]);
 
   const handleSaveEdit = useCallback(async (id: string, text: string): Promise<{ success: boolean; error?: string }> => {
     const result = await editMessageAction(id, text);
@@ -509,10 +516,10 @@ export function MessagesPanel({
         reactions: [],
       });
     }
-    if (replyTo?.messageId === message.id) setReplyTo(null);
+    if (replyTo?.messageId === message.id) updateReply(null);
     if (editing?.id === message.id) setEditing(null);
     setConfirmAction(null);
-  }, [confirmAction, editing, patchMessage, replyTo]);
+  }, [confirmAction, editing, patchMessage, replyTo, updateReply]);
 
   // ─── Notas internas no meio da conversa ─────────────────────────────────────────────────────────
 
@@ -1223,9 +1230,9 @@ export function MessagesPanel({
           contactName={liveConversation.participant_name}
           editing={editing}
           onCancelEdit={() => setEditing(null)}
-          onCancelReply={() => setReplyTo(null)}
+          onCancelReply={() => updateReply(null)}
           onNoteSaved={() => void refreshThreadNotes()}
-          onReplyConsumed={() => setReplyTo(null)}
+          onReplyConsumed={() => updateReply(null)}
           onSaveEdit={handleSaveEdit}
           replyTo={replyTo}
           onInternalNoteSaved={handleInternalNoteSaved}
