@@ -95,3 +95,14 @@ body {
   background: var(--color-background);
   color: var(--color-text);
 }
+
+/* Celular/tablet de toque: campos com menos de 16px fazem o navegador dar zoom ao focar (e o botão Enviar some da tela). Fica fora de
+   qualquer @layer de propósito, para vencer as classes de tamanho do Tailwind. O zoom de acessibilidade continua liberado (sem
+   maximum-scale nem user-scalable=no). */
+@media (max-width: 767px), (pointer: coarse) {
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="button"], [type="submit"], [type="reset"], [type="image"]),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
