@@ -73,6 +73,8 @@ test.describe("Telas novas — contraste e capturas", () => {
 
         // uso na conversa: painel e bandeja
         await page.goto(`/conversas/${conversation}`);
+        // Espera a conversa hidratar: um clique antes disso não abre o painel.
+        await expect(page.locator('[data-testid="conversation-column"][data-ready="true"]')).toBeVisible();
         await page.getByTestId("quick-replies-button").click();
         await expect(page.getByTestId("quick-replies-panel")).toBeVisible();
         await check("painel-respostas");

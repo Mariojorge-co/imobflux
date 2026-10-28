@@ -143,9 +143,14 @@ Detalhes, números de desempenho, testes e roteiro em [RELATORIO_CONVERSAS_PACOT
 - **Conteúdo**: JID real do WhatsApp via `whatsappNumbers`; estado "enviada ao WhatsApp" (60 s); leitor do webhook tolerante (edição, exclusão, citação, reação); edição do celular via `edit_signal` + `findMessages`; reação única da conta; menu em portal; Editar/Apagar nas notas; responder com duplo clique na linha inteira (mouse) ou deslizando (toque) e foco no campo; vídeo/arquivo recebido até 50 MiB com aviso final e retry limitado; Sair dentro do menu no celular com confirmação.
 - **Atenção**: a avaliação no celular da edição do celular depende de a Evolution guardar o texto editado (ver relatório 3).
 
-## Pacote Noite Geral — pronto localmente, NÃO publicado (branch `feat/pacote-noite`)
+## Ajustes 5 — prontos localmente, NÃO publicados (branch `fix/ajustes-5`, a partir da `main` `24ae9eb`)
 
-- **Estado**: 11+ commits locais rebaseados sobre a `main` (`48c1cc9`); nenhum push, deploy ou migration em produção. Aguarda "autorizo" (Trava A: banco; Trava B: app).
+- **Estado**: commits pequenos locais, sem push, sem deploy e **sem migration** (nada de Trava A; só a Trava B, do app, quando houver "autorizo"). Relatório: [RELATORIO_AJUSTES_5.md](RELATORIO_AJUSTES_5.md).
+- **Conteúdo**: avisos de mensagem nova com causa raiz (prazo "pausado" silenciava a conversa), painel de diagnóstico e "Testar aviso agora" em Preferências, service worker mínimo (Android), som destravado no primeiro toque; menus e folhas que fecham ao tocar fora no celular; campos com 16 px (sem zoom); seletor de emoji; ajuda de atalhos só pelo botão (sem a tecla `?`); "Rascunho:" na lista de conversas.
+
+## Pacote Noite Geral — publicado em produção (main `24ae9eb`)
+
+- **Estado**: publicado (Trava A: migrations `006500`, `006600`, `006700` aplicadas; Trava B: app no ar, CI verde nos dois jobs, Vercel Ready).
 - **Entrega**: atalhos e Esc em camadas, celular/tablet, painel **Hoje** (`/hoje`), respostas rápidas com anexo, avisos de mensagem nova, busca global, modo claro/escuro/automático e dois estudos (Google Contatos; financiamento). Ver [RELATORIO_PACOTE_NOITE.md](RELATORIO_PACOTE_NOITE.md).
 - **Migrations novas (aditivas, com rollback em `docs/rollback/`)**: `006500` (`get_today_overview`), `006600` (`quick_reply_attachments` + 3 funções), `006700` (`pg_trgm`, índice trigram, `search_global` e auxiliar `private.search_message_candidates`). Ordem de aplicação: `006500` → `006600` → `006700`; compatíveis com o app em produção.
 - **Qualidade**: lint e tipos limpos; 593 testes unitários em Node 22 e 24; build ok; pgTAP 46 arquivos / 1.410 testes; regressão completa das suítes de navegador antigas e das novas passando (instabilidade registrada: 1º teste do `auth-flow` após sincronizar — compilação a frio do servidor de desenvolvimento; passou 17/17 na repetição); contraste WCAG AA sem violações em claro/escuro × 390/1440 px.
