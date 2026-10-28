@@ -26,7 +26,9 @@ const linkClass = "inline-flex min-h-9 items-center gap-1 rounded-control px-2 t
  * com a opção de tentar novamente, sem afetar o restante da conversa.
  */
 export function AttachmentView({ attachment, isOutgoing, messageText }: AttachmentViewProps) {
-  const src = `/api/attachments/${attachment.id}`;
+  // "Tentar de novo" numa mídia que não carregou: outra tentativa com um parâmetro novo (a rota ignora; evita reaproveitar a falha).
+  const [attempt, setAttempt] = useState(0);
+  const src = `/api/attachments/${attachment.id}${attempt > 0 ? `?r=${attempt}` : ""}`;
   const description = describeAttachment(attachment);
   const [broken, setBroken] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -34,6 +36,19 @@ export function AttachmentView({ attachment, isOutgoing, messageText }: Attachme
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [retry, setRetry] = useState<{ state: "idle" | "running" | "done" | "error"; message?: string }>({ state: "idle" });
   const [, startTransition] = useTransition();
+
+  // A imagem pode terminar de carregar (ou falhar) antes de o React hidratar a página: o onLoad/onError não dispara mais e a
+  // miniatura ficava para sempre no quadrado vazio. Ao anexar o elemento, confere o estado real dele.
+  const settleImage = (element: HTMLImageElement | null) => {
+    if (!element || !element.complete) return;
+    if (element.naturalWidth > 0) setLoaded(true);
+    else setBroken(true);
+  };
+  const reload = () => {
+    setBroken(false);
+    setLoaded(false);
+    setAttempt((current) => current + 1);
+  };
 
   const tone = isOutgoing ? "bg-white/10 text-primary-foreground/80" : "bg-neutral-soft text-text-muted";
   const cardClass = `mb-1.5 flex items-start gap-1.5 rounded-lg px-2.5 py-1.5 text-xs ${tone}`;
@@ -75,6 +90,7 @@ export function AttachmentView({ attachment, isOutgoing, messageText }: Attachme
           data-testid="sticker-image"
           loading="lazy"
           onError={() => setBroken(true)}
+          ref={settleImage}
           src={src}
           style={{ height: "auto", maxHeight: STICKER_MAX_PX, maxWidth: STICKER_MAX_PX, width: "auto" }}
         />
@@ -97,9 +113,11 @@ export function AttachmentView({ attachment, isOutgoing, messageText }: Attachme
             <img
               alt={attachment.file_name}
               className={`block h-auto max-h-[180px] w-auto max-w-[180px] object-contain sm:max-h-[220px] sm:max-w-[220px] ${loaded ? "" : "opacity-0"}`}
+              key={attempt}
               loading="lazy"
               onError={() => setBroken(true)}
               onLoad={() => setLoaded(true)}
+              ref={settleImage}
               src={src}
             />
           </button>
@@ -133,11 +151,12 @@ export function AttachmentView({ attachment, isOutgoing, messageText }: Attachme
             <video
               aria-hidden="true"
               className="block h-auto max-h-[180px] w-auto max-w-[180px] object-contain sm:max-h-[220px] sm:max-w-[220px]"
+              key={attempt}
               muted
               onError={() => setBroken(true)}
               playsInline
               preload="metadata"
-              src={src}
+              src={`${src}#t=0.001`}
               tabIndex={-1}
             />
             <span className="absolute inset-0 flex items-center justify-center bg-black/20">
@@ -227,9 +246,16 @@ export function AttachmentView({ attachment, isOutgoing, messageText }: Attachme
             <RotateCw aria-hidden="true" size={12} /> {retry.state === "running" ? "Tentando…" : "Tentar de novo"}
           </button>
         ) : (
-          <a className={linkClass} href={src} rel="noreferrer" target="_blank">
-            <ExternalLink aria-hidden="true" size={12} /> Tentar abrir diretamente
-          </a>
+          <>
+            {kind === "image" || kind === "video" ? (
+              <button className={linkClass} data-testid="attachment-reload" onClick={reload} type="button">
+                <RotateCw aria-hidden="true" size={12} /> Tentar de novo
+              </button>
+            ) : null}
+            <a className={linkClass} href={src} rel="noreferrer" target="_blank">
+              <ExternalLink aria-hidden="true" size={12} /> Tentar abrir diretamente
+            </a>
+          </>
         )}
       </span>
     </div>
