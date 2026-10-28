@@ -37,6 +37,10 @@ export function EmojiInsertButton({ memberId, onPick, disabled, className = "", 
       if (!target) return;
       if (buttonRef.current?.contains(target) || target.closest(`[data-emoji-panel="${CSS.escape(panelId)}"]`)) return;
       setOpen(false);
+      // O toque que fecha também tira o foco ao terminar: devolve o foco ao botão um instante depois.
+      window.setTimeout(() => {
+        if (document.activeElement === document.body) buttonRef.current?.focus();
+      }, 60);
     };
     document.addEventListener("pointerdown", close);
     return () => document.removeEventListener("pointerdown", close);

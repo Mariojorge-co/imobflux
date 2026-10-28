@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import { ESCAPE_PRIORITY, useEscapeLayer } from "@/lib/ui/escape-stack";
+import { captureFocusTarget } from "@/lib/ui/focus-return";
 
 type DrawerProps = {
   children: ReactNode;
@@ -23,7 +24,7 @@ export function Drawer({ children, onClose, open, title }: DrawerProps) {
 
   useEffect(() => {
     if (!open) return;
-    previousFocusRef.current = document.activeElement as HTMLElement | null;
+    previousFocusRef.current = captureFocusTarget();
     const focusFrame = requestAnimationFrame(() => closeButtonRef.current?.focus());
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Tab" || !panelRef.current) return;

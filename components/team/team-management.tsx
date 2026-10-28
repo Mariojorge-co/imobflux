@@ -89,7 +89,7 @@ export function TeamManagement({ members }: TeamManagementProps) {
         ))}
       </div>
 
-      <dialog className="m-auto w-[min(92vw,30rem)] rounded-card border border-border bg-surface p-card text-text backdrop:bg-black/30" ref={dialogRef}>
+      <dialog className="m-auto w-[min(92vw,30rem)] rounded-card border border-border bg-surface p-card text-text backdrop:bg-black/30" onClick={(event) => { if (event.target === event.currentTarget) dialogRef.current?.close(); }} ref={dialogRef}>
         <form action={submitInvitation} className="space-y-stack">
           <div>
             <h2 className="text-lg font-semibold">Adicionar funcionário</h2>

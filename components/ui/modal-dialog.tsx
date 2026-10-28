@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useRef } from "react";
 import { classNames } from "@/lib/class-names";
+import { captureFocusTarget } from "@/lib/ui/focus-return";
 
 type ModalDialogProps = {
   children: ReactNode;
@@ -28,7 +29,7 @@ export function ModalDialog({
     if (!dialog) return;
 
     if (open && !dialog.open) {
-      previousFocusRef.current = document.activeElement as HTMLElement | null;
+      previousFocusRef.current = captureFocusTarget();
       dialog.showModal();
     } else if (!open && dialog.open) {
       dialog.close();

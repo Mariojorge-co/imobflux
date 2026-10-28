@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } f
 import { ChevronDown, ChevronRight, Plus, Search, Settings2, X, Zap } from "lucide-react";
 import { Button } from "@/components/ui";
 import { ESCAPE_PRIORITY, useEscapeLayer } from "@/lib/ui/escape-stack";
+import { captureFocusTarget } from "@/lib/ui/focus-return";
 import { AttachmentBadge } from "@/components/quick-replies/attachment-badge";
 import { HighlightedText } from "@/components/quick-replies/highlighted-text";
 import { ItemMenu } from "@/components/quick-replies/item-menu";
@@ -57,7 +58,7 @@ export function QuickRepliesPanel({ open, onClose, library, state, error, onRelo
 
   useEffect(() => {
     if (!open) return;
-    previousFocusRef.current = document.activeElement as HTMLElement | null;
+    previousFocusRef.current = captureFocusTarget();
     const frame = requestAnimationFrame(() => searchRef.current?.focus());
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as Element | null;
