@@ -88,7 +88,7 @@ export function Topbar({ role }: { role: "owner" | "attendant" }) {
               className="flex min-h-11 w-full items-center gap-3 rounded-control px-1 text-left text-body text-text hover:bg-neutral-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               data-testid="menu-shortcuts"
               onClick={() => {
-                setIsNavigationOpen(false);
+                closeNavigation();
                 window.dispatchEvent(new Event(OPEN_SHORTCUTS_EVENT));
               }}
               type="button"
