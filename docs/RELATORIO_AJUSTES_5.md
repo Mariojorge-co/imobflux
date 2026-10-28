@@ -112,7 +112,19 @@ Specs adaptados: `notificacoes.spec` (desliga o service worker para testar o avi
 
 ## 5. Verificação final
 
-(preenchida ao terminar a rodada; ver abaixo)
+- **Lint e tipos:** limpos. **Unitários:** 672 testes passando em **Node 22 e em Node 24**. **Build** com variáveis fake de CI: ok.
+- **Banco:** nenhuma migration, nada a testar em pgTAP.
+- **Regressão de navegador, uma suíte por vez (ambiente descartável), 32 suítes:** atalhos 12, celular 12, notificacoes 5, ajustes-5-avisos 6,
+  ajustes-5 9, tema 7, tema-novas-telas 4, tema-correcoes 4, correcoes-mensagens 14, mensagens-pacote 14, quick-replies 8, respostas-anexos 6,
+  responder-gesto 7, send-files 11, conversations 13, hoje 5, busca-global 8, correcoes-4 8, auth-flow 17, sprint23-conversations-evolution 7,
+  grupos-e-propria 7, inbox-realtime 3, sprint24-blocob-polish 14 (1 ignorado, como antes), team-management 3, prazos 7, send-queue 2,
+  collaboration-hotfix 4, functional-hotfix 3, sprint23-hotfix 5, demo-mode 1 — **todas passando**.
+- **Instabilidades registradas (nada escondido):**
+  1. `send-files` (vídeo curto) falhou na rodada e passou **11/11** repetido isolado — a oscilação conhecida desde o Noite.
+  2. `tema-novas-telas` (390 px) falhou em 3 rodadas porque o teste clicava em "Respostas rápidas" **antes de a conversa hidratar**; passou
+     4/4 depois de esperar a conversa ficar pronta (ajuste só no teste, como nos specs novos). Não é mudança de comportamento do app.
+  3. No começo da rodada dois lotes rodaram ao mesmo tempo no mesmo banco por engano meu (o primeiro não encerrou); parei os dois e refiz
+     o lote inteiro com um só — os números acima são dessa rodada limpa.
 
 ## 6. MINI RETESTE (5 minutos) — depois da Trava B
 
