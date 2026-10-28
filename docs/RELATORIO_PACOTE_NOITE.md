@@ -103,3 +103,30 @@ Se algum passo falhar, anote o número e o que apareceu.
 1. **Trava A (banco)**: backup → `migration list` (só `006500`, `006600`, `006700` pendentes) → dry-run → parar e pedir "autorizo" → `db push` → validação **somente leitura** (3 funções novas + 1 auxiliar, 1 tabela com RLS, índice trigram, 266 mensagens intactas, permissões) → apagar backup.
 2. **Trava B (app)**: checklist completo (lint, tipos, unitários Node 22/24, build com variáveis falsas, suítes relevantes e regressão antiga) → merge `--ff-only` → push → CI (`gh`, dois jobs, Node 22) → Vercel Ready → smoke test somente leitura (`/login` 200; rotas protegidas 307, incluindo `/hoje`). **Não tocar nas variáveis de ambiente.**
 3. **Rollback**: app primeiro; depois `006700` → `006600` → `006500` em `docs/rollback/`.
+
+## Rebase na `main` `48c1cc9` (2026-10-28) — o que mudou desde a primeira versão deste relatório
+
+- **Base**: a branch foi rebaseada sobre a `main` com as correções 1 a 4 (menu em portal, "enviada ao WhatsApp", edição do celular, duplo clique/deslize/foco, vídeo até 50 MiB, Sair no menu). Backup local: `backup/pacote-noite-antes-rebase`. Nada foi enviado.
+- **Migrations renumeradas** (a `main` já usa até `006400`): `006300_today_overview → 006500`, `006400_quick_reply_attachments → 006600`, `006500_global_search → 006700`, com os rollbacks em `docs/rollback/` renomeados do mesmo jeito. **Ordem da Trava A: `006500` → `006600` → `006700`.**
+- **Conflitos e decisões**: Esc em camadas do Noite + gestos da main (o clique fora ignora o portal e a folha); `@custom-variant dark` do Noite substitui o `color-scheme: light` fixo da correção 2 (o `color-scheme` agora acompanha o tema escolhido); menu da mensagem = **FloatingMenu no desktop e folha de toque (BottomSheet) abaixo de 768 px**; **Sair** só na barra a partir de 1024 px (`lg`) e, abaixo disso, dentro do menu hambúrguer com confirmação "Sair do ImobFlux?"; barra do celular com alvos de 44 px e 16 px de distância (tema e preferências passaram de 36 para 44 px); ajuda de atalhos ganhou "Duplo clique — Responder (no celular: deslize a bolha para a direita)"; ROADMAP/STATUS atualizados (correções 1–4 publicadas).
+- **Correção de contraste achada pela auditoria nova**: o rótulo da aba "Nota interna" no tema claro tinha 4,48:1 (AA exige 4,5); passou de `amber-700` para `amber-800`.
+- **Specs adaptados** (sem esconder nada): `atalhos` (menu em portal), `correcoes-mensagens` (no celular o menu é a folha), `responder-gesto` (Esc sem camada fecha a conversa; mede a bolha de novo depois da rolagem), `hoje` (o contador "Recebidas hoje" depende da hora: perto da meia-noite as mensagens do demo contam como "hoje"; o teste agora exige ≥ 1). Spec novo `tema-correcoes` (marca "enviada ao WhatsApp", nota interna, aviso de vídeo grande, cartão do WhatsApp, folha do menu, confirmação de Sair) em claro/escuro × 1440/390.
+
+### Verificação completa do rebase (tudo local)
+
+| Camada | Resultado |
+|---|---|
+| `supabase db reset` + pgTAP completo | **47 arquivos, 1.436 testes** passando (as contagens de `SECURITY DEFINER` não mudaram) |
+| Lint, tipos | limpos |
+| Unitários Node 22 e 24 | **662 testes** passando nos dois |
+| Build (variáveis falsas de CI) | ok |
+| Navegador, uma suíte por vez (29 suítes: mensagens, mídia/envio, auth, conversas, respostas rápidas e anexos, Evolution, grupos, realtime, polimento, equipe, atalhos, celular, tema ×3, Hoje, avisos, busca global, colaboração, prazos, filas, demo) | **todas passando** na rodada final |
+| **Compatibilidade com o app EM PRODUÇÃO** (`main` `48c1cc9`) contra o banco com as 3 migrations (só no banco descartável) | **19 suítes passando** (responder-gesto, correcoes-mensagens, correcoes-4, mensagens-pacote, send-files, auth-flow, conversations, quick-replies, sprint23-conversations-evolution, grupos-e-propria, inbox-realtime, sprint24-blocob-polish, team-management, collaboration-hotfix, functional-hotfix, prazos, send-queue, sprint23-hotfix, demo-mode); `search_global` existe nesse banco |
+| Migrations só **adicionam** | esquema de `006400` × final: **0 linhas removidas, 499 adicionadas**; o único `delete` está dentro de uma função nova, sobre a tabela nova |
+| **Rollbacks encadeados** `006700 → 006600 → 006500` | devolvem o esquema **idêntico** ao de `006400` (diferem só os tokens aleatórios do `pg_dump`) |
+| Contraste AA (claro/escuro × 1440/390) | 0 violações nas telas novas do Noite **e** nas das correções |
+| Capturas | `%TEMP%\capturas-noite` (fora do repositório; 22 novas `correcoes-*` além das anteriores) |
+
+**Desempenho da busca global, medido de novo após o rebase** (300 mil mensagens sintéticas, banco local ocioso): termo comum **1,2 s**; termo raro **0,3 s**; sem resultado **0,23 s**; nome de contato **0,26 s**; 2ª página **0,83 s**; 2 letras ("de", pior caso: casa quase tudo) **3,6 s**. Em relação à primeira medição (1,2 / 0,3 / 7 ms / 9 ms / 45 ms / 1,4 s), "sem resultado", contato e 2 letras ficaram mais lentos nesta máquina (cache frio e o mesmo Docker usado pelas outras tarefas); o termo comum e o raro seguem iguais. Segue adequado para o volume real (~2 mil mensagens hoje); se a busca de 2 letras incomodar, a saída é exigir 3 letras.
+
+**Instabilidades registradas (não escondidas)**: na 1ª rodada, `send-files` (vídeo curto) falhou uma vez e passou 11/11 isolado na repetição; `mensagens-pacote` (áudio de voz) já tinha tido uma falha isolada com a máquina sob carga. As falhas que eram reais (specs desatualizados, contraste) foram corrigidas acima.
