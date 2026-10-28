@@ -16,6 +16,8 @@ async function prepare(page: Page) {
     w.__notifs = [];
     w.__events = [];
     document.hasFocus = () => w.__focused === true;
+    // Este arquivo testa o aviso direto (computador): sem service worker, o aviso cai no `new Notification`.
+    Object.defineProperty(Navigator.prototype, "serviceWorker", { configurable: true, get: () => undefined });
     class FakeNotification {
       static permission = "granted";
       static requestPermission = async () => "granted";

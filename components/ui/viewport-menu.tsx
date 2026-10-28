@@ -94,7 +94,13 @@ export function ViewportMenu({
   useEffect(() => {
     if (!open) return;
     returnFocusRef.current = anchorRef.current ?? captureFocusTarget();
-    return () => returnFocusRef.current?.focus?.();
+    return () => {
+      const target = returnFocusRef.current;
+      // Um instante depois: o toque que fechou o menu ainda tira o foco ao terminar (mousedown), e isso vem depois do pointerdown.
+      window.setTimeout(() => {
+        if (target?.isConnected && (!document.activeElement || document.activeElement === document.body)) target.focus();
+      }, 60);
+    };
   }, [anchorRef, open]);
 
   if (!open || typeof document === "undefined") return null;
