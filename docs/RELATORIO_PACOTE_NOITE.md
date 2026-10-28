@@ -1,7 +1,7 @@
 # Relatório — Pacote Noite Geral (branch local `feat/pacote-noite`)
 
 > Estado: **pronto e testado localmente; NADA foi publicado.** Sem push, sem deploy, sem migration em produção. A branch tem 11 commits
-> sobre a `main` (`fd1163b`). Aguarda o seu **"autorizo"**: primeiro a **Trava A** (migrations `006300`, `006400`, `006500`), depois,
+> sobre a `main` (`48c1cc9`, rebaseada em 2026-10-28). Aguarda o seu **"autorizo"**: primeiro a **Trava A** (migrations `006500`, `006600`, `006700`), depois,
 > separadamente, a **Trava B** (app).
 
 ## O que o pacote entrega
@@ -20,16 +20,16 @@
 
 ## Migrations (3, só locais, aditivas, com rollback testado em `docs/rollback/`)
 
-**Ordem de aplicação (Trava A): `006300` → `006400` → `006500`.** São independentes entre si e **compatíveis com o app que está em produção**
+**Ordem de aplicação (Trava A): `006500` → `006600` → `006700`.** São independentes entre si e **compatíveis com o app que está em produção**
 (só criam objetos novos; nenhuma função ou tabela existente muda de comportamento).
 
 | Migration | Conteúdo | Rollback |
 |-----------|----------|----------|
-| `20260802006300_today_overview` | `get_today_overview` — uma função de **leitura** (INVOKER, STABLE): conversas com prazo + responsáveis + "já respondida" + contadores do dia. Reaproveita `private.sla_applies`. pgTAP: 20 testes. | `20260802006300_rollback.sql` (drop da função) |
-| `20260802006400_quick_reply_attachments` | Tabela `quick_reply_attachments` (RLS, sem escrita direta, **sem cascata**) + `get_quick_reply_attachments`, `add_quick_reply_attachment`, `remove_quick_reply_attachment`. Uma constraint única `(workspace_id, id)` em `quick_replies` para a chave composta. Arquivos no bucket privado `whatsapp-media` já existente, em `<workspace>/quick-replies/<resposta>/`. pgTAP: 27 testes. | `20260802006400_rollback.sql` (apaga os registros de anexo; **os arquivos ficam no Storage**, inacessíveis, e podem ser apagados pelo painel) |
-| `20260802006500_global_search` | `create extension pg_trgm` (schema `extensions`), índice trigram **parcial** em `messages.text_content`, `search_global` (INVOKER) e o auxiliar `private.search_message_candidates` (DEFINER, só devolve **ids**). pgTAP: 20 testes. | `20260802006500_rollback.sql` (função, auxiliar e índice; a extensão fica) |
+| `20260802006500_today_overview` | `get_today_overview` — uma função de **leitura** (INVOKER, STABLE): conversas com prazo + responsáveis + "já respondida" + contadores do dia. Reaproveita `private.sla_applies`. pgTAP: 20 testes. | `20260802006500_rollback.sql` (drop da função) |
+| `20260802006600_quick_reply_attachments` | Tabela `quick_reply_attachments` (RLS, sem escrita direta, **sem cascata**) + `get_quick_reply_attachments`, `add_quick_reply_attachment`, `remove_quick_reply_attachment`. Uma constraint única `(workspace_id, id)` em `quick_replies` para a chave composta. Arquivos no bucket privado `whatsapp-media` já existente, em `<workspace>/quick-replies/<resposta>/`. pgTAP: 27 testes. | `20260802006600_rollback.sql` (apaga os registros de anexo; **os arquivos ficam no Storage**, inacessíveis, e podem ser apagados pelo painel) |
+| `20260802006700_global_search` | `create extension pg_trgm` (schema `extensions`), índice trigram **parcial** em `messages.text_content`, `search_global` (INVOKER) e o auxiliar `private.search_message_candidates` (DEFINER, só devolve **ids**). pgTAP: 20 testes. | `20260802006700_rollback.sql` (função, auxiliar e índice; a extensão fica) |
 
-**Cuidados para a Trava A**: (1) a `006500` cria um índice na tabela `messages` **sem** `CONCURRENTLY` (trava a tabela por instantes; hoje são ~266 mensagens, então é irrelevante, mas deve ser aplicada fora de pico); (2) a `006500` ativa `pg_trgm` — extensão padrão do Supabase, o `db push` já tem permissão para isso; (3) o app novo precisa das três funções: **migrations antes do app**, como combinado; (4) se for preciso desfazer, reverter o **app antes** e então rodar os rollbacks na ordem inversa (`006500` → `006400` → `006300`). O app novo **tolera** banco sem a função de anexos (as respostas aparecem só com texto).
+**Cuidados para a Trava A**: (1) a `006700` cria um índice na tabela `messages` **sem** `CONCURRENTLY` (trava a tabela por instantes; hoje são ~266 mensagens, então é irrelevante, mas deve ser aplicada fora de pico); (2) a `006700` ativa `pg_trgm` — extensão padrão do Supabase, o `db push` já tem permissão para isso; (3) o app novo precisa das três funções: **migrations antes do app**, como combinado; (4) se for preciso desfazer, reverter o **app antes** e então rodar os rollbacks na ordem inversa (`006700` → `006600` → `006500`). O app novo **tolera** banco sem a função de anexos (as respostas aparecem só com texto).
 
 ## Decisões tomadas (já que não havia como perguntar durante a noite)
 
@@ -53,7 +53,7 @@ Banco local com **300 mil mensagens** sintéticas num workspace: termo comum (50
 - **Busca global**: acentos contam (busca "joao" não acha "João"); busca textual simples, sem sinônimos. Resultados limitados a 500 mensagens por consulta.
 - **Hoje**: os chips de prazo são calculados no carregamento da página (não ficam mudando sozinhos de minuto em minuto); recarregue para atualizar.
 - **Anexos da resposta**: o arquivo é baixado no navegador antes de entrar na bandeja; em rede lenta os itens aparecem "enviando" por alguns segundos. Limite de 5 arquivos por resposta e 10 na bandeja.
-- **Rollback da `006400`** não apaga os arquivos do Storage (ver acima).
+- **Rollback da `006600`** não apaga os arquivos do Storage (ver acima).
 - **Teste real ainda não feito**: o ambiente de testes simula a Evolution; o roteiro abaixo cobre o que só dá para confirmar no aparelho.
 
 ## Testes
@@ -100,6 +100,6 @@ Se algum passo falhar, anote o número e o que apareceu.
 
 ## Plano de publicação (aguarda o seu "autorizo")
 
-1. **Trava A (banco)**: backup → `migration list` (só `006300`, `006400`, `006500` pendentes) → dry-run → parar e pedir "autorizo" → `db push` → validação **somente leitura** (3 funções novas + 1 auxiliar, 1 tabela com RLS, índice trigram, 266 mensagens intactas, permissões) → apagar backup.
+1. **Trava A (banco)**: backup → `migration list` (só `006500`, `006600`, `006700` pendentes) → dry-run → parar e pedir "autorizo" → `db push` → validação **somente leitura** (3 funções novas + 1 auxiliar, 1 tabela com RLS, índice trigram, 266 mensagens intactas, permissões) → apagar backup.
 2. **Trava B (app)**: checklist completo (lint, tipos, unitários Node 22/24, build com variáveis falsas, suítes relevantes e regressão antiga) → merge `--ff-only` → push → CI (`gh`, dois jobs, Node 22) → Vercel Ready → smoke test somente leitura (`/login` 200; rotas protegidas 307, incluindo `/hoje`). **Não tocar nas variáveis de ambiente.**
-3. **Rollback**: app primeiro; depois `006500` → `006400` → `006300` em `docs/rollback/`.
+3. **Rollback**: app primeiro; depois `006700` → `006600` → `006500` em `docs/rollback/`.
