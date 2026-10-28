@@ -28,13 +28,13 @@ export function Topbar({ role }: { role: "owner" | "attendant" }) {
         <span className="text-xl font-bold tracking-tight text-text lg:hidden">
           ImobFlux
         </span>
-        <div className="ml-auto flex items-center gap-inline">
+        <div className="ml-auto flex items-center gap-4 lg:gap-inline">
           <GlobalSearch />
           <GlobalShortcuts />
           <ThemeCycleButton />
           <Link
             aria-label="Preferências"
-            className="flex size-9 items-center justify-center rounded-control text-text-muted hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            className="flex size-11 items-center justify-center rounded-control text-text-muted hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:size-9"
             data-testid="preferences-link"
             href="/preferencias"
             title="Preferências (tema e notificações)"

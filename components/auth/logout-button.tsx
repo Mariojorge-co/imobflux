@@ -7,7 +7,7 @@ import { ConfirmDialog } from "@/components/quick-replies/confirm-dialog";
 import { Button } from "@/components/ui";
 
 /**
- * "bar": botão da barra superior, só no desktop (md+), sem confirmação.
+ * "bar": botão da barra superior, só no desktop (lg+, onde o menu hambúrguer some), sem confirmação.
  * "menu": dentro do menu do celular/tablet, longe do sanduíche, com confirmação "Sair do ImobFlux?" (evita toque sem querer).
  */
 export function LogoutButton({ variant = "bar" }: { variant?: "bar" | "menu" }) {
@@ -42,7 +42,7 @@ export function LogoutButton({ variant = "bar" }: { variant?: "bar" | "menu" }) 
   }
 
   return (
-    <form action={logoutAction} className="hidden md:block">
+    <form action={logoutAction} className="hidden lg:block">
       <Button aria-label="Sair" className="min-h-11" type="submit" variant="ghost">
         <LogOut aria-hidden="true" size={18} strokeWidth={1.8} />
         <span>Sair</span>

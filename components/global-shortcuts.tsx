@@ -13,6 +13,7 @@ export const SHORTCUTS: ReadonlyArray<{ keys: string; description: string }> = [
   { keys: "/", description: "Dentro da caixa de mensagem: respostas rápidas" },
   { keys: "/", description: "Fora dos campos de texto: busca em todas as conversas" },
   { keys: "?", description: "Abre esta ajuda (fora dos campos de texto)" },
+  { keys: "Duplo clique", description: "Na linha da mensagem — Responder (no celular: deslize a bolha para a direita)" },
 ];
 
 /**

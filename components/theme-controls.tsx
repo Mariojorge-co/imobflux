@@ -46,7 +46,7 @@ export function ThemeCycleButton() {
   return (
     <button
       aria-label={`Tema: ${THEME_LABELS[preference]}. Clique para trocar`}
-      className="flex size-9 items-center justify-center rounded-control text-text-muted hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      className="flex size-11 items-center justify-center rounded-control text-text-muted hover:bg-neutral-soft hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:size-9"
       data-testid="theme-cycle"
       data-theme-preference={preference}
       onClick={() => setPreference(nextThemePreference(preference))}
