@@ -66,13 +66,18 @@ test.describe.serial("conversations module", () => {
       await page.setViewportSize(viewport);
       await page.goto("/conversas/d3300003-0000-4000-8000-000000000001");
 
-      const trigger = page.getByRole("button", { name: "Abrir dados do cliente" });
+      // No celular (até 767 px) as informações do cliente ficam na folha ⋯ ("Informações do cliente"); no computador, no botão "i".
+      const mobile = viewport.width < 768;
+      const trigger = mobile
+        ? page.getByTestId("conversation-more")
+        : page.getByRole("button", { name: "Abrir dados do cliente" });
       const drawer = page.getByRole("dialog", { name: "Dados do cliente" });
       await expect(trigger).toBeVisible();
       await expect(drawer).toHaveCount(0);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 
       await trigger.click();
+      if (mobile) await page.getByTestId("more-info").click();
       await expect(drawer).toBeVisible();
       const drawerWidth = await drawer.evaluate((element) => element.getBoundingClientRect().width);
       expect(drawerWidth).toBeLessThanOrEqual(Math.min(400, viewport.width));
@@ -266,7 +271,7 @@ test.describe.serial("conversations module", () => {
       const composer = document.querySelector<HTMLElement>('form[aria-label="Formulário de envio de mensagem"]')?.parentElement;
       const targets = [
         document.querySelector<HTMLElement>('a[aria-label="Voltar para a lista de conversas"]'),
-        document.querySelector<HTMLElement>('button[aria-label="Abrir dados do cliente"]'),
+        document.querySelector<HTMLElement>('[data-testid="conversation-more"]'),
         document.querySelector<HTMLElement>('button[aria-label="Enviar mensagem"]'),
       ];
       return {

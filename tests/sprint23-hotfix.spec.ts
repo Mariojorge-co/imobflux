@@ -41,9 +41,11 @@ test.describe("Sprint 23 — Hotfix Consolidado & Validações de UX/Bugs", () =
     await loginAsDemoOwner(page);
     await page.goto("/conversas/d3300003-0000-4000-8000-000000000001");
 
-    const toggleContextBtn = page.getByRole("button", { name: /Abrir dados|Informações/i });
-    await expect(toggleContextBtn).toBeVisible();
-    await toggleContextBtn.click();
+    // Até 767 px as informações do cliente ficam na folha ⋯ (cabeçalho em uma linha).
+    const moreBtn = page.getByTestId("conversation-more");
+    await expect(moreBtn).toBeVisible();
+    await moreBtn.click();
+    await page.getByTestId("more-info").click();
     await expect(page.getByRole("heading", { name: "Identificação" })).toBeVisible();
   });
 
