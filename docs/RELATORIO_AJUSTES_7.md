@@ -116,7 +116,21 @@ e a seção em `app/(app)/preferencias/page.tsx`.
 
 ## Verificação
 
-(preenchida ao terminar a rodada de regressão)
+- **Lint e tipos:** limpos. **Unitários:** 677 testes passando em **Node 22 e em Node 24**. **Build** com variáveis fake de CI: ok.
+- **Banco:** nenhuma migration, nada a testar em pgTAP.
+- **Navegador, uma suíte por vez (ambiente descartável), 34 suítes, todas passando na rodada final:** novas `ajustes-7` (13) e `ajustes-7-tema` (4: contraste AA,
+  0 violações, claro/escuro, 390 e 1440 px) + ajustes-6 20, ajustes-6-tema 4, atalhos 12, celular 12, notificacoes 5, ajustes-5-avisos 6, ajustes-5 9,
+  ajustes-5-tema 4, tema 7, tema-novas-telas 4, tema-correcoes 4, correcoes-mensagens 14, mensagens-pacote 14, quick-replies 8, respostas-anexos 6,
+  responder-gesto 7, send-files 11, conversations 13, sprint23-conversations-evolution 7, grupos-e-propria 7, prazos 7, sprint24-blocob-polish 14 (1 ignorado, como antes),
+  sprint23-hotfix 5, collaboration-hotfix 4, team-management 3, auth-flow 17, hoje 5, busca-global 8, correcoes-4 8, inbox-realtime 3, functional-hotfix 3.
+- **O que a regressão pegou durante o pacote (nada escondido):**
+  1. A 1ª versão aplicava `html { overflow: hidden }` também no computador: quebrou `atalhos` (Alt+seta) e `send-files` (vídeo curto) no desktop. Restringi até `lg`; voltaram a passar.
+  2. A 1ª versão fixava só a moldura da conversa: criou contexto de empilhamento e a barra superior ficou por cima do fundo dos painéis (o painel de
+     respostas rápidas não fechava ao tocar na faixa de cima; pego pela auditoria de sobreposições do Ajustes 6). Passei a fixar a **raiz** do app.
+  3. Um teste do Ajustes 6 esperava a moldura "static" sem teclado: atualizei para o novo comportamento.
+  4. `atalhos` (Alt+seta) falhou de forma intermitente (passou sozinho e em 5 de 6 rodadas completas); a tecla se perde se vier antes de a lista ligar o atalho. Teste agora repete
+     a tecla até navegar. Também houve uma falha isolada no 1º teste logo depois de sincronizar arquivos (recompilação do servidor), que passou na repetição.
+- **Chrome, não WebKit/iPhone:** o Chrome não emula o modo standalone nem a barra de início; ver "só o iPhone confirma" em cada item.
 
 ## Mini reteste no iPhone (app instalado, tamanho de texto normal)
 
