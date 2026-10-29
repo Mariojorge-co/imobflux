@@ -153,7 +153,7 @@ export function withoutDuplicatedFollowups(tasks: WorkTask[], dueFollowups: DueF
 /**
  * "Para agir agora": quantas pessoas/itens distintos pedem ação da equipe (aguardando resposta, follow-ups devidos,
  * tarefas e novas sem atendimento). Um mesmo cliente em mais de uma seção conta UMA vez; "aguardando cliente" e a
- * higiene de cadastro ficam de fora (a bola não está com a equipe).
+ * cadastros a completar ficam de fora (a bola não está com a equipe).
  */
 export function countActionTargets(view: TodayView, dueFollowups: DueFollowup[]): number {
   const keys = new Set<string>();

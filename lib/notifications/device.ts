@@ -27,19 +27,19 @@ export const DEVICE_GUIDES: DeviceGuide[] = [
     platform: "desktop",
     label: "Computador (Chrome, Edge, Firefox, Safari)",
     works: "Número no título da aba, som e aviso do sistema, com o ImobFlux aberto em qualquer aba (mesmo em segundo plano).",
-    limits: "Com o navegador ou a aba fechados não avisa: isso exige o envio de avisos pelo servidor (Web Push), próxima etapa.",
+    limits: "Com o navegador ou a aba fechados, o aviso só chega se você ativar “Avisos neste aparelho” (Web Push, mais abaixo) e o servidor estiver configurado.",
   },
   {
     platform: "android",
     label: "Android (Chrome)",
     works: "Número no título, som (depois do primeiro toque na tela) e aviso do sistema com o ImobFlux aberto ou recém-deixado em segundo plano.",
-    limits: "O Android suspende abas paradas em segundo plano; aí nada chega até você voltar ao app. Com o app fechado não avisa (Web Push, próxima etapa).",
+    limits: "O Android suspende abas paradas em segundo plano; aí nada chega até você voltar ao app. Para receber com o app fechado, ative “Avisos neste aparelho” (Web Push, mais abaixo).",
   },
   {
     platform: "ios",
     label: "iPhone e iPad (Safari, Opera e outros navegadores)",
     works: "Número no título e som (depois do primeiro toque), só com a página do ImobFlux aberta e em primeiro plano.",
-    limits: "Página aberta no navegador (Safari, Opera ou outro) não recebe aviso do sistema nem toca som em segundo plano: o iPhone congela a página assim que você sai dela. Só o app instalado na tela inicial pode receber avisos, e isso exige o envio pelo servidor (Web Push), que o ImobFlux ainda não tem.",
+    limits: "Página aberta no navegador (Safari, Opera ou outro) não recebe aviso do sistema nem toca som em segundo plano: o iPhone congela a página assim que você sai dela. Só o app instalado na tela inicial pode receber avisos com o app fechado, por Web Push: instale e ative “Avisos neste aparelho”, mais abaixo.",
   },
 ];
 
@@ -47,8 +47,8 @@ export const DEVICE_GUIDES: DeviceGuide[] = [
 export function deviceSummary(device: DeviceSupport): string {
   if (device.platform === "ios") {
     return device.installed
-      ? "iPhone com o app instalado na tela inicial: ainda não chega aviso com o app fechado, porque o envio pelo servidor (Web Push) não foi implementado."
-      : "iPhone no navegador: não chega aviso do sistema nem toca som em segundo plano. Para usar o ImobFlux como app, basta instalar o ImobFlux na tela inicial; isso ainda não liga os avisos.";
+      ? "iPhone com o app instalado na tela inicial: para receber aviso com o app fechado, ative “Avisos neste aparelho” (Web Push), mais abaixo."
+      : "iPhone no navegador: não chega aviso do sistema nem toca som em segundo plano. Para usar o ImobFlux como app, basta instalar o ImobFlux na tela inicial e, depois, ativar “Avisos neste aparelho”.";
   }
   if (device.platform === "android") return "Android: o aviso do sistema usa um serviço do navegador e funciona com o app aberto ou recente em segundo plano.";
   return "Computador: título, som e aviso do sistema funcionam com o ImobFlux aberto numa aba.";

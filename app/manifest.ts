@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 
 /**
  * Faz o ImobFlux instalável como app (Adicionar à Tela de Início). Instalar abre em tela cheia, sem as barras do navegador.
- * Não liga avisos: avisos com o app fechado exigem Web Push com servidor (docs/ESTUDO_WEB_PUSH.md).
+ * Instalar não liga avisos sozinho: o aviso com o app fechado é o Web Push (docs/ESTUDO_WEB_PUSH.md), ativado em Preferências.
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {

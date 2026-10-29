@@ -3,7 +3,7 @@ import { loginAsDemoAttendant, loginAsDemoOwner, resetAndLoadDemoMode, runLocalS
 import { expandSection } from "./helpers/hoje";
 import { ingestText } from "./helpers/webhook";
 
-// Hoje unificado: /prioridades virou /hoje. Ordem de ação das seções, contadores sem duplicar, higiene de cadastro por último e
+// Hoje unificado: /prioridades virou /hoje. Ordem de ação das seções, contadores sem duplicar, cadastros a completar por último e
 // recolhida, "ver mais", redirect permanente e o celular (360/390/430) sem rolagem lateral, com alvos de toque de 44 px.
 
 const SECTION_ORDER = ["hoje-waiting", "hoje-due-followups", "hoje-tasks", "hoje-new", "hoje-awaiting-client", "hoje-hygiene"];
@@ -33,7 +33,7 @@ test.describe("Hoje unificado", () => {
     expect(baseline).toBeGreaterThanOrEqual(0);
   });
 
-  test("as seções aparecem na ordem de ação e a higiene de cadastro é a última", async ({ page, request }) => {
+  test("as seções aparecem na ordem de ação e a cadastros a completar é a última", async ({ page, request }) => {
     test.setTimeout(180_000);
     duoConversation = await ingestText(request, { jid: DUO_JID, text: "Quero visitar o apartamento", pushName: "Cliente Duplo" });
     // Um follow-up devido do MESMO cliente: ele fica em 3 seções (aguardando, follow-up devido, nova sem atendimento)…
@@ -91,7 +91,7 @@ test.describe("Hoje unificado", () => {
     for (const id of ["incoming", "outgoing", "new", "tasks"]) await expect(page.getByTestId(`hoje-counter-${id}`)).toBeVisible();
   });
 
-  test("a higiene de cadastro vem recolhida e abre com os quatro grupos", async ({ page }) => {
+  test("a cadastros a completar vem recolhida e abre com os quatro grupos", async ({ page }) => {
     test.setTimeout(120_000);
     await loginAsDemoOwner(page);
     await page.goto("/hoje");
@@ -99,6 +99,11 @@ test.describe("Hoje unificado", () => {
     await expect(details).not.toHaveAttribute("open", "");
     await expect(page.getByTestId("hoje-hygiene-pending")).toBeHidden();
     await expect(page.getByTestId("hoje-hygiene-count")).toBeVisible();
+    // Nome e subtítulo da seção (antes "Higiene de cadastro").
+    await expect(page.getByRole("region", { name: "Cadastros a completar" })).toBeVisible();
+    await expect(details.locator("summary")).toContainText("Cadastros a completar");
+    await expect(page.getByTestId("hoje-hygiene-subtitle")).toHaveText("Não é urgente, mas ajuda a não perder cliente");
+    await expect(page.getByText("Higiene de cadastro")).toHaveCount(0);
     await details.locator("summary").click();
     await expect(details).toHaveAttribute("open", "");
     for (const id of ["pending", "nophone", "stale", "new"]) await expect(page.getByTestId(`hoje-hygiene-${id}`)).toBeVisible();

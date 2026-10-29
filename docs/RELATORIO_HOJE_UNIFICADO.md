@@ -15,7 +15,7 @@ banco de produção, variáveis da Vercel, fila de envio, SLA (regra de cálculo
 4. **Tarefas de hoje e atrasadas**.
 5. **Novas conversas sem atendimento**.
 6. **Aguardando cliente** (a bola está com o cliente), agrupado por nível (Atenção / Atrasado / Muito atrasado) com o limite de cada nível.
-7. **Higiene de cadastro**, por último e **recolhida** (um `<details>`): pendentes de qualificação, sem telefone, leads sem revisão recente e novos nos
+7. **Cadastros a completar**, por último e **recolhida** (um `<details>`): pendentes de qualificação, sem telefone, leads sem revisão recente e novos nos
    últimos 7 dias (quatro cartões de contagem + as quatro listas).
 
 Cada seção tem título, contagem, lista limitada (6 itens) com **"Ver mais (N)"** / "Ver menos", e um estado vazio com texto amigável. O carregamento
@@ -66,7 +66,7 @@ juntas.
 ## Mini reteste (3 minutos, no celular)
 
 1. Abra **Hoje**: o menu não tem mais "Prioridades"; no topo há "Para agir agora" e os contadores do dia.
-2. Role: as seções vêm na ordem acima e a **Higiene de cadastro** é a última, **fechada**; toque nela e ela abre.
+2. Role: as seções vêm na ordem acima e a **Cadastros a completar** é a última, **fechada**; toque nela e ela abre.
 3. Numa lista com mais de 6 itens, toque **Ver mais**. Confira se nada sai da tela para o lado.
 4. Abra um favorito antigo de `/prioridades` (ou digite o endereço): deve cair em Hoje.
 5. Toque num cliente (abre a conversa), conclua um follow-up devido e confira se o número de "Para agir agora" desce.

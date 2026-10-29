@@ -362,19 +362,26 @@ export function HojeView({ view, timezone, showAssignee, dueFollowups, hygiene, 
           </div>
         </Section>
 
-        {/* 7. Higiene de cadastro: por último e recolhida */}
-        <section aria-label="Higiene de cadastro" data-testid="hoje-hygiene">
+        {/* 7. Cadastros a completar (antes "Higiene de cadastro"): por último e recolhida */}
+        <section aria-label="Cadastros a completar" data-testid="hoje-hygiene">
           <details className="group rounded-card border border-border bg-surface" data-testid="hoje-hygiene-details">
             <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary [&::-webkit-details-marker]:hidden">
               <ClipboardList aria-hidden="true" className="text-text-muted" size={18} />
-              <SectionTitle>Higiene de cadastro</SectionTitle>
-              <span
-                className="rounded-pill bg-neutral-soft px-2 py-0.5 text-caption font-medium text-text-muted"
-                data-testid="hoje-hygiene-count"
-              >
-                {hygieneTotal}
-              </span>
-              <ChevronDown aria-hidden="true" className="ml-auto text-text-muted transition-transform group-open:rotate-180" size={18} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <SectionTitle>Cadastros a completar</SectionTitle>
+                  <span
+                    className="rounded-pill bg-neutral-soft px-2 py-0.5 text-caption font-medium text-text-muted"
+                    data-testid="hoje-hygiene-count"
+                  >
+                    {hygieneTotal}
+                  </span>
+                </div>
+                <p className="text-caption text-text-muted" data-testid="hoje-hygiene-subtitle">
+                  Não é urgente, mas ajuda a não perder cliente
+                </p>
+              </div>
+              <ChevronDown aria-hidden="true" className="shrink-0 text-text-muted transition-transform group-open:rotate-180" size={18} />
             </summary>
             <div className="space-y-section border-t border-border p-3">
               <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">

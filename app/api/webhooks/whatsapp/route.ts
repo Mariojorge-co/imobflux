@@ -10,6 +10,7 @@ import { webhookShapeLine } from "@/lib/conversations/webhook-shape";
 import { findEvolutionMessageText, logEvolutionAction } from "@/lib/supabase/gateway-actions";
 import { scheduleMediaDownload, storeAttachmentMediaWithRetry } from "@/lib/conversations/media-download";
 import { isMediaTooLarge } from "@/lib/conversations/media-types";
+import { scheduleNewMessagePush } from "@/lib/push/server";
 
 // O download da mídia roda depois da resposta (after); dá tempo suficiente para arquivos grandes.
 export const maxDuration = 60;
@@ -218,6 +219,11 @@ export async function POST(request: Request) {
         { status: 500 },
       );
     }
+
+    // Aviso com o app fechado (Web Push): só para mensagem NOVA de cliente (não a da equipe, não duplicada). Roda depois da resposta
+    // (after), melhor esforço e sem repetição; sem as chaves VAPID não faz nada. Não muda o que responde à Evolution.
+    const created = rpcResult as { status?: string; message_id?: string } | null;
+    if (created?.status === "success" && created.message_id && !result.fromMe) scheduleNewMessagePush(created.message_id);
 
     // Resposta (citação) recebida: liga a mensagem nova à original. É secundário: se falhar, a mensagem já está salva
     // e só fica sem o cartão de citação (não vale pedir reentrega).

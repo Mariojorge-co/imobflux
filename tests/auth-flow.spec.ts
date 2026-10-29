@@ -407,7 +407,7 @@ test.describe.serial("local authentication flow", () => {
     await page.getByRole("button", { name: "Entrar" }).click();
     await expect(page).toHaveURL(/\/hoje$/);
 
-    // O Hoje carrega; a higiene de cadastro vem recolhida e abre pelo título.
+    // O Hoje carrega; a cadastros a completar vem recolhida e abre pelo título.
     await page.getByTestId("hoje-hygiene-details").locator("summary").click();
     await expect(page.getByText("Pendentes de qualificação").first()).toBeVisible();
     await expect(page.getByText("Sem telefone").first()).toBeVisible();

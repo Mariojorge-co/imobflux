@@ -1,5 +1,5 @@
 // Aviso do sistema (a janelinha do navegador/celular). No Android/Chrome `new Notification()` falha: o caminho certo é o service worker
-// (`registration.showNotification`). O worker mínimo em /sw-avisos.js só exibe o aviso local e abre a conversa ao tocar; não há Web Push.
+// (`registration.showNotification`). O worker em /sw-avisos.js exibe o aviso local, trata o Web Push do servidor (aviso com o app fechado) e abre a conversa ao tocar.
 
 import type { ChannelResult } from "@/lib/notifications/diagnostics";
 

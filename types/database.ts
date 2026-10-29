@@ -854,6 +854,41 @@ export type Database = {
         Update: never
         Relationships: []
       }
+      push_subscriptions: {
+        Row: {
+          id: string
+          workspace_id: string
+          member_id: string
+          endpoint: string
+          p256dh: string
+          auth: string
+          user_agent: string | null
+          platform: string
+          include_sla_disabled: boolean
+          created_at: string
+          last_seen_at: string
+          last_error_at: string | null
+          disabled_at: string | null
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          member_id: string
+          endpoint: string
+          p256dh: string
+          auth: string
+          user_agent?: string | null
+          platform: string
+          include_sla_disabled?: boolean
+        }
+        Update: {
+          include_sla_disabled?: boolean
+          last_seen_at?: string
+          last_error_at?: string | null
+          disabled_at?: string | null
+        }
+        Relationships: []
+      }
       quick_reply_attachments: {
         Row: {
           id: string
@@ -1913,6 +1948,22 @@ export type Database = {
       }
       get_quick_replies: {
         Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      get_push_targets: {
+        Args: { p_message_id: string }
+        Returns: Array<{
+          subscription_id: string
+          member_id: string
+          endpoint: string
+          p256dh: string
+          auth: string
+          conversation_id: string
+          contact_name: string
+        }>
+      }
+      register_push_subscription: {
+        Args: { p_endpoint: string; p_p256dh: string; p_auth: string; p_user_agent: string; p_platform: string }
         Returns: Json
       }
       get_quick_reply_attachments: {

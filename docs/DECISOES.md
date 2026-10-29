@@ -506,4 +506,14 @@ Data: 30 de julho de 2026.
 - `/prioridades` redireciona (permanente, `next.config.ts`) para `/hoje`; o menu perdeu "Prioridades"; login, convite, setup e a raiz vão para `/hoje`.
 - Sem migration: o Hoje usa `get_today_overview`, `get_prioridades_dashboard` (higiene e follow-ups devidos), a configuração de prazos e a lista de tarefas, **todos em paralelo** (uma consulta a menos que as duas telas somadas: `get_sla_conversations` saiu).
 - Regras de visibilidade: as listas de conversas seguem as do Hoje (atendente vê só o que é dele; proprietário vê a equipe e filtra). Follow-ups devidos e higiene seguem a RLS, como antes. Antes, o atendente via em Prioridades a fila inteira com prazo; agora vê só as dele.
-- Um follow-up devido aparece só na seção "Follow-ups devidos" (some da lista de tarefas). O contador "Para agir agora" conta cada pessoa/item uma vez, mesmo em várias seções; "aguardando cliente" e a higiene de cadastro não entram.
+- Um follow-up devido aparece só na seção "Follow-ups devidos" (some da lista de tarefas). O contador "Para agir agora" conta cada pessoa/item uma vez, mesmo em várias seções; "aguardando cliente" e a cadastros a completar não entram.
+
+## Web Push (avisos com o app fechado)
+
+- Decisões do Mário (documento `ESTUDO_WEB_PUSH.md`, seção 8): vale o esforço (a equipe atende sem o celular do número); **sem prévia** do texto (título "Nova mensagem de {nome}"); recebe **só o
+  responsável** (sem responsável, só o dono; conversa privada, só o dono; atendente nunca recebe de conversa que não enxerga; conversa do número com ele mesmo, ninguém); iPhone pelo app instalado
+  no Safari; **sem horário de silêncio**; envio com `after()` no webhook, melhor esforço, **sem repetição**.
+- A seleção de destinatários fica no banco (`get_push_targets`, só `service_role`, nunca lê o texto) com as mesmas regras do avisador do navegador; o servidor só entrega.
+- Sem as três variáveis (`NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`) o recurso fica desligado e nada quebra. Chaves de teste são descartáveis, geradas em memória.
+- O service worker mostra **sempre** uma notificação por push (regra do iOS: sem isso a assinatura é revogada); a `tag` por conversa evita empilhar e duplicar com o aviso local.
+- Preferência mínima no servidor: `include_sla_disabled` por aparelho, desligada por padrão.

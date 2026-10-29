@@ -5,7 +5,7 @@ import { auditContrast } from "./helpers/contrast";
 import { loginAsDemoOwner, resetAndLoadDemoMode } from "./helpers/local-test-state";
 import { ingestText } from "./helpers/webhook";
 
-// Hoje unificado — contraste (WCAG AA) nos dois temas: a tela única com todas as seções e a higiene de cadastro aberta.
+// Hoje unificado — contraste (WCAG AA) nos dois temas: a tela única com todas as seções e a cadastros a completar aberta.
 
 const CAPTURES = process.env.IMOBFLUX_CAPTURES_DIR ?? path.join(process.env.TEMP ?? ".", "capturas-noite");
 

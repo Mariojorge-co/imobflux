@@ -125,7 +125,7 @@ export function NotificationDiagnostics({ memberId }: { memberId: string }) {
           <ul className="mt-1 list-disc space-y-1 pl-4">
             <li>Aviso do sistema e som <strong>não funcionam</strong> com o ImobFlux aberto no navegador (Safari, Opera ou outro) quando você sai da página ou bloqueia a tela.</li>
             <li>Título com o número e som funcionam <strong>só com a página aberta e em primeiro plano</strong>.</li>
-            <li>Só o app instalado na tela inicial pode receber avisos, e isso exige Web Push com servidor, que ainda não está pronto.</li>
+            <li>Só o app instalado na tela inicial pode receber avisos com o app fechado (Web Push): instale e ative “Avisos neste aparelho”, mais abaixo.</li>
           </ul>
         </div>
       ) : null}
@@ -138,7 +138,7 @@ export function NotificationDiagnostics({ memberId }: { memberId: string }) {
           <li>Escolha <strong>Adicionar à Tela de Início</strong> e confirme.</li>
         </ol>
         <p className="text-caption text-text-muted">
-          O app instalado abre em tela cheia, sem as barras do navegador. Instalar não liga os avisos por si só. Se o Opera não mostrar essa opção, abra o ImobFlux no Safari para instalar.
+          O app instalado abre em tela cheia, sem as barras do navegador. Instalar não liga os avisos por si só: depois, ative “Avisos neste aparelho”. Se o Opera não mostrar essa opção, abra o ImobFlux no Safari para instalar.
         </p>
       </div>
 

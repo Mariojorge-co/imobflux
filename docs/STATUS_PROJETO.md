@@ -143,10 +143,16 @@ Detalhes, números de desempenho, testes e roteiro em [RELATORIO_CONVERSAS_PACOT
 - **Conteúdo**: JID real do WhatsApp via `whatsappNumbers`; estado "enviada ao WhatsApp" (60 s); leitor do webhook tolerante (edição, exclusão, citação, reação); edição do celular via `edit_signal` + `findMessages`; reação única da conta; menu em portal; Editar/Apagar nas notas; responder com duplo clique na linha inteira (mouse) ou deslizando (toque) e foco no campo; vídeo/arquivo recebido até 50 MiB com aviso final e retry limitado; Sair dentro do menu no celular com confirmação.
 - **Atenção**: a avaliação no celular da edição do celular depende de a Evolution guardar o texto editado (ver relatório 3).
 
-## Hoje unificado — pronto localmente, NÃO publicado (branch `feat/hoje-unificado`, a partir da `main` `8db36b6`)
+## Web Push — pronto localmente, NÃO publicado (branch `feat/web-push`, a partir da `main` `5518803`)
 
-- **Estado**: commits locais, sem push, sem deploy e **sem migration** (só a Trava B). Relatório: [RELATORIO_HOJE_UNIFICADO.md](RELATORIO_HOJE_UNIFICADO.md).
-- **Conteúdo**: `/prioridades` redireciona (308) para `/hoje`; menu sem "Prioridades"; Hoje com as seções em ordem de ação (aguardando resposta da equipe, follow-ups devidos, tarefas, novas sem atendimento, aguardando cliente) e a higiene de cadastro por último, recolhida; contador "Para agir agora" que não soma a mesma pessoa duas vezes; "Ver mais" nas listas; login/convite/setup agora caem em `/hoje`.
+- **Estado**: commits locais, sem push, sem deploy; **COM migration** `20260802006800_web_push.sql` (aplicada só no banco local; Trava A pendente) e dependência `web-push`. Relatório: [RELATORIO_WEB_PUSH.md](RELATORIO_WEB_PUSH.md).
+- **Conteúdo**: tabela `push_subscriptions` (RLS por pessoa), função de destinatários só do servidor (responsável; sem responsável só o dono; sem prévia), envio em `after()` no webhook (melhor esforço, sem repetição, 404/410 desativa), rotas `/api/push/*`, `/sw-avisos.js` com push e clique, seção "Avisos neste aparelho" em Preferências; seção do Hoje renomeada para "Cadastros a completar".
+- **Falta**: o Mário gerar as chaves VAPID no computador dele e cadastrar `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` e `VAPID_SUBJECT` na Vercel; Trava A, Trava B; teste em iPhone e Android reais. Sem as variáveis o recurso fica desligado e nada quebra.
+
+## Hoje unificado — PUBLICADO (main `5518803`; branch `feat/hoje-unificado`, a partir da `main` `8db36b6`)
+
+- **Estado**: publicado em produção (main `5518803`, CI verde, Vercel Ready), sem migration; `/prioridades` redireciona (308) para `/hoje`. Relatório: [RELATORIO_HOJE_UNIFICADO.md](RELATORIO_HOJE_UNIFICADO.md).
+- **Conteúdo**: `/prioridades` redireciona (308) para `/hoje`; menu sem "Prioridades"; Hoje com as seções em ordem de ação (aguardando resposta da equipe, follow-ups devidos, tarefas, novas sem atendimento, aguardando cliente) e a cadastros a completar por último, recolhida; contador "Para agir agora" que não soma a mesma pessoa duas vezes; "Ver mais" nas listas; login/convite/setup agora caem em `/hoje`.
 - **Só o uso real confirma**: se a ordem das seções serve ao dia a dia e se o atendente sente falta de ver a fila dos colegas (o Hoje mostra só o que é dele, como já era).
 
 ## Ajustes 7 — PUBLICADOS (main `8db36b6`; branch `fix/ajustes-7`, a partir da `main` `d8215fe`)
