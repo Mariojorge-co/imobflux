@@ -936,7 +936,7 @@ export function MessagesPanel({
                       closed={isConversationClosed(liveConversation) || !conversationHasSla(liveConversation)}
                       direction={liveConversation.sla_direction}
                       lastActivityAt={liveConversation.sla_at}
-                      variant="full"
+                      variant="responsive"
                     />
                     {liveConversation.is_self ? null : (
                       <span className="hidden md:contents">

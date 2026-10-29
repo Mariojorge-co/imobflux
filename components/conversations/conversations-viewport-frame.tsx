@@ -6,6 +6,9 @@ import { useKeyboardViewport } from "@/lib/ui/keyboard-viewport";
 /** Distância do fim da lista dentro da qual "estava no fim" (a última mensagem continua à vista quando o teclado sobe). */
 const NEAR_BOTTOM_PX = 160;
 
+/** Área visível menor que isto (celular deitado com o teclado aberto): o cabeçalho da conversa se esconde para sobrar espaço às mensagens. */
+const COMPACT_BELOW_PX = 360;
+
 /**
  * Moldura das rotas /conversas. Sem teclado: altura da tela menos a barra superior (dvh). Com o teclado do iOS aberto, que
  * não redimensiona o layout, a moldura é fixada na área visível (visualViewport: altura e deslocamento), de modo que a caixa
@@ -40,6 +43,7 @@ export function ConversationsViewportFrame({ children }: { children: ReactNode }
   return (
     <div
       className="flex h-[calc(100dvh-64px-env(safe-area-inset-top))] w-full flex-col overflow-hidden bg-background"
+      data-keyboard-compact={keyboard.open && keyboard.height < COMPACT_BELOW_PX ? "true" : undefined}
       data-keyboard-open={keyboard.open ? "true" : undefined}
       data-testid="conversations-frame"
       ref={frameRef}

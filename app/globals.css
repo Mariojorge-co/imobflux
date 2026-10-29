@@ -116,3 +116,6 @@ html[data-keyboard-open] .composer-tabs > div > button[data-testid="composer-exp
 /* App instalado (iPhone): a caixa de mensagem não fica sob a barra de início; com o teclado aberto o teclado já cobre essa área. */
 .composer-safe { padding-bottom: max(0.375rem, env(safe-area-inset-bottom)); }
 html[data-keyboard-open] .composer-safe { padding-bottom: 0.375rem; }
+
+/* Celular deitado com o teclado aberto: sobram ~150px; o cabeçalho da conversa volta quando o teclado fecha. */
+[data-keyboard-compact] [data-testid="conversation-header"] { display: none; }

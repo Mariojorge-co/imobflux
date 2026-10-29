@@ -58,8 +58,9 @@ const VISUAL_VIEWPORT_STUB = () => {
   });
   Object.defineProperty(window, "visualViewport", { value: target, configurable: true });
   (window as unknown as { __vv: unknown }).__vv = {
-    set(next: { override?: number | null; offsetTop?: number }) {
+    set(next: { override?: number | null; offsetTop?: number; scale?: number }) {
       if ("override" in next) state.override = next.override ?? null;
+      if ("scale" in next) state.scale = next.scale ?? 1;
       if ("offsetTop" in next) state.offsetTop = next.offsetTop ?? 0;
       target.dispatchEvent(new Event("resize"));
       target.dispatchEvent(new Event("scroll"));
@@ -80,7 +81,7 @@ async function openConversation(page: Page, id = conversation) {
   await expect(page.locator('[data-testid="conversation-column"][data-ready="true"]')).toBeVisible();
 }
 
-const setKeyboard = (page: Page, next: { override?: number | null; offsetTop?: number }) =>
+const setKeyboard = (page: Page, next: { override?: number | null; offsetTop?: number; scale?: number }) =>
   page.evaluate((value) => (window as unknown as { __vv: { set: (n: unknown) => void } }).__vv.set(value), next);
 
 const rectOf = (page: Page, testId: string) =>
@@ -127,7 +128,7 @@ test.describe("Ajustes 6", () => {
         const visible = (element: Element) => {
           const style = getComputedStyle(element);
           const rect = element.getBoundingClientRect();
-          return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+          return style.display !== "none" && style.visibility !== "hidden" && rect.width > 2 && rect.height > 2; // ignora o texto só-para-leitor-de-tela (1px)
         };
         const atoms = [...header.querySelectorAll<HTMLElement>("a, button, select, p, span")]
           .filter((element) => visible(element) && (element.matches("a, button, select, p") || element.children.length === 0))
@@ -145,7 +146,9 @@ test.describe("Ajustes 6", () => {
         }
         const outside = atoms.filter((atom) => atom.rect.left < -0.5 || atom.rect.right > window.innerWidth + 0.5).map((atom) => atom.label);
         const controls = atoms.filter((atom) => atom.element.matches("a, button, select")).map((atom) => atom.label);
+        const phoneLine = [...header.querySelectorAll<HTMLElement>("p")].find((element) => /^[+]?[0-9]/.test(element.textContent ?? ""));
         return {
+          phoneCut: phoneLine ? phoneLine.scrollWidth - phoneLine.clientWidth : 0,
           overlaps,
           outside,
           controls,
@@ -155,6 +158,8 @@ test.describe("Ajustes 6", () => {
       });
       expect(result.overlaps, `sobreposições em ${width}px`).toEqual([]);
       expect(result.outside).toEqual([]);
+      // O telefone aparece inteiro (o prazo no cabeçalho do celular é compacto e não o espreme).
+      expect(result.phoneCut, "telefone cortado").toBeLessThanOrEqual(1);
       expect(result.scrollOverflow).toBeLessThanOrEqual(0);
       if (width < 768) {
         // Uma linha limpa: voltar, nome/telefone, lupa e ⋯. Nada de Atribuir, Oportunidade, e-mail ou fixar no cabeçalho.
@@ -204,6 +209,8 @@ test.describe("Ajustes 6", () => {
     await page.getByTestId("more-info").tap();
     const info = page.getByRole("dialog", { name: /Dados do cliente|Informações|Contexto/i });
     await expect(page.locator('[role="dialog"][aria-modal="true"]').first()).toBeVisible();
+    // O painel entrega o foco ao botão de fechar quando está pronto; só então o Esc vale.
+    await expect(page.locator('aside[role="dialog"] button').first()).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(page.locator('[role="dialog"][aria-modal="true"]')).toHaveCount(0);
     await expect(page.getByTestId("conversation-more")).toBeFocused();
@@ -299,7 +306,12 @@ test.describe("Ajustes 6", () => {
     await setKeyboard(page, { override: 190, offsetTop: 0 });
     await expect(page.locator("html")).toHaveAttribute("data-keyboard-open", "true");
     expect(Math.round((await rectOf(page, "conversations-frame")).height)).toBe(190);
+    // Área minúscula: o cabeçalho se esconde para a caixa caber inteira acima do teclado.
+    await expect(page.getByTestId("conversation-header")).toBeHidden();
     expect((await rectOf(page, "message-composer")).bottom).toBeLessThanOrEqual(191);
+    await page.getByLabel("Digitar mensagem de texto").blur();
+    await setKeyboard(page, { override: null });
+    await expect(page.getByTestId("conversation-header")).toBeVisible();
     await context.close();
   });
 
@@ -308,11 +320,7 @@ test.describe("Ajustes 6", () => {
     const { context, page } = await phone(browser, 390, 844, true);
     await openConversation(page);
     await page.getByLabel("Digitar mensagem de texto").focus();
-    await page.evaluate(() => {
-      const hook = (window as unknown as { __vv: { set: (n: unknown) => void } }).__vv;
-      Object.defineProperty(window.visualViewport!, "scale", { get: () => 2, configurable: true });
-      hook.set({ override: 400 });
-    });
+    await setKeyboard(page, { override: 400, scale: 2 });
     await expect(page.locator("html")).not.toHaveAttribute("data-keyboard-open", "true");
     await context.close();
   });
@@ -412,6 +420,7 @@ test.describe("Ajustes 6", () => {
       await page.getByTestId("more-info").tap();
       const drawer = page.locator('aside[role="dialog"]');
       await expect(drawer).toBeVisible();
+      await expect(drawer.locator("button").first()).toBeFocused();
       if (how === "fundo") await outsideTap(8, 400);
       else await page.keyboard.press("Escape");
       await expect(drawer).toHaveCount(0);
@@ -473,15 +482,17 @@ test.describe("Ajustes 6", () => {
     await expect.poll(() => Number(queryLocalSql(`select count(*) from public.attachments a join public.messages m on m.id = a.message_id where m.conversation_id = '${conversation}' and m.direction = 'outgoing';`))).toBe(2);
 
     // Atrasa os scripts da página: a imagem termina de carregar antes de o React hidratar (o caso do iPhone com a rede boa).
-    await page.route("**/_next/static/chunks/**", async (route) => {
-      await new Promise((resolve) => setTimeout(resolve, 2500));
-      await route.continue();
+    let hold = true;
+    // Só os .js (os .css bloqueiam o carregamento da página e mudariam o que se quer medir).
+    await page.route((url) => url.pathname.includes("/_next/static/chunks/") && url.pathname.endsWith(".js"), async (route) => {
+      while (hold) await new Promise((resolve) => setTimeout(resolve, 100));
+      await route.continue().catch(() => undefined);
     });
     await page.goto(`/conversas/${conversation}`, { waitUntil: "commit" });
     const image = page.locator('img[alt="fachada.png"]');
     await expect(image).toBeAttached({ timeout: 30_000 });
     await expect.poll(() => image.evaluate((element: HTMLImageElement) => element.complete && element.naturalWidth > 0), { timeout: 30_000 }).toBe(true);
-    await page.unroute("**/_next/static/chunks/**");
+    hold = false;
     await expect(page.locator('[data-testid="conversation-column"][data-ready="true"]')).toBeVisible({ timeout: 60_000 });
     // Depois da hidratação a miniatura está visível (sem o quadrado pulsante e sem opacity-0).
     await expect(image).not.toHaveClass(/opacity-0/);

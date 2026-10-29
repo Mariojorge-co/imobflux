@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { AlertCircle, Hourglass, MessageCircleWarning } from "lucide-react";
 import { useSlaSettings } from "@/components/conversations/sla-settings-context";
 import { SLA_TONE_CLASS, describeSlaFor } from "@/lib/conversations/sla-display";
@@ -10,13 +10,22 @@ type SlaBadgeProps = {
   lastActivityAt: string | null | undefined;
   /** Conversa encerrada (arquivada): nenhum contador. */
   closed?: boolean;
-  /** "compact" mostra só o tempo; "full" mostra a frase completa. */
-  variant?: "compact" | "full";
+  /** "compact" mostra só o tempo; "full" mostra a frase completa; "responsive" é compacto no celular (até 767px) e completo no resto. */
+  variant?: "compact" | "full" | "responsive";
   className?: string;
 };
 
+const MOBILE_QUERY = "(max-width: 767px)";
+function subscribeMobile(onChange: () => void) {
+  const media = window.matchMedia(MOBILE_QUERY);
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
+}
+
 /** Indicador de SLA: cor + ícone + texto (nunca só cor). Recalcula a cada minuto. */
-export function SlaBadge({ direction, lastActivityAt, closed = false, variant = "compact", className = "" }: SlaBadgeProps) {
+export function SlaBadge({ direction, lastActivityAt, closed = false, variant: requested = "compact", className = "" }: SlaBadgeProps) {
+  const isMobile = useSyncExternalStore(subscribeMobile, () => window.matchMedia(MOBILE_QUERY).matches, () => false);
+  const variant = requested === "responsive" ? (isMobile ? "compact" : "full") : requested;
   const [, setTick] = useState(0);
   const settings = useSlaSettings();
 
