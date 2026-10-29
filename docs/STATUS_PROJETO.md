@@ -143,6 +143,13 @@ Detalhes, números de desempenho, testes e roteiro em [RELATORIO_CONVERSAS_PACOT
 - **Conteúdo**: JID real do WhatsApp via `whatsappNumbers`; estado "enviada ao WhatsApp" (60 s); leitor do webhook tolerante (edição, exclusão, citação, reação); edição do celular via `edit_signal` + `findMessages`; reação única da conta; menu em portal; Editar/Apagar nas notas; responder com duplo clique na linha inteira (mouse) ou deslizando (toque) e foco no campo; vídeo/arquivo recebido até 50 MiB com aviso final e retry limitado; Sair dentro do menu no celular com confirmação.
 - **Atenção**: a avaliação no celular da edição do celular depende de a Evolution guardar o texto editado (ver relatório 3).
 
+## Ajustes 6 — prontos localmente, NÃO publicados (branch `fix/ajustes-6`, a partir da `main` `b7b9ad5`)
+
+- **Estado**: commits pequenos locais, sem push, sem deploy e **sem migration** (só a Trava B, do app, quando houver "autorizo"). Relatório: [RELATORIO_AJUSTES_6.md](RELATORIO_AJUSTES_6.md). Estudo: [ESTUDO_WEB_PUSH.md](ESTUDO_WEB_PUSH.md).
+- **Conteúdo**: teclado do iPhone (a moldura da conversa segue a área visível, `visualViewport`; abas compactas; sem reservar o teclado duas vezes no Android), cabeçalho da conversa em uma linha no celular (todas as ações no ⋯), menu ☰ com fundo que fecha ao tocar, foco devolvido nas gavetas/diálogos no iOS, causa confirmada das miniaturas em branco (imagem que carrega antes da hidratação), primeiro quadro do vídeo e "Tentar de novo", texto honesto sobre avisos no iPhone, PWA (manifest, ícones, apple-touch-icon, áreas seguras) e instrução "Como instalar no iPhone".
+- **Só o iPhone real confirma**: teclado do iOS, `#t=0.001` no vídeo, instalar pelo Opera x Safari, áreas seguras.
+- **Pendente**: "autorizo" da Trava B; mini reteste no iPhone; decisões do estudo de Web Push.
+
 ## Ajustes 5 — prontos localmente, NÃO publicados (branch `fix/ajustes-5`, a partir da `main` `24ae9eb`)
 
 - **Estado**: commits pequenos locais, sem push, sem deploy e **sem migration** (nada de Trava A; só a Trava B, do app, quando houver "autorizo"). Relatório: [RELATORIO_AJUSTES_5.md](RELATORIO_AJUSTES_5.md).
