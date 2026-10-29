@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { GeistSans } from "geist/font/sans";
 import "./globals.css";
+import { FieldFontGuard } from "@/components/field-font-guard";
 import { themeInitScript } from "@/lib/ui/theme";
 
 export const metadata: Metadata = {
@@ -36,7 +37,10 @@ export default function RootLayout({
         <meta content="light dark" name="color-scheme" />
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
-      <body>{children}</body>
+      <body>
+        <FieldFontGuard />
+        {children}
+      </body>
     </html>
   );
 }

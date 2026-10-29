@@ -99,13 +99,23 @@ body {
 /* Celular/tablet de toque: campos com menos de 16px fazem o navegador dar zoom ao focar (e o botão Enviar some da tela). Fica fora de
    qualquer @layer de propósito, para vencer as classes de tamanho do Tailwind. O zoom de acessibilidade continua liberado (sem
    maximum-scale nem user-scalable=no). */
-@media (max-width: 767px), (pointer: coarse) {
-  input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="button"], [type="submit"], [type="reset"], [type="image"]),
-  textarea,
-  select {
-    font-size: 16px;
+/* Ajustes 7: reforço. `!important` + seletor com `html` vencem classe de componente, estilo inline e regra de ID; vale por largura E por
+   aparelho de toque (sem hover). `-webkit-text-size-adjust` fixo impede o iOS de reescalar o texto. */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+@media (max-width: 767px), (hover: none) and (pointer: coarse), (pointer: coarse) {
+  html input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="button"], [type="submit"], [type="reset"], [type="image"], [type="hidden"]),
+  html textarea,
+  html select,
+  html [contenteditable="true"],
+  html [contenteditable=""] {
+    font-size: 16px !important;
   }
 }
+
+/* A página em si não estica nem balança (rolagem elástica do iOS): só as listas internas rolam. O fundo de html e body é o do app,
+   claro ou escuro, então nunca aparece uma faixa de outra cor onde o layout não chega. Na conversa a página não rola. */
+html, body { overscroll-behavior: none; background: var(--color-background); }
+html:has([data-testid="conversations-frame"]) { overflow: hidden; height: 100%; }
 
 /* Teclado do celular aberto: a faixa de abas da caixa de mensagem ocupa o mínimo de altura (a área útil já é pequena). */
 html[data-keyboard-open] .composer-tabs { margin-bottom: 0; padding-bottom: 0; }
