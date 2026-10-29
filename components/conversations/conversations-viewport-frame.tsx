@@ -10,9 +10,10 @@ const NEAR_BOTTOM_PX = 160;
 const COMPACT_BELOW_PX = 360;
 
 /**
- * Moldura das rotas /conversas. No celular/tablet (até lg) ela é FIXA, do pé da barra superior até a borda de baixo da tela: com
- * viewport-fit=cover isso inclui a área da barra de início do iPhone (a caixa de mensagem pinta essa área com a cor dela, dentro
- * da caixa), então nunca sobra uma faixa do fundo da página abaixo. Não depende de dvh (que no iOS instalado pode ser menor que a tela).
+ * Moldura das rotas /conversas. No celular/tablet (até lg) a RAIZ do app fica fixa na tela inteira (`position: fixed; inset: 0`, regra em globals.css) e a moldura
+ * ocupa o que sobra abaixo da barra superior: com viewport-fit=cover isso inclui a área da barra de início do iPhone (a caixa de
+ * mensagem pinta essa área com a cor dela, dentro da caixa), então nunca sobra uma faixa do fundo da página. Não depende de dvh
+ * (que no iOS instalado pode ser menor que a tela). Os painéis sobrepostos continuam acima da barra superior (mesmo contexto de empilhamento).
  * No computador (lg+) segue a conta com dvh ao lado da barra lateral. Sem teclado: altura da tela menos a barra superior (dvh). Com o teclado do iOS aberto, que
  * não redimensiona o layout, a moldura é fixada na área visível (visualViewport: altura e deslocamento), de modo que a caixa
  * de mensagem fica logo acima do teclado e a lista rola dentro do que sobra. No Android o layout já encolhe sozinho
@@ -45,7 +46,7 @@ export function ConversationsViewportFrame({ children }: { children: ReactNode }
 
   return (
     <div
-      className="flex w-full flex-col overflow-hidden bg-background max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:top-[calc(var(--spacing-topbar)+env(safe-area-inset-top))] lg:h-[calc(100dvh-64px-env(safe-area-inset-top))]"
+      className="flex w-full flex-col overflow-hidden bg-background max-lg:h-full lg:h-[calc(100dvh-64px-env(safe-area-inset-top))]"
       data-keyboard-compact={keyboard.open && keyboard.height < COMPACT_BELOW_PX ? "true" : undefined}
       data-keyboard-open={keyboard.open ? "true" : undefined}
       data-testid="conversations-frame"

@@ -234,13 +234,13 @@ test.describe("Ajustes 7", () => {
           overscroll: [getComputedStyle(doc).overscrollBehaviorY, getComputedStyle(document.body).overscrollBehaviorY],
           pageScrolled: scrolled,
           logCanScroll,
-          framePosition: getComputedStyle(document.querySelector('[data-testid="conversations-frame"]')!).position,
+          framePosition: getComputedStyle(document.querySelector('[data-app-root]')!).position,
         };
       });
       expect(geometry.docScrollHeight).toBe(geometry.inner);
       expect(Math.round(geometry.frameBottom)).toBe(geometry.inner);
       expect(Math.round(geometry.composerBottom)).toBe(geometry.inner);
-      expect(geometry.framePosition).toBe("fixed");
+      expect(geometry.framePosition, "a raiz do app fica fixa na tela").toBe("fixed");
       expect(geometry.htmlBg).toBe(geometry.appBackground);
       expect(geometry.bodyBg).toBe(geometry.appBackground);
       expect(geometry.overscroll).toEqual(["none", "none"]);

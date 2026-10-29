@@ -143,6 +143,13 @@ Detalhes, números de desempenho, testes e roteiro em [RELATORIO_CONVERSAS_PACOT
 - **Conteúdo**: JID real do WhatsApp via `whatsappNumbers`; estado "enviada ao WhatsApp" (60 s); leitor do webhook tolerante (edição, exclusão, citação, reação); edição do celular via `edit_signal` + `findMessages`; reação única da conta; menu em portal; Editar/Apagar nas notas; responder com duplo clique na linha inteira (mouse) ou deslizando (toque) e foco no campo; vídeo/arquivo recebido até 50 MiB com aviso final e retry limitado; Sair dentro do menu no celular com confirmação.
 - **Atenção**: a avaliação no celular da edição do celular depende de a Evolution guardar o texto editado (ver relatório 3).
 
+## Ajustes 7 — prontos localmente, NÃO publicados (branch `fix/ajustes-7`, a partir da `main` `d8215fe`)
+
+- **Estado**: commits locais, sem push, sem deploy e **sem migration** (só a Trava B). Relatório: [RELATORIO_AJUSTES_7.md](RELATORIO_AJUSTES_7.md).
+- **Conteúdo**: (A) campos com 16 px computados reforçados (`!important`, por largura e por toque, `text-size-adjust: 100%`, guarda no foco) — no Chrome o código anterior já dava 16 px, então a causa exata no iOS **não está confirmada**; (B) moldura da conversa fixa até a borda de baixo (até `lg`), `html`/`body` com o fundo do app, `overscroll-behavior: none`, página sem rolagem na conversa; (C) **Diagnóstico de tela TEMPORÁRIO** em Preferências (números do aparelho + Copiar, nada vai a servidor).
+- **Só o iPhone real confirma**: fim do zoom e da faixa escura no app instalado.
+- **Pendente**: "autorizo" da Trava B; mini reteste com o texto do diagnóstico; remover o diagnóstico temporário depois.
+
 ## Ajustes 6 — prontos localmente, NÃO publicados (branch `fix/ajustes-6`, a partir da `main` `b7b9ad5`)
 
 - **Estado**: commits pequenos locais, sem push, sem deploy e **sem migration** (só a Trava B, do app, quando houver "autorizo"). Relatório: [RELATORIO_AJUSTES_6.md](RELATORIO_AJUSTES_6.md). Estudo: [ESTUDO_WEB_PUSH.md](ESTUDO_WEB_PUSH.md).

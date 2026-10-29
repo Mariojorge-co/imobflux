@@ -274,7 +274,8 @@ test.describe("Ajustes 6", () => {
     await page.getByLabel("Digitar mensagem de texto").blur();
     await setKeyboard(page, { override: null });
     await expect(page.locator("html")).not.toHaveAttribute("data-keyboard-open", "true");
-    expect(await page.getByTestId("conversations-frame").evaluate((element) => getComputedStyle(element).position)).toBe("static");
+    // Sem teclado a moldura volta ao tamanho de CSS (Ajustes 7: fixa até a borda de baixo, sem altura/posição em linha).
+    expect(await page.getByTestId("conversations-frame").evaluate((element) => element.getAttribute("style") ?? "")).toBe("");
     const closedFrame = await rectOf(page, "conversations-frame");
     expect(Math.round(closedFrame.height)).toBe(844 - 64);
     expect((await page.locator(".composer-tabs button").first().evaluate((element) => element.getBoundingClientRect().height))).toBeGreaterThanOrEqual(44);

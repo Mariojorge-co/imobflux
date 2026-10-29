@@ -12,12 +12,12 @@ type AppLayoutProps = {
 
 export function AppLayout({ children, memberId, role }: AppLayoutProps) {
   return (
-    <div className="flex min-h-dvh bg-background pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
+    <div className="flex min-h-dvh bg-background pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]" data-app-root="true">
       <NewMessageNotifier memberId={memberId} />
       <Sidebar role={role} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar role={role} />
-        <main className="flex-1">{children}</main>
+        <main className="min-h-0 flex-1">{children}</main>
       </div>
     </div>
   );

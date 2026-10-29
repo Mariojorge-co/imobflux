@@ -198,8 +198,11 @@ test.describe("Atalhos", () => {
     await expect(page.locator('html[data-realtime-inbox="ready"]')).toBeAttached({ timeout: 30_000 });
     const before = await listIds();
     const index = before.indexOf(convB);
-    await page.keyboard.press("Alt+ArrowDown");
-    await expect(page).not.toHaveURL(new RegExp(`/conversas/${convB}$`));
+    // A tecla se perde se vier antes de a lista ligar o atalho: repete até navegar (só repete se nada aconteceu).
+    await expect(async () => {
+      await page.keyboard.press("Alt+ArrowDown");
+      await expect(page).not.toHaveURL(new RegExp(`/conversas/${convB}$`), { timeout: 2000 });
+    }).toPass({ timeout: 20_000 });
     const afterDown = new URL(page.url()).pathname.split("/").pop() as string;
     // Foi para uma vizinha da lista (a ordem pode mudar um pouco com o tempo real), e Alt+seta para cima volta.
     expect(before).toContain(afterDown);

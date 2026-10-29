@@ -115,7 +115,10 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 /* A página em si não estica nem balança (rolagem elástica do iOS): só as listas internas rolam. O fundo de html e body é o do app,
    claro ou escuro, então nunca aparece uma faixa de outra cor onde o layout não chega. Na conversa a página não rola. */
 html, body { overscroll-behavior: none; background: var(--color-background); }
-html:has([data-testid="conversations-frame"]) { overflow: hidden; height: 100%; }
+@media (max-width: 1023px) {
+  html:has([data-testid="conversations-frame"]) { overflow: hidden; height: 100%; }
+  html:has([data-testid="conversations-frame"]) [data-app-root] { position: fixed; inset: 0; min-height: 0; }
+}
 
 /* Teclado do celular aberto: a faixa de abas da caixa de mensagem ocupa o mínimo de altura (a área útil já é pequena). */
 html[data-keyboard-open] .composer-tabs { margin-bottom: 0; padding-bottom: 0; }
