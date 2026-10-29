@@ -44,7 +44,7 @@ export async function loginAction(
     };
   }
 
-  redirect("/prioridades");
+  redirect("/hoje");
 }
 
 export async function logoutAction() {

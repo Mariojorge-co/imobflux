@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { loginAsDemoAttendant, loginAsDemoOwner, resetAndLoadDemoMode } from "./helpers/local-test-state";
+import { expandSection } from "./helpers/hoje";
 import { ingestText } from "./helpers/webhook";
 
 // Painel "Hoje": cliente esperando e conversa nova sem atendimento aparecem, o clique abre a conversa, o proprietário
@@ -27,6 +28,8 @@ test.describe("Painel Hoje", () => {
     await loginAsDemoOwner(page);
     await page.goto("/hoje");
     await expect(page.getByRole("heading", { name: "Hoje", level: 1 })).toBeVisible();
+    await expandSection(page, "hoje-waiting");
+    await expandSection(page, "hoje-new");
     const waiting = page.getByTestId("hoje-waiting");
     await expect(waiting.getByTestId("hoje-conversation").filter({ hasText: "Cliente Hoje" })).toBeVisible();
     await expect(waiting).toContainText("Cliente aguardando há");
@@ -42,6 +45,7 @@ test.describe("Painel Hoje", () => {
     test.setTimeout(120_000);
     await loginAsDemoOwner(page);
     await page.goto("/hoje?atendente=sem-responsavel");
+    await expandSection(page, "hoje-waiting");
     await expect(page.getByTestId("hoje-waiting").filter({ hasText: "Cliente Hoje" })).toBeVisible();
     await page.goto("/hoje?atendente=00000000-0000-4000-8000-000000000000");
     await expect(page.getByTestId("hoje-waiting")).toContainText("Nenhum cliente esperando resposta.");

@@ -500,3 +500,10 @@ Data: 30 de julho de 2026.
 
 
 
+
+## Hoje unificado (Prioridades deixou de ser tela)
+
+- `/prioridades` redireciona (permanente, `next.config.ts`) para `/hoje`; o menu perdeu "Prioridades"; login, convite, setup e a raiz vão para `/hoje`.
+- Sem migration: o Hoje usa `get_today_overview`, `get_prioridades_dashboard` (higiene e follow-ups devidos), a configuração de prazos e a lista de tarefas, **todos em paralelo** (uma consulta a menos que as duas telas somadas: `get_sla_conversations` saiu).
+- Regras de visibilidade: as listas de conversas seguem as do Hoje (atendente vê só o que é dele; proprietário vê a equipe e filtra). Follow-ups devidos e higiene seguem a RLS, como antes. Antes, o atendente via em Prioridades a fila inteira com prazo; agora vê só as dele.
+- Um follow-up devido aparece só na seção "Follow-ups devidos" (some da lista de tarefas). O contador "Para agir agora" conta cada pessoa/item uma vez, mesmo em várias seções; "aguardando cliente" e a higiene de cadastro não entram.

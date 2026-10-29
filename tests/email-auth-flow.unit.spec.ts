@@ -235,7 +235,7 @@ test("confirmed context expires independently of an existing authenticated sessi
 
 test("pending invitation defines password before activation and keeps OWNER identity separate", async () => {
   await confirm();
-  await expect(invitationActions.acceptInvitationAction({ message: "", status: "idle" }, passwordForm())).rejects.toMatchObject({ destination: "/prioridades" });
+  await expect(invitationActions.acceptInvitationAction({ message: "", status: "idle" }, passwordForm())).rejects.toMatchObject({ destination: "/hoje" });
   expect(calls).toEqual(["verify:invite", "password:staff-auth", "rpc:accept_team_invitation"]);
   expect(activated).toBe(true); expect(jar.has("imobflux_confirmed_auth_flow")).toBe(false);
   expect(owner).toEqual({ id: "owner-auth", email: "owner@example.test" });
@@ -254,7 +254,7 @@ test("failed activation retains password-defined phase and retry does not change
   const page = await InvitationPage({ searchParams: Promise.resolve({}) });
   expect(hasComponent(page, "InvitationPasswordForm")).toBe(true);
   acceptanceFailure = null;
-  await expect(invitationActions.acceptInvitationAction({ message: "", status: "idle" }, new FormData())).rejects.toMatchObject({ destination: "/prioridades" });
+  await expect(invitationActions.acceptInvitationAction({ message: "", status: "idle" }, new FormData())).rejects.toMatchObject({ destination: "/hoje" });
   expect(calls.filter((call) => call.startsWith("password:"))).toHaveLength(1);
   expect(activated).toBe(true);
 });
@@ -262,7 +262,7 @@ test("failed activation retains password-defined phase and retry does not change
 test("lost RPC response reconciles only the expected attendant membership", async () => {
   await confirm(); acceptanceFailure = { message: "lost_response" };
   dal.getActiveAccessForAuthUser = async () => ({ memberId: "staff-member", workspaceId: "workspace", role: "attendant" });
-  await expect(invitationActions.acceptInvitationAction({ message: "", status: "idle" }, passwordForm())).rejects.toMatchObject({ destination: "/prioridades" });
+  await expect(invitationActions.acceptInvitationAction({ message: "", status: "idle" }, passwordForm())).rejects.toMatchObject({ destination: "/hoje" });
 });
 
 test("ambiguous activation can reconcile on a later retry without changing password or calling RPC again", async () => {
@@ -271,8 +271,8 @@ test("ambiguous activation can reconcile on a later retry without changing passw
   lookupStatus = "not_found";
   dal.getActiveAccessForAuthUser = async () => ({ memberId: "staff-member", workspaceId: "workspace", role: "attendant" });
   const beforeRetry = [...calls];
-  await expect(InvitationPage({ searchParams: Promise.resolve({}) })).rejects.toMatchObject({ destination: "/prioridades" });
-  await expect(invitationActions.acceptInvitationAction({ message: "", status: "idle" }, new FormData())).rejects.toMatchObject({ destination: "/prioridades" });
+  await expect(InvitationPage({ searchParams: Promise.resolve({}) })).rejects.toMatchObject({ destination: "/hoje" });
+  await expect(invitationActions.acceptInvitationAction({ message: "", status: "idle" }, new FormData())).rejects.toMatchObject({ destination: "/hoje" });
   expect(calls).toEqual(beforeRetry);
 });
 
@@ -289,7 +289,7 @@ test("generic recovery of invited employee routes to acceptance, never leaves it
   await expect(RecoveryPage({ searchParams: Promise.resolve({}) })).rejects.toMatchObject({ destination: "/convite" });
   await expect(recoveryActions.updatePasswordAction({ message: "", status: "idle" }, passwordForm())).rejects.toMatchObject({ destination: "/convite" });
   expect(calls).toEqual(["verify:recovery"]);
-  await expect(invitationActions.acceptInvitationAction({ message: "", status: "idle" }, passwordForm())).rejects.toMatchObject({ destination: "/prioridades" });
+  await expect(invitationActions.acceptInvitationAction({ message: "", status: "idle" }, passwordForm())).rejects.toMatchObject({ destination: "/hoje" });
   expect(activated).toBe(true);
 });
 

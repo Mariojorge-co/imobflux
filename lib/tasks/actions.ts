@@ -30,7 +30,7 @@ function validIso(value: string | null | undefined): boolean {
 
 function revalidateTaskPages(): void {
   revalidatePath("/tarefas");
-  revalidatePath("/prioridades");
+  revalidatePath("/hoje");
 }
 
 export async function createTaskAction(input: CreateTaskInput): Promise<TaskActionResult> {

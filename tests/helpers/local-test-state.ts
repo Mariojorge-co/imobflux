@@ -150,7 +150,7 @@ export async function loginAsDemoOwner(page: Page) {
   await page.getByLabel("E-mail").fill(demoOwner.email);
   await page.getByLabel("Senha").fill(demoOwner.password);
   await page.getByRole("button", { name: "Entrar" }).click();
-  await expect(page).toHaveURL(/\/prioridades$/, { timeout: 10_000 });
+  await expect(page).toHaveURL(/\/hoje$/, { timeout: 10_000 });
 }
 
 export async function loginAsDemoAttendant(page: Page) {
@@ -159,5 +159,5 @@ export async function loginAsDemoAttendant(page: Page) {
   await page.getByLabel("E-mail").fill(demoAttendant.email);
   await page.getByLabel("Senha").fill(demoAttendant.password);
   await page.getByRole("button", { name: "Entrar" }).click();
-  await expect(page).toHaveURL(/\/prioridades$/, { timeout: 10_000 });
+  await expect(page).toHaveURL(/\/hoje$/, { timeout: 10_000 });
 }

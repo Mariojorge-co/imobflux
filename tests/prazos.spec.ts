@@ -1,3 +1,4 @@
+import { expandSection } from "./helpers/hoje";
 import { expect, test, type Page } from "@playwright/test";
 import { loginAsDemoAttendant, loginAsDemoOwner, queryLocalSql, resetAndLoadDemoMode } from "./helpers/local-test-state";
 import { ingestText, postWebhook, textPayload } from "./helpers/webhook";
@@ -30,14 +31,14 @@ test.describe("Prazos: pausa por conversa, limites configuráveis, grupos e conv
     self = await ingestText(request, { jid: `${OWN_NUMBER}@s.whatsapp.net`, text: "lembrete para mim", fromMe: true, timestamp: hoursAgo(3) });
   });
 
-  test("Prioridades: a conversa de ~20 h agora aparece em Follow-up (limite padrão 6 h), por nível, sem grupo nem conversa consigo mesmo", async ({ page }) => {
+  test("Hoje: a conversa de ~20 h agora aparece em Follow-up (limite padrão 6 h), por nível, sem grupo nem conversa consigo mesmo", async ({ page }) => {
     await loginAsDemoOwner(page);
-    await page.goto("/prioridades");
-    const followup = page.getByRole("region", { name: /Aguardando Cliente/ });
+    await page.goto("/hoje");
+    const followup = page.getByRole("region", { name: /^Aguardando cliente$/ });
     await expect(followup.getByTestId("followup-level-1")).toBeVisible();
     await expect(followup.getByTestId("followup-level-1")).toContainText("mais de 6 h");
     await expect(followup.getByRole("link", { name: /Contato 5582988887802|5582988887802/ }).first()).toBeVisible();
-    const team = page.getByRole("region", { name: /Equipe Devendo Resposta/ });
+    const team = page.getByRole("region", { name: /Clientes aguardando resposta da equipe/ });
     await expect(team).toContainText("Cliente Atrasado");
     await expect(page.getByText("Grupo da obra")).toHaveCount(0);
     await expect(page.getByText("lembrete para mim")).toHaveCount(0);
@@ -61,7 +62,7 @@ test.describe("Prazos: pausa por conversa, limites configuráveis, grupos e conv
     await expect(page.getByTestId("conversation-header").getByTestId("sla-control")).toHaveCount(0);
   });
 
-  test("pausar até o cliente falar de novo: some tarja, sai de Prioridades; mensagem do cliente depois da pausa retoma sozinho", async ({ page, request }) => {
+  test("pausar até o cliente falar de novo: some tarja, sai de Hoje; mensagem do cliente depois da pausa retoma sozinho", async ({ page, request }) => {
     await loginAsDemoOwner(page);
     await open(page, late);
     const header = page.getByTestId("conversation-header");
@@ -75,8 +76,9 @@ test.describe("Prazos: pausa por conversa, limites configuráveis, grupos e conv
     await expect(card(page, late)).toBeVisible();
     await expect(card(page, late).getByTestId("sla-badge")).toHaveCount(0);
 
-    await page.goto("/prioridades");
-    await expect(page.getByRole("region", { name: /Equipe Devendo Resposta/ })).not.toContainText("Cliente Atrasado");
+    await page.goto("/hoje");
+    await expandSection(page, "hoje-waiting");
+    await expect(page.getByRole("region", { name: /Clientes aguardando resposta da equipe/ })).not.toContainText("Cliente Atrasado");
     expect(Number(queryLocalSql("select count(*) from public.audit_events where action = 'sla.conversation_paused';"))).toBe(1);
 
     // O cliente escreve de novo: o prazo volta sozinho.
@@ -84,8 +86,9 @@ test.describe("Prazos: pausa por conversa, limites configuráveis, grupos e conv
     expect(response.ok()).toBe(true);
     await page.goto(`/conversas/${late}`);
     await expect(page.getByTestId("conversation-header").getByTestId("sla-badge")).toBeVisible();
-    await page.goto("/prioridades");
-    await expect(page.getByRole("region", { name: /Equipe Devendo Resposta/ })).toContainText("Cliente Atrasado");
+    await page.goto("/hoje");
+    await expandSection(page, "hoje-waiting");
+    await expect(page.getByRole("region", { name: /Clientes aguardando resposta da equipe/ })).toContainText("Cliente Atrasado");
   });
 
   test("desativar o prazo (permanente): nova mensagem do cliente não traz a tarja de volta; reativar manualmente", async ({ page, request }) => {
@@ -111,7 +114,7 @@ test.describe("Prazos: pausa por conversa, limites configuráveis, grupos e conv
   test("atendente com acesso também controla o prazo; só o dono altera os limites", async ({ page }) => {
     await loginAsDemoAttendant(page);
     await page.goto("/configuracoes/prazos");
-    await expect(page).toHaveURL(/\/prioridades\?reason=owner_required$/);
+    await expect(page).toHaveURL(/\/hoje\?reason=owner_required$/);
     await open(page, late);
     const header = page.getByTestId("conversation-header");
     await header.getByTestId("sla-control").click();
@@ -150,14 +153,14 @@ test.describe("Prazos: pausa por conversa, limites configuráveis, grupos e conv
     expect(Number(queryLocalSql("select count(*) from public.audit_events where action = 'sla.limits_changed';"))).toBe(1);
 
     // a conversa de 20 h deixa de aparecer; o texto vazio acompanha o limite configurado
-    await page.goto("/prioridades");
-    const followup = page.getByRole("region", { name: /Aguardando Cliente/ });
+    await page.goto("/hoje");
+    const followup = page.getByRole("region", { name: /^Aguardando cliente$/ });
     await expect(followup).not.toContainText("5582988887802"); // a de 20 h saiu: o 1º nível agora é 24 h
     await expect(followup.getByTestId("followup-level-1")).toContainText("mais de 24 h");
     // Sem nenhuma conversa em espera, o texto vazio acompanha o limite configurado.
     queryLocalSql("update public.conversations set operational_status = 'archived', archived_at = now() where operational_status = 'active';");
     await page.reload();
-    await expect(page.getByRole("region", { name: /Aguardando Cliente/ })).toContainText("Nenhuma conversa parada há mais de 24 h");
+    await expect(page.getByRole("region", { name: /^Aguardando cliente$/ })).toContainText("Nenhuma conversa parada há mais de 24 h");
     queryLocalSql("update public.conversations set operational_status = 'active', archived_at = null where operational_status = 'archived';");
 
     // "Cliente aguardando" também usa os limites novos: com verde até 3 h, a conversa de 2 h fica verde (no padrão era vermelha)
@@ -177,8 +180,8 @@ test.describe("Prazos: pausa por conversa, limites configuráveis, grupos e conv
     await page.getByRole("button", { name: "Restaurar padrões" }).click();
     await page.getByRole("button", { name: "Salvar prazos" }).click();
     await expect(page.getByTestId("sla-settings-saved")).toBeVisible();
-    await page.goto("/prioridades");
-    await expect(page.getByRole("region", { name: /Aguardando Cliente/ }).getByTestId("followup-level-1")).toBeVisible();
+    await page.goto("/hoje");
+    await expect(page.getByRole("region", { name: /^Aguardando cliente$/ }).getByTestId("followup-level-1")).toBeVisible();
   });
 
   test("Auditoria: eventos de prazo têm rótulo próprio (categoria Prazos), não 'Outros'", async ({ page }) => {

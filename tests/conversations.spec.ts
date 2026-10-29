@@ -248,13 +248,13 @@ test.describe.serial("conversations module", () => {
     await expect(page).toHaveURL(/\/conversas$/);
   });
 
-  test("Bloco A mantém Conversas e Prioridades responsivos nos viewports alvo", async ({ page }) => {
+  test("Bloco A mantém Conversas e Hoje responsivos nos viewports alvo", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await loginAsDemoOwner(page);
 
-    await page.goto("/prioridades");
+    await page.goto("/hoje");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
-    await expect(page.getByRole("heading", { name: /Equipe Devendo Resposta/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Clientes aguardando resposta da equipe/ })).toBeVisible();
 
     await page.goto("/conversas");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);

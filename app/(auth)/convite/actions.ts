@@ -86,5 +86,5 @@ export async function acceptInvitationAction(
     return { message: authFlowErrorMessage("technical"), status: "error" };
   }
 
-  redirect("/prioridades");
+  redirect("/hoje");
 }

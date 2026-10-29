@@ -132,7 +132,7 @@ export async function moveOpportunityAction(
 
     revalidatePath("/kanban");
     revalidatePath("/conversas");
-    revalidatePath("/prioridades");
+    revalidatePath("/hoje");
     revalidatePath(`/conversas/${opportunityId}`);
 
     return {

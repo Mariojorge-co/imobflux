@@ -88,10 +88,10 @@ test.describe("Hotfix funcional de conversas e prioridades", () => {
     `);
 
     await loginAsDemoOwner(page);
-    await page.goto("/prioridades");
+    await page.goto("/hoje");
 
-    const team = page.locator('section[aria-labelledby="equipe-devendo"]');
-    const teamNames = await team.locator("h3").allInnerTexts();
+    const team = page.getByTestId("hoje-waiting");
+    const teamNames = await team.getByTestId("hoje-conversation").locator("p.truncate").allInnerTexts();
     expect(teamNames.indexOf("Bruno Henrique Martins")).toBeLessThan(
       teamNames.indexOf("Fernando Augusto Souza"),
     );
@@ -99,9 +99,9 @@ test.describe("Hotfix funcional de conversas e prioridades", () => {
       teamNames.indexOf("Elena Castro Mello"),
     );
 
-    const client = page.locator('section[aria-labelledby="aguardando-cliente"]');
+    const client = page.getByTestId("hoje-awaiting-client");
     // Abaixo do 1º nível (6 h) não entra; com 1439 min (quase 24 h) já está no 1º nível.
-    const clientNames = await client.locator("h3").allInnerTexts();
+    const clientNames = await client.getByTestId("hoje-conversation").locator("p.truncate").allInnerTexts();
     expect(clientNames).toEqual([
       "Camila Rocha Lima", // 5 dias  → 3º nível (72 h)
       "Heitor Alencar Mendes", // 4 dias → 3º nível

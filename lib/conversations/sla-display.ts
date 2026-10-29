@@ -66,7 +66,7 @@ export function describeSlaFor(
   return describeSla(calculateSLA(direction ?? null, lastActivityAt ?? null, settings));
 }
 
-// ─── Fonte única do contador de espera (lista, cabeçalho, Prioridades) ────────────────────────────────
+// ─── Fonte única do contador de espera (lista, cabeçalho, Hoje) ────────────────────────────────
 
 /** Campos da conversa que decidem se há contador de espera e qual. */
 export type ConversationSlaInput = {

@@ -58,7 +58,7 @@ function elapsedText(minutes: number): string {
 
 /**
  * Calcula o contador de espera com base na direção da última mensagem, na hora dela e nos limites do workspace.
- * É a ÚNICA função de cálculo: lista, cabeçalho, Kanban e Prioridades passam por ela. Quando a conversa não tem prazo
+ * É a ÚNICA função de cálculo: lista, cabeçalho, Kanban e Hoje passam por ela. Quando a conversa não tem prazo
  * (grupo, conversa consigo mesmo, prazo pausado/desativado), o banco entrega direção/hora nulas e o resultado é nulo.
  */
 export function calculateSLA(

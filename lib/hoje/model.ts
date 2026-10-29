@@ -1,5 +1,6 @@
 import { calculateSLA, type SLAInfo, type SlaSettings } from "@/lib/conversations/sla";
 import type { WorkTask } from "@/lib/tasks/model";
+import type { PrioridadesDashboardResult } from "@/types/prioridades";
 
 export type TodayAssignee = { member_id: string; display_name: string | null };
 
@@ -136,4 +137,31 @@ export function buildTodayView(overview: TodayOverview, tasks: WorkTask[], optio
     .sort((a, b) => new Date(a.due_at).getTime() - new Date(b.due_at).getTime());
 
   return { waiting, followups, newUnattended, tasks: todayTasks, counters: overview.counters };
+}
+
+export type DueFollowup = PrioridadesDashboardResult["due_followups"][number];
+
+/**
+ * Follow-ups devidos já aparecem na seção própria (com Reagendar/Concluir): tira da lista de tarefas as que são o mesmo
+ * registro, para o mesmo item não ser contado nem mostrado duas vezes na tela.
+ */
+export function withoutDuplicatedFollowups(tasks: WorkTask[], dueFollowups: DueFollowup[]): WorkTask[] {
+  const ids = new Set(dueFollowups.map((followup) => followup.id));
+  return tasks.filter((task) => !ids.has(task.id));
+}
+
+/**
+ * "Para agir agora": quantas pessoas/itens distintos pedem ação da equipe (aguardando resposta, follow-ups devidos,
+ * tarefas e novas sem atendimento). Um mesmo cliente em mais de uma seção conta UMA vez; "aguardando cliente" e a
+ * higiene de cadastro ficam de fora (a bola não está com a equipe).
+ */
+export function countActionTargets(view: TodayView, dueFollowups: DueFollowup[]): number {
+  const keys = new Set<string>();
+  const keyOf = (contactId: string | null | undefined, conversationId: string | null | undefined, fallback: string) =>
+    contactId ? `k:${contactId}` : conversationId ? `c:${conversationId}` : `t:${fallback}`;
+  for (const { conversation } of view.waiting) keys.add(keyOf(conversation.contact_id, conversation.conversation_id, conversation.conversation_id));
+  for (const followup of dueFollowups) keys.add(keyOf(followup.contact_id, followup.conversation_id, followup.id));
+  for (const task of view.tasks) keys.add(keyOf(task.contact_id, task.conversation_id, task.id));
+  for (const conversation of view.newUnattended) keys.add(keyOf(conversation.contact_id, conversation.conversation_id, conversation.conversation_id));
+  return keys.size;
 }

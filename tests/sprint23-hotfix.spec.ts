@@ -28,12 +28,12 @@ test.describe("Sprint 23 — Hotfix Consolidado & Validações de UX/Bugs", () =
     expect(formatEnumLabel("provisional")).toBe("Contato não salvo");
   });
 
-  test("3. E2E: Navegação Direta e Layout em 2 Colunas no Dashboard de Prioridades", async ({ page }) => {
+  test("3. E2E: Navegação Direta e Seções em ordem de ação no Hoje", async ({ page }) => {
     await loginAsDemoOwner(page);
-    await page.goto("/prioridades");
+    await page.goto("/hoje");
 
-    await expect(page.getByRole("heading", { name: /Equipe Devendo Resposta/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Aguardando Cliente/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Clientes aguardando resposta da equipe/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^Aguardando cliente/i })).toBeVisible();
   });
 
   test("4. E2E Mobile: Viewport 375px com composer no rodapé e gaveta de contexto de 44px", async ({ page }) => {

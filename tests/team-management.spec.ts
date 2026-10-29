@@ -38,7 +38,7 @@ test.describe("Gestão de Equipe OWNER × ATTENDANT", () => {
     await invitedPage.getByLabel("Crie sua senha").fill("Funcionario-pass!9");
     await invitedPage.getByLabel("Confirme sua senha").fill("Funcionario-pass!9");
     await invitedPage.getByRole("button", { name: "Definir senha e entrar" }).click();
-    await expect(invitedPage).toHaveURL(/\/prioridades$/);
+    await expect(invitedPage).toHaveURL(/\/hoje$/);
 
     await ownerPage.reload();
     const invitedRow = ownerPage.getByText(invitedEmail).first().locator("xpath=ancestor::tr");
@@ -54,7 +54,7 @@ test.describe("Gestão de Equipe OWNER × ATTENDANT", () => {
     await loginAsDemoAttendant(page);
 
     await page.goto("/configuracoes/equipe");
-    await expect(page).toHaveURL(/\/prioridades\?reason=owner_required$/);
+    await expect(page).toHaveURL(/\/hoje\?reason=owner_required$/);
     await expect(page.getByRole("link", { name: "Configurações" })).toHaveCount(0);
 
     await page.goto("/contatos");
@@ -147,8 +147,8 @@ test.describe("Gestão de Equipe OWNER × ATTENDANT", () => {
     await expect(ownerPage.getByRole("menuitem", { name: "Tornar OWNER-only" })).toBeVisible();
     await ownerPage.keyboard.press("Escape");
 
-    await attendantPage.goto("/prioridades");
-    await expect(attendantPage).toHaveURL(/\/prioridades$/);
+    await attendantPage.goto("/hoje");
+    await expect(attendantPage).toHaveURL(/\/hoje$/);
 
     await ownerContext.close();
     await attendantContext.close();

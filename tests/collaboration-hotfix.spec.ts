@@ -172,7 +172,7 @@ test.describe("Hotfix colaborativo OWNER × ATTENDANT", () => {
       from public.contacts where id = 'd3300001-0000-4000-8000-000000000001';
     `);
     await loginAsDemoOwner(page);
-    await page.goto("/prioridades");
+    await page.goto("/hoje");
     const todayItem = page.getByText("HOTFIX follow-up hoje", { exact: true }).locator("xpath=ancestor::article");
     const overdueItem = page.getByText("HOTFIX follow-up vencido", { exact: true }).locator("xpath=ancestor::article");
     await expect(todayItem).toBeVisible();

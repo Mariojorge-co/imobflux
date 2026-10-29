@@ -101,7 +101,7 @@ export async function requireOwnerAccess() {
   const access = await requireActiveAccess();
 
   if (access.role !== "owner") {
-    redirect("/prioridades?reason=owner_required");
+    redirect("/hoje?reason=owner_required");
   }
 
   return access;

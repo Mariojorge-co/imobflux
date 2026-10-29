@@ -4,7 +4,7 @@ import { getPublicSupabaseConfig } from "@/lib/supabase/config";
 import type { Database } from "@/types/database";
 
 const privatePaths = [
-  "/prioridades",
+  "/hoje",
   "/contatos",
   "/conversas",
   "/kanban",

@@ -769,7 +769,7 @@ export async function upsertWorkTaskAction(input: {
     if (input.conversationId) {
       revalidatePath(`/conversas/${input.conversationId}`);
     }
-    revalidatePath("/prioridades");
+    revalidatePath("/hoje");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return { success: true, taskId: (data as any)?.task_id };
   } catch (err) {
@@ -799,7 +799,7 @@ export async function completeWorkTaskAction(
     if (conversationId) {
       revalidatePath(`/conversas/${conversationId}`);
     }
-    revalidatePath("/prioridades");
+    revalidatePath("/hoje");
     return { success: true };
   } catch (err) {
     console.error("Erro em completeWorkTaskAction:", err);

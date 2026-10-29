@@ -35,7 +35,7 @@ export function FollowupPriorityItem({ followup }: FollowupPriorityItemProps) {
     <article className="space-y-2 p-2.5 sm:p-3">
       <div className="flex min-w-0 items-start gap-2.5">
         <Avatar className="mt-0.5" name={followup.display_name} size="sm" />
-        <Link className="min-w-0 flex-1 hover:underline" href={targetUrl}>
+        <Link className="flex min-h-11 min-w-0 flex-1 flex-col justify-center hover:underline" href={targetUrl}>
           <h3 className="truncate text-sm font-semibold text-text">{followup.display_name}</h3>
           <p className="truncate text-caption text-text-muted">{followup.title}</p>
         </Link>

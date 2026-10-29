@@ -40,7 +40,7 @@ test.describe.serial("local authentication flow", () => {
   });
 
   test("redirects an unauthenticated private route", async ({ page }) => {
-    await page.goto("/prioridades");
+    await page.goto("/hoje");
     await expect(page).toHaveURL(/\/login$/);
     await expect(page.getByRole("heading", { name: "Entrar no ImobFlux" })).toBeVisible();
   });
@@ -98,8 +98,8 @@ test.describe.serial("local authentication flow", () => {
       .fill(requireTestEnvironment("IMOBFLUX_BOOTSTRAP_TOKEN"));
     await page.getByRole("button", { name: "Criar workspace" }).click();
 
-    await expect(page).toHaveURL(/\/prioridades$/);
-    await expect(page.getByRole("heading", { name: "Prioridades" })).toBeVisible();
+    await expect(page).toHaveURL(/\/hoje$/);
+    await expect(page.getByRole("heading", { name: "Hoje", level: 1 })).toBeVisible();
 
     const admin = createTestAdminClient();
     const { data: workspace, error } = await admin
@@ -121,10 +121,10 @@ test.describe.serial("local authentication flow", () => {
     await page.getByLabel("E-mail").fill(owner.email);
     await page.getByLabel("Senha").fill(owner.password);
     await page.getByRole("button", { name: "Entrar" }).click();
-    await expect(page).toHaveURL(/\/prioridades$/);
+    await expect(page).toHaveURL(/\/hoje$/);
 
     await page.reload();
-    await expect(page).toHaveURL(/\/prioridades$/);
+    await expect(page).toHaveURL(/\/hoje$/);
     await page.goto("/configuracoes");
     await expect(page.getByRole("heading", { name: "Configurações" })).toBeVisible();
   });
@@ -137,7 +137,7 @@ test.describe.serial("local authentication flow", () => {
     await page.getByRole("button", { name: "Sair" }).click();
 
     await expect(page).toHaveURL(/\/login$/);
-    await page.goto("/prioridades");
+    await page.goto("/hoje");
     await expect(page).toHaveURL(/\/login$/);
   });
 
@@ -265,8 +265,8 @@ test.describe.serial("local authentication flow", () => {
     await page.getByLabel("Senha").fill(password);
     await page.getByRole("button", { name: "Entrar" }).click();
 
-    await expect(page).toHaveURL(/\/prioridades$/);
-    await expect(page.getByRole("heading", { name: "Prioridades Operacionais" })).toBeVisible();
+    await expect(page).toHaveURL(/\/hoje$/);
+    await expect(page.getByRole("heading", { name: "Hoje", level: 1 })).toBeVisible();
 
     await admin.auth.admin.deleteUser(authData.user!.id);
   });
@@ -302,7 +302,7 @@ test.describe.serial("local authentication flow", () => {
     await page.getByLabel("E-mail").fill(owner.email);
     await page.getByLabel("Senha").fill(owner.password);
     await page.getByRole("button", { name: "Entrar" }).click();
-    await expect(page).toHaveURL(/\/prioridades$/);
+    await expect(page).toHaveURL(/\/hoje$/);
     await page.goto("/contatos");
     const table = page.getByRole("table");
 
@@ -318,7 +318,7 @@ test.describe.serial("local authentication flow", () => {
     await page.getByLabel("E-mail").fill(owner.email);
     await page.getByLabel("Senha").fill(owner.password);
     await page.getByRole("button", { name: "Entrar" }).click();
-    await expect(page).toHaveURL(/\/prioridades$/);
+    await expect(page).toHaveURL(/\/hoje$/);
     await page.goto("/contatos");
     const table = page.getByRole("table");
 
@@ -344,7 +344,7 @@ test.describe.serial("local authentication flow", () => {
     await page.getByLabel("E-mail").fill(owner.email);
     await page.getByLabel("Senha").fill(owner.password);
     await page.getByRole("button", { name: "Entrar" }).click();
-    await expect(page).toHaveURL(/\/prioridades$/);
+    await expect(page).toHaveURL(/\/hoje$/);
     await page.goto("/contatos");
     const table = page.getByRole("table");
 
@@ -387,7 +387,7 @@ test.describe.serial("local authentication flow", () => {
     await page.getByLabel("E-mail").fill(owner.email);
     await page.getByLabel("Senha").fill(owner.password);
     await page.getByRole("button", { name: "Entrar" }).click();
-    await expect(page).toHaveURL(/\/prioridades$/);
+    await expect(page).toHaveURL(/\/hoje$/);
     await page.goto("/contatos");
 
     await expect(page.getByRole("heading", { name: "Contatos" })).toBeVisible();
@@ -405,9 +405,10 @@ test.describe.serial("local authentication flow", () => {
     await page.getByLabel("E-mail").fill(owner.email);
     await page.getByLabel("Senha").fill(owner.password);
     await page.getByRole("button", { name: "Entrar" }).click();
-    await expect(page).toHaveURL(/\/prioridades$/);
+    await expect(page).toHaveURL(/\/hoje$/);
 
-    // O Dashboard deve carregar. Verificamos se os cards existem.
+    // O Hoje carrega; a higiene de cadastro vem recolhida e abre pelo título.
+    await page.getByTestId("hoje-hygiene-details").locator("summary").click();
     await expect(page.getByText("Pendentes de qualificação").first()).toBeVisible();
     await expect(page.getByText("Sem telefone").first()).toBeVisible();
     await expect(page.getByText("Leads sem revisão recente").first()).toBeVisible();

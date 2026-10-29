@@ -14,7 +14,7 @@ async function login(page: Page, email: string) {
   await page.getByLabel("E-mail").fill(email);
   await page.getByLabel("Senha", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Entrar", exact: true }).click();
-  await expect(page).toHaveURL(/\/prioridades$/);
+  await expect(page).toHaveURL(/\/hoje$/);
 }
 
 async function openEmailLink(page: Page, link: string) {
@@ -67,7 +67,7 @@ async function accept(page: Page) {
   await page.getByLabel("Crie sua senha", { exact: true }).fill(password);
   await page.getByLabel("Confirme sua senha", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Definir senha e entrar", exact: true }).click();
-  await expect(page).toHaveURL(/\/prioridades$/);
+  await expect(page).toHaveURL(/\/hoje$/);
 }
 
 async function membership(email: string) {

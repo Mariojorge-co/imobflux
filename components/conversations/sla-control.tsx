@@ -15,8 +15,8 @@ type SlaControlProps = {
 };
 
 const OPTIONS: ReadonlyArray<{ mode: SlaMode; label: string; help: string }> = [
-  { mode: "active", label: "Prazo ativo", help: "Mostra o tempo de espera e a conversa entra em Prioridades." },
-  { mode: "paused", label: "Pausar até o cliente falar de novo", help: "Some das tarjas e de Prioridades; volta sozinho quando o cliente escrever." },
+  { mode: "active", label: "Prazo ativo", help: "Mostra o tempo de espera e a conversa entra em Hoje." },
+  { mode: "paused", label: "Pausar até o cliente falar de novo", help: "Some das tarjas e de Hoje; volta sozinho quando o cliente escrever." },
   { mode: "disabled", label: "Desativar o prazo desta conversa", help: "Permanente, até você reativar aqui." },
 ];
 

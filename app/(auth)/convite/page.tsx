@@ -37,7 +37,7 @@ export default async function InvitationPage({ searchParams }: InvitationPagePro
       }
     } catch { error = "technical"; }
   }
-  if (accepted) redirect("/prioridades");
+  if (accepted) redirect("/hoje");
 
   return (
     <AuthCard

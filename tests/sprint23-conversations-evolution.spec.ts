@@ -111,7 +111,7 @@ test.describe("Sprint 23 — Conversas 2.0 & Evolução Operacional", () => {
 
   test("3. E2E: Navegação Direta de Prioridades para Conversa", async ({ page }) => {
     await loginAsDemoOwner(page);
-    await page.goto("/prioridades");
+    await page.goto("/hoje");
 
     const firstPriorityCard = page.locator("a[href*='/conversas/']").first();
     await expect(firstPriorityCard).toBeVisible();

@@ -119,7 +119,7 @@ export function SlaSettingsForm({ initial }: { initial: SlaSettings }) {
   return (
     <div className="max-w-3xl space-y-stack">
       <p className="text-body text-text-muted">
-        Defina em que momento uma conversa muda de cor e quando ela entra no painel de Prioridades. São avisos para a
+        Defina em que momento uma conversa muda de cor e quando ela entra no painel Hoje. São avisos para a
         equipe: <strong>nenhuma mensagem automática é enviada ao cliente</strong>. Grupos e a conversa com você mesmo
         nunca têm prazo.
       </p>
@@ -136,7 +136,7 @@ export function SlaSettingsForm({ initial }: { initial: SlaSettings }) {
       <Card>
         <h2 className="text-body font-semibold text-text">Aguardando cliente / follow-up (o cliente está parado)</h2>
         <p className="mb-3 text-caption text-text-muted">
-          Conta a partir da última mensagem da equipe. O painel de Prioridades mostra as conversas que passaram do 1º nível.
+          Conta a partir da última mensagem da equipe. O painel Hoje mostra as conversas que passaram do 1º nível.
         </p>
         {renderGroup("followup")}
         <p className="mt-3 text-caption text-text-muted" data-testid="followup-preview">

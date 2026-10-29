@@ -153,5 +153,5 @@ export async function setupAction(
     redirect("/login?setup=complete");
   }
 
-  redirect("/prioridades");
+  redirect("/hoje");
 }

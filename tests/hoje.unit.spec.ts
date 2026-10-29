@@ -2,6 +2,9 @@ import { expect, test } from "@playwright/test";
 import { DEFAULT_SLA_SETTINGS } from "../lib/conversations/sla";
 import {
   buildTodayView,
+  countActionTargets,
+  withoutDuplicatedFollowups,
+  type DueFollowup,
   EMPTY_OVERVIEW,
   filterToParam,
   parseAttendantFilter,
@@ -158,5 +161,39 @@ test.describe("Painel Hoje — filtro da URL", () => {
     expect(parseAttendantFilter(["abc", "x"])).toEqual({ kind: "member", memberId: "abc" });
     expect(filterToParam({ kind: "member", memberId: "abc" })).toBe("abc");
     expect(filterToParam({ kind: "unassigned" })).toBe("sem-responsavel");
+  });
+});
+
+test.describe("Hoje unificado — contagem sem duplicar", () => {
+  const settings = DEFAULT_SLA_SETTINGS;
+  const owner = { role: "owner" as const, memberId: "m-owner", filter: { kind: "all" as const }, settings, now: NOW };
+  const due = (id: string, contactId: string, conversationId: string | null): DueFollowup => ({
+    id,
+    title: "Ligar",
+    due_at: minutesAgo(30),
+    contact_id: contactId,
+    conversation_id: conversationId,
+    opportunity_id: null,
+    display_name: "Cliente",
+  });
+
+  test("o mesmo cliente em várias seções conta uma vez só em Para agir agora", () => {
+    const waiting = conversation("c1", { contact_id: "k1", sla_direction: "incoming", sla_at: minutesAgo(30), started_at: minutesAgo(30) });
+    const other = conversation("c2", { contact_id: "k2", sla_direction: "incoming", sla_at: minutesAgo(40), has_outgoing: true });
+    const view = buildTodayView(overview([waiting, other]), [task("t1", { contact_id: "k1", conversation_id: "c1" }), task("t2", { contact_id: null })], owner);
+    // k1: aguardando + nova sem atendimento + tarefa + follow-up devido; k2: aguardando; t2: tarefa solta
+    expect(view.waiting).toHaveLength(2);
+    expect(countActionTargets(view, [due("f1", "k1", "c1")])).toBe(3);
+  });
+
+  test("aguardando cliente (follow-up de conversa) não entra em Para agir agora", () => {
+    const view = buildTodayView(overview([conversation("c3", { contact_id: "k3", sla_direction: "outgoing", sla_at: minutesAgo(60 * 30) })]), [], owner);
+    expect(view.followups).toHaveLength(1);
+    expect(countActionTargets(view, [])).toBe(0);
+  });
+
+  test("um follow-up devido não aparece de novo na lista de tarefas", () => {
+    const tasks = [task("f1", { task_type: "follow_up" }), task("t1")];
+    expect(withoutDuplicatedFollowups(tasks, [due("f1", "k1", null)]).map((item) => item.id)).toEqual(["t1"]);
   });
 });

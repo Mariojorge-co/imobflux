@@ -104,7 +104,7 @@ test.describe("Correções 4", () => {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
     const page = await context.newPage();
     await loginAsDemoOwner(page);
-    await page.goto("/prioridades");
+    await page.goto("/hoje");
     const bar = page.getByRole("banner", { name: "Barra superior" });
     await expect(bar.getByRole("button", { name: "Abrir menu principal" })).toBeVisible();
     await expect(bar.getByRole("button", { name: "Sair" })).toHaveCount(0);
@@ -128,7 +128,7 @@ test.describe("Correções 4", () => {
     // cancelar mantém a sessão
     await dialog.getByRole("button", { name: "Cancelar" }).click();
     await expect(dialog).toHaveCount(0);
-    await expect(page).toHaveURL(/\/prioridades$/);
+    await expect(page).toHaveURL(/\/hoje$/);
     // confirmar sai
     await logout.click();
     await page.getByRole("alertdialog").getByRole("button", { name: "Sair" }).click();
@@ -138,7 +138,7 @@ test.describe("Correções 4", () => {
 
   test("desktop: Sair continua na barra, sem confirmação", async ({ page }) => {
     test.setTimeout(60_000);
-    await page.goto("/prioridades");
+    await page.goto("/hoje");
     await page.getByRole("banner", { name: "Barra superior" }).getByRole("button", { name: "Sair" }).click();
     await expect(page).toHaveURL(/\/login/);
   });

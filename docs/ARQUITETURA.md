@@ -29,13 +29,13 @@ CRM Corretor/
 │   ├── auth/                   # Componentes de autenticação
 │   ├── contatos/               # Componentes do módulo de Contatos
 │   ├── conversas/              # Componentes do módulo de Conversas
-│   ├── prioridades/            # Componentes do módulo de Prioridades
+│   ├── prioridades/            # Itens reutilizados pela tela Hoje (antes Prioridades)
 │   └── ui/                     # Design System Atômico (Button, Card, Input, SearchInput, etc.)
 ├── lib/                        # Camada de lógica de negócios e dados no servidor/cliente
 │   ├── auth/                   # Lógica de autenticação e sessão
 │   ├── contatos/               # Server Actions e Data Fetching de Contatos
 │   ├── conversas/              # Server Actions e Data Fetching de Conversas
-│   ├── prioridades/            # Data Fetching de Prioridades
+│   ├── prioridades/            # Data fetching do dashboard (higiene e follow-ups), usado pelo Hoje
 │   ├── supabase/               # Clientes do Supabase (server, client, admin, proxy)
 │   ├── date.ts                 # Utilitários nativos de data (sem date-fns)
 │   └── validation.ts           # Validações de formulário e regex (ex: telefone BR)

@@ -14,7 +14,7 @@ const CAPTURES = process.env.IMOBFLUX_CAPTURES_DIR ?? path.join(process.env.TEMP
 const LONG = "Mensagem muito longa sem espaços para testar a quebra de linha ".repeat(3) + "SEMESPACOSSEMESPACOSSEMESPACOSSEMESPACOSSEMESPACOSSEMESPACOSSEMESPACOS";
 
 const ROUTES = [
-  "/hoje", "/prioridades", "/contatos", "/conversas", "/kanban", "/tarefas", "/preferencias",
+  "/hoje", "/contatos", "/conversas", "/kanban", "/tarefas", "/preferencias",
   "/configuracoes", "/configuracoes/equipe", "/configuracoes/grupos", "/configuracoes/prazos",
   "/configuracoes/respostas-rapidas", "/configuracoes/whatsapp", "/configuracoes/auditoria", "/configuracoes/exportacao",
 ];
@@ -100,7 +100,7 @@ test.describe("Celular, tablet e desktop", () => {
   test("desktop 1440: sidebar fixa, sem hambúrguer", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await loginAsDemoOwner(page);
-    await page.goto("/prioridades");
+    await page.goto("/hoje");
     await expect(page.getByRole("complementary")).toBeVisible();
     await expect(page.getByLabel("Abrir menu principal")).toBeHidden();
   });
@@ -262,10 +262,10 @@ test.describe("Celular, tablet e desktop", () => {
 
   test("celular: navegação principal pelo menu alcança todas as telas (incluindo Preferências)", async ({ browser }) => {
     const { context, page } = await mobilePage(browser);
-    await page.goto("/prioridades");
+    await page.goto("/hoje");
     await page.getByLabel("Abrir menu principal").tap();
     const nav = page.getByRole("navigation", { name: "Navegação principal" });
-    for (const label of ["Prioridades", "Contatos", "Conversas", "Kanban", "Tarefas", "Configurações"]) await expect(nav.getByRole("link", { name: label })).toBeVisible();
+    for (const label of ["Hoje", "Contatos", "Conversas", "Kanban", "Tarefas", "Configurações"]) await expect(nav.getByRole("link", { name: label })).toBeVisible();
     for (const link of await nav.getByRole("link").all()) expect((await link.boundingBox())!.height).toBeGreaterThanOrEqual(43.5);
     await expect(page.getByTestId("preferences-link")).toBeVisible();
     await page.keyboard.press("Escape");

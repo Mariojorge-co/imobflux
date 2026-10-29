@@ -42,7 +42,7 @@ test.describe("Busca global", () => {
   test("acha pelo texto, destaca o termo e mostra o conteúdo como texto (sem HTML)", async ({ page }) => {
     test.setTimeout(120_000);
     await loginAsDemoOwner(page);
-    await page.goto("/prioridades");
+    await page.goto("/hoje");
     await openSearch(page);
     await page.getByTestId("global-search-input").fill("financiamento");
     const results = page.getByTestId("global-search-result");
@@ -59,7 +59,7 @@ test.describe("Busca global", () => {
   test("abre a conversa na mensagem ANTIGA achada e a destaca", async ({ page }) => {
     test.setTimeout(180_000);
     await loginAsDemoOwner(page);
-    await page.goto("/prioridades");
+    await page.goto("/hoje");
     await openSearch(page);
     await page.getByTestId("global-search-input").fill("zebrafish");
     const hit = page.getByTestId("global-search-result").filter({ hasText: "zebrafish" });
@@ -75,7 +75,7 @@ test.describe("Busca global", () => {
   test("contato por nome e por telefone; termo curto não busca; Esc fecha", async ({ page }) => {
     test.setTimeout(120_000);
     await loginAsDemoOwner(page);
-    await page.goto("/prioridades");
+    await page.goto("/hoje");
     await openSearch(page);
     await page.getByTestId("global-search-input").fill("a");
     await expect(page.getByTestId("global-search-status")).toContainText("ao menos 2 letras");
@@ -90,7 +90,7 @@ test.describe("Busca global", () => {
   test("paginação: 'Mostrar mais' traz o restante", async ({ page }) => {
     test.setTimeout(120_000);
     await loginAsDemoOwner(page);
-    await page.goto("/prioridades");
+    await page.goto("/hoje");
     await openSearch(page);
     await page.getByTestId("global-search-input").fill("enchimento");
     await expect(page.getByTestId("global-search-result")).toHaveCount(20, { timeout: 30_000 });
@@ -101,7 +101,7 @@ test.describe("Busca global", () => {
   test("tecla / abre a busca fora dos campos, mas não dentro da caixa de mensagem", async ({ page }) => {
     test.setTimeout(120_000);
     await loginAsDemoOwner(page);
-    await page.goto("/prioridades");
+    await page.goto("/hoje");
     await page.keyboard.press("/");
     await expect(page.getByTestId("global-search-input")).toBeFocused();
     await page.keyboard.press("Escape");
@@ -115,7 +115,7 @@ test.describe("Busca global", () => {
   test("atendente não acha o contato protegido", async ({ page }) => {
     test.setTimeout(120_000);
     await loginAsDemoAttendant(page);
-    await page.goto("/prioridades");
+    await page.goto("/hoje");
     await openSearch(page);
     await page.getByTestId("global-search-input").fill("financiamento");
     await expect(page.getByTestId("global-search-result").filter({ hasText: "Cliente Busca B" })).toHaveCount(1, { timeout: 30_000 });
@@ -127,7 +127,7 @@ test.describe("Busca global", () => {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
     const page = await context.newPage();
     await loginAsDemoOwner(page);
-    await page.goto("/prioridades");
+    await page.goto("/hoje");
     const box = await page.getByTestId("global-search-button").boundingBox();
     expect(box?.width).toBeGreaterThanOrEqual(44);
     await openSearch(page);

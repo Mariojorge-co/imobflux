@@ -100,7 +100,7 @@ test.describe("Telas das correções — contraste e capturas", () => {
 
         // confirmação de Sair (só no celular)
         if (width < 768) {
-          await page.goto("/prioridades");
+          await page.goto("/hoje");
           await page.getByRole("button", { name: "Abrir menu principal" }).click();
           await check("menu-celular");
           await page.getByTestId("logout-menu-button").click();

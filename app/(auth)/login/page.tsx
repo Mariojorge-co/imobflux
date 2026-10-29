@@ -21,7 +21,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   ]);
 
   if (access) {
-    redirect("/prioridades");
+    redirect("/hoje");
   }
 
   const accessDenied = query.reason === "access_denied";

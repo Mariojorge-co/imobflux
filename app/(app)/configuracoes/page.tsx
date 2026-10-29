@@ -54,7 +54,7 @@ export default async function ConfiguracoesPage() {
             </span>
             <span>
               <span className="block font-semibold text-text">Prazos</span>
-              <span className="text-body text-text-muted">Defina quando uma conversa muda de cor e entra em Prioridades.</span>
+              <span className="text-body text-text-muted">Defina quando uma conversa muda de cor e entra em Hoje.</span>
             </span>
           </Card>
         </Link>

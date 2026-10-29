@@ -39,7 +39,7 @@ test.describe("Ajustes 7", () => {
     test.setTimeout(300_000);
     const { context, page } = await phone(browser, 390);
     await loginAsDemoOwner(page);
-    for (const route of ["/conversas", `/conversas/${conversation}`, "/contatos", "/kanban", "/tarefas", "/hoje", "/prioridades", "/preferencias", "/configuracoes/respostas-rapidas", "/configuracoes/equipe", "/configuracoes/prazos", "/configuracoes/grupos", "/configuracoes/whatsapp", "/configuracoes/auditoria", "/configuracoes/exportacao"]) {
+    for (const route of ["/conversas", `/conversas/${conversation}`, "/contatos", "/kanban", "/tarefas", "/hoje", "/preferencias", "/configuracoes/respostas-rapidas", "/configuracoes/equipe", "/configuracoes/prazos", "/configuracoes/grupos", "/configuracoes/whatsapp", "/configuracoes/auditoria", "/configuracoes/exportacao"]) {
       await page.goto(route);
       await page.waitForLoadState("domcontentloaded");
     }
@@ -71,7 +71,6 @@ test.describe("Ajustes 7", () => {
         ["kanban", "/kanban"],
         ["tarefas", "/tarefas"],
         ["hoje", "/hoje"],
-        ["prioridades", "/prioridades"],
         ["preferencias", "/preferencias"],
         ["respostas-rapidas", "/configuracoes/respostas-rapidas"],
         ["equipe", "/configuracoes/equipe"],

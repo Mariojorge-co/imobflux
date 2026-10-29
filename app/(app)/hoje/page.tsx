@@ -4,7 +4,8 @@ import { requireActiveAccess } from "@/lib/auth/dal";
 import { getMemberDirectory } from "@/lib/conversations/data";
 import { getSlaSettings } from "@/lib/conversations/sla-settings-data";
 import { getTodayOverview } from "@/lib/hoje/data";
-import { buildTodayView, parseAttendantFilter } from "@/lib/hoje/model";
+import { buildTodayView, parseAttendantFilter, withoutDuplicatedFollowups } from "@/lib/hoje/model";
+import { getPrioridadesDashboard } from "@/lib/prioridades/data";
 import { getTasksPage } from "@/lib/tasks/data";
 
 export const metadata = { title: "Hoje" };
@@ -18,14 +19,17 @@ export default async function HojePage({ searchParams }: PageProps) {
   // Só o proprietário enxerga a equipe e filtra por responsável; o atendente vê apenas o que é dele.
   const filter = isOwner ? parseAttendantFilter(params.atendente) : ({ kind: "all" } as const);
 
-  const [overview, settings, tasksPage, members] = await Promise.all([
+  // Tudo em paralelo: a tela única junta o que antes eram duas (Hoje e Prioridades), sem consulta extra em série.
+  const [overview, settings, tasksPage, members, dashboard] = await Promise.all([
     getTodayOverview(),
     getSlaSettings(),
     getTasksPage({ status: "pending", scope: "all" }),
     isOwner ? getMemberDirectory() : Promise.resolve([]),
+    getPrioridadesDashboard(),
   ]);
 
-  const view = buildTodayView(overview, tasksPage.tasks, {
+  const dueFollowups = dashboard.due_followups;
+  const view = buildTodayView(overview, withoutDuplicatedFollowups(tasksPage.tasks, dueFollowups), {
     role: access.role,
     memberId: access.memberId,
     filter,
@@ -35,11 +39,18 @@ export default async function HojePage({ searchParams }: PageProps) {
   return (
     <PageContainer>
       <PageHeader
-        description={isOwner ? "O que precisa de atenção na equipe hoje." : "O que precisa da sua atenção hoje."}
+        description={isOwner ? "O que fazer agora na equipe, em ordem de ação." : "O que fazer agora, em ordem de ação."}
         title="Hoje"
       />
       {isOwner ? <AttendantFilterBar filter={filter} members={members} /> : null}
-      <HojeView showAssignee={isOwner} timezone={overview.timezone} view={view} />
+      <HojeView
+        dueFollowups={dueFollowups}
+        hygiene={dashboard}
+        settings={settings}
+        showAssignee={isOwner}
+        timezone={overview.timezone}
+        view={view}
+      />
     </PageContainer>
   );
 }
