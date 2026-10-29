@@ -131,7 +131,16 @@ permissão por toque; recomendação em duas fases e só se a equipe **não** ti
 
 ## Verificação
 
-(preenchida ao terminar a rodada de regressão; ver abaixo)
+- **Lint e tipos:** limpos. **Unitários:** 677 testes passando em **Node 22 e em Node 24** (5 novos do cálculo do teclado). **Build** com variáveis fake de CI: ok (`/manifest.webmanifest` e `/apple-icon.png` aparecem como rotas estáticas).
+- **Banco:** nenhuma migration, nada a testar em pgTAP.
+- **Navegador, uma suíte por vez (ambiente descartável), 32 suítes:** novas `ajustes-6` (20) e `ajustes-6-tema` (4: contraste AA 0 violações, claro/escuro, 390 e 1440 px) + atalhos 12, celular 12, notificacoes 5, ajustes-5-avisos 6, ajustes-5 9, ajustes-5-tema 4, tema 7, tema-novas-telas 4, tema-correcoes 4, correcoes-mensagens 14, mensagens-pacote 14, quick-replies 8, respostas-anexos 6, responder-gesto 7, send-files 11, conversations 13, hoje 5, busca-global 8, correcoes-4 8, auth-flow 17, sprint23-conversations-evolution 7, grupos-e-propria 7, inbox-realtime 3, sprint24-blocob-polish 14, team-management 3, prazos 7, send-queue 2, collaboration-hotfix 4, functional-hotfix 3, sprint23-hotfix 5, demo-mode 1 — **todas passando** (depois dos ajustes de teste abaixo).
+- **Testes antigos que tive de atualizar (mudança de comportamento pedida):** `conversations` ("contexto abre sob demanda") e `sprint23-hotfix` (E2E mobile 375 px) procuravam o botão "i" no cabeçalho do celular; agora as informações do cliente ficam no ⋯ (pedido do item B), e os testes abrem por lá no celular.
+- **Instabilidades registradas (nada escondido):**
+  1. `ajustes-6` falhou 1x na primeira rodada com `ERR_CONNECTION_REFUSED`: o servidor de desenvolvimento reiniciou depois da cópia dos arquivos; passou 20/20 repetido isolado.
+  2. `ajustes-5-tema` (light 1440) falhou 1x ao trocar de conversa pela lista; passou 4/4 repetido isolado.
+  3. `sprint24-blocob-polish` ("Kanban: Modal de nova oportunidade") falhou 2x: o teste clicava antes de a página hidratar (o mesmo tipo de corrida dos Ajustes 5). Ajustei só o teste (repete o clique até o diálogo abrir); passou 14/14. Não mexi no Kanban; mas **vale observar** se a hidratação ficou mais lenta (só visto no servidor de desenvolvimento).
+  4. Evidência do item D: com o `attachment-view.tsx` **antigo** o teste "foto que carrega ANTES da hidratação" **falha** (`opacity-0` para sempre); com o novo passa.
+- **Chrome, não WebKit:** nenhum navegador WebKit está instalado; tudo foi em Chrome com toque e `visualViewport` simulado. O que só o iPhone real confirma está em cada seção.
 
 ## Mini reteste no iPhone (5 minutos)
 

@@ -122,11 +122,12 @@ test.describe.serial("Sprint 24 Bloco B — Contatos e Kanban Visual & Responsiv
     await page.waitForLoadState("domcontentloaded");
 
     const newOppBtn = page.getByRole("button", { name: /nova oportunidade/i });
-    await newOppBtn.click();
-
-    // Dialog deve estar visível
     const dialog = page.locator("dialog[open]");
-    await expect(dialog).toBeVisible();
+    // Um clique antes de a página hidratar se perde: repete até o diálogo abrir.
+    await expect(async () => {
+      await newOppBtn.click();
+      await expect(dialog).toBeVisible({ timeout: 1500 });
+    }).toPass({ timeout: 20_000 });
     await expect(dialog.getByText("Nova Oportunidade")).toBeVisible();
 
     // Fechar pelo botão cancelar
