@@ -13,7 +13,44 @@ const PNG = Buffer.from(
 );
 const pdf = (size: number) => Buffer.concat([Buffer.from("%PDF-1.4\n% teste\n"), Buffer.alloc(Math.max(0, size - 17), 0x20)]);
 const rar = (size: number) => Buffer.concat([Buffer.from([0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x00]), Buffer.alloc(size - 7, 1)]);
-const mp4 = (size: number) => Buffer.concat([Buffer.from([0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d]), Buffer.alloc(size - 12, 2)]);
+// Grava ~2 s de vídeo MP4 (H.264) num canvas, dentro do Chrome, e devolve em base64 (sem ffmpeg e sem arquivo binário no repositório).
+// O codec é explícito: com "video/mp4" puro o Chrome escolhe VP9 dentro do MP4 e a gravação sai vazia (0 bytes).
+async function recordTinyMp4(page: Page): Promise<string> {
+  return page.evaluate(async () => {
+    const mimeType = "video/mp4;codecs=avc1.42E01E";
+    if (!MediaRecorder.isTypeSupported(mimeType)) throw new Error("este Chrome não grava MP4 H.264");
+    const canvas = document.createElement("canvas");
+    canvas.width = 128;
+    canvas.height = 96;
+    const context = canvas.getContext("2d")!;
+    const recorder = new MediaRecorder(canvas.captureStream(30), { mimeType });
+    const chunks: Blob[] = [];
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) chunks.push(event.data);
+    };
+    const stopped = new Promise<void>((resolve) => (recorder.onstop = () => resolve()));
+    recorder.start(200);
+    // Desenha sem parar até o gravador JÁ ter entregado dados (a primeira gravação da página demora a aquecer o codificador): espera
+    // pelo estado ("há bytes"), não por um tempo fixo; só desiste depois de 15 s.
+    const startedAt = Date.now();
+    let frame = 0;
+    while ((chunks.length === 0 || Date.now() - startedAt < 1200) && Date.now() - startedAt < 15_000) {
+      context.fillStyle = frame % 2 ? "#2563eb" : "#16a34a";
+      context.fillRect(0, 0, 128, 96);
+      frame += 1;
+      await new Promise((resolve) => setTimeout(resolve, 40));
+    }
+    recorder.requestData();
+    recorder.stop();
+    await stopped;
+    const bytes = new Uint8Array(await new Blob(chunks, { type: "video/mp4" }).arrayBuffer());
+    if (bytes.length === 0) throw new Error("a gravação do MP4 saiu vazia");
+    let binary = "";
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    return btoa(binary);
+  });
+}
+
 const exe = (size: number) => Buffer.concat([Buffer.from([0x4d, 0x5a, 0x90, 0x00]), Buffer.alloc(size - 4, 3)]);
 
 let fake: FakeEvolution;
@@ -117,7 +154,10 @@ test.describe("Envio de arquivos pelo WhatsApp", () => {
 
   test("vídeo curto vai como vídeo e aparece na conversa com o mesmo limite de tamanho da foto", async ({ page }) => {
     await open(page);
-    await page.getByTestId("file-input").setInputFiles([{ name: "visita.mp4", mimeType: "video/mp4", buffer: mp4(3_000) }]);
+    // Um MP4 de verdade (gravado pelo próprio Chrome): com bytes falsos o <video> dispara erro de decodificação e o app troca a miniatura
+    // pelo aviso "Tentar de novo"; o teste só via a miniatura se contasse antes desse erro (instável). Com vídeo válido o estado é estável.
+    const validMp4 = Buffer.from(await recordTinyMp4(page), "base64");
+    await page.getByTestId("file-input").setInputFiles([{ name: "visita.mp4", mimeType: "video/mp4", buffer: validMp4 }]);
     await waitAllReady(page, 1);
     await page.getByRole("button", { name: "Enviar mensagem" }).click();
     await expect.poll(() => mediaRequests().length, { timeout: 30_000 }).toBe(1);

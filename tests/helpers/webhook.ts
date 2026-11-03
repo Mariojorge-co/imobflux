@@ -1,4 +1,4 @@
-import type { APIRequestContext } from "@playwright/test";
+import { expect, type APIRequestContext } from "@playwright/test";
 import { queryLocalSql } from "./local-test-state";
 
 // Simula a Evolution chamando o webhook do app (cabeçalho x-evolution-secret) em testes de navegador.
@@ -7,7 +7,25 @@ export function activeInstance(): string {
   return queryLocalSql("select external_account_id from public.channel_connections where status = 'active' limit 1;");
 }
 
+// Servidor de teste recém-iniciado (modo dev): a rota do webhook só passa a existir depois de compilada, e a primeira chamada logo após
+// a subida pode receber 404. Antes da primeira chamada real, espera-se a rota responder "não autorizado" (401) a uma chamada SEM o
+// segredo: prova que a rota existe, sem gravar nada. Feito uma vez por processo de teste.
+let webhookRouteReady = false;
+
+async function waitForWebhookRoute(request: APIRequestContext) {
+  if (webhookRouteReady) return;
+  await expect
+    .poll(async () => (await request.post("/api/webhooks/whatsapp", { data: {}, headers: { "x-evolution-secret": "" } })).status(), {
+      message: "a rota do webhook ainda não responde (servidor de teste esquentando)",
+      timeout: 90_000,
+      intervals: [500, 1_000, 2_000],
+    })
+    .toBe(401);
+  webhookRouteReady = true;
+}
+
 export async function postWebhook(request: APIRequestContext, payload: Record<string, unknown>) {
+  await waitForWebhookRoute(request);
   return request.post("/api/webhooks/whatsapp", {
     headers: { "x-evolution-secret": process.env.EVOLUTION_WEBHOOK_SECRET ?? "" },
     data: payload,

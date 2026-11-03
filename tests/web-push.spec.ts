@@ -13,10 +13,15 @@ async function grantNotifications(context: BrowserContext) {
   await context.grantPermissions(["notifications"]);
 }
 
+// Espera o service worker estar ATIVADO e controlando a página antes de usá-lo (com servidor frio, a primeira instalação ainda podia estar
+// em andamento e um evento disparado nesse intervalo se perdia). Só devolve o worker depois de provar que ele responde.
 async function serviceWorkerOf(page: Page, context: BrowserContext): Promise<Worker> {
   await page.evaluate(() => navigator.serviceWorker.ready.then(() => true));
+  await expect.poll(() => page.evaluate(() => navigator.serviceWorker.controller !== null && navigator.serviceWorker.controller.state === "activated")).toBe(true);
   await expect.poll(() => context.serviceWorkers().some((worker) => worker.url().endsWith("/sw-avisos.js"))).toBe(true);
-  return context.serviceWorkers().find((worker) => worker.url().endsWith("/sw-avisos.js"))!;
+  const worker = context.serviceWorkers().find((item) => item.url().endsWith("/sw-avisos.js"))!;
+  await expect.poll(() => worker.evaluate(() => (self as unknown as { registration: { active: { state: string } | null } }).registration.active?.state ?? "")).toBe("activated");
+  return worker;
 }
 
 // O corpo das funções passadas a worker.evaluate roda DENTRO do service worker; estes tipos mínimos descrevem só o que o teste usa.

@@ -207,6 +207,9 @@ test.describe("Atalhos", () => {
     // Foi para uma vizinha da lista (a ordem pode mudar um pouco com o tempo real), e Alt+seta para cima volta.
     expect(before).toContain(afterDown);
     expect(Math.abs(before.indexOf(afterDown) - index)).toBeLessThanOrEqual(2);
+    // A URL muda antes de a lista re-renderizar: o atalho usa a conversa SELECIONADA da lista. Espera o cartão novo ficar ativo
+    // (aria-current) antes de voltar; sem isso, o Alt+seta para cima podia partir da seleção antiga (e ir para outra vizinha).
+    await expect(page.locator(`#conv-card-${afterDown}[aria-current="true"], #conv-card-${afterDown} [aria-current="true"]`).first()).toBeAttached();
     await page.keyboard.press("Alt+ArrowUp");
     await expect(page).toHaveURL(new RegExp(`/conversas/${convB}$`));
   });

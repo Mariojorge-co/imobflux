@@ -143,6 +143,12 @@ Detalhes, números de desempenho, testes e roteiro em [RELATORIO_CONVERSAS_PACOT
 - **Conteúdo**: JID real do WhatsApp via `whatsappNumbers`; estado "enviada ao WhatsApp" (60 s); leitor do webhook tolerante (edição, exclusão, citação, reação); edição do celular via `edit_signal` + `findMessages`; reação única da conta; menu em portal; Editar/Apagar nas notas; responder com duplo clique na linha inteira (mouse) ou deslizando (toque) e foco no campo; vídeo/arquivo recebido até 50 MiB com aviso final e retry limitado; Sair dentro do menu no celular com confirmação.
 - **Atenção**: a avaliação no celular da edição do celular depende de a Evolution guardar o texto editado (ver relatório 3).
 
+## Noite 2 — pronta localmente, NÃO publicada (branch `chore/noite-2`, a partir da `main` `ef87781`)
+
+- **Estado**: commits locais, sem push, sem deploy, sem migration; **só arquivos de teste e documentação** (nenhum código de produção mudou). Relatório: [RELATORIO_NOITE_2.md](RELATORIO_NOITE_2.md).
+- **Conteúdo**: estabilização dos testes instáveis; estudos de `@lid`, exclusão de cliente, bloqueio de número, lembretes de tarefa, plano de backup da VPS e procedimento de lançamento da ingestão; auditoria pré-lançamento (achado principal: **Next.js 16.2.12 com avisos críticos, correção em 16.4.4**); checklist de lançamento.
+- **Pendente**: "autorizo" da Trava B; decisões do Mário listadas em cada estudo e no checklist.
+
 ## Aviso de teste com atraso — pronto localmente, NÃO publicado (branch `fix/push-teste-atraso`, a partir da `main` `5e3a4c7`)
 
 - **Estado**: commit local, sem push e sem deploy; **sem migration** (só a Trava B). Detalhes e mini reteste de 1 minuto em [RELATORIO_WEB_PUSH.md](RELATORIO_WEB_PUSH.md).
