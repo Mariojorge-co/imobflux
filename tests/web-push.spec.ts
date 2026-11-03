@@ -120,7 +120,8 @@ test.describe("Web Push", () => {
     const attendant = attendantMemberId();
     const foreign = ENDPOINT("do-atendente");
     insertFakeSubscription(attendant, foreign);
-    const foreignResponse = await page.request.post("/api/push/test", { data: { endpoint: foreign } });
+    const foreignId = queryLocalSql("select id from public.push_subscriptions where endpoint = '" + foreign + "';");
+    const foreignResponse = await page.request.post("/api/push/test", { data: { id: foreignId } });
     expect(foreignResponse.status()).toBe(404);
 
     // Opção "avisar também prazo desativado" é por aparelho e começa desligada.
@@ -142,7 +143,7 @@ test.describe("Web Push", () => {
     clearSubscriptions();
     const anonymous = await request.get("/api/push/subscriptions");
     expect(anonymous.status()).toBe(401);
-    expect((await request.post("/api/push/test", { data: { endpoint: ENDPOINT("x") } })).status()).toBe(401);
+    expect((await request.post("/api/push/test", { data: { id: "b6900000-0000-4000-8000-000000000001" } })).status()).toBe(401);
 
     insertFakeSubscription(ownerMemberId(), ENDPOINT("dono-aparelho"));
     insertFakeSubscription(attendantMemberId(), ENDPOINT("atendente-aparelho"));

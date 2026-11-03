@@ -153,12 +153,18 @@ Depois: você cadastra as 3 variáveis (acima) e autoriza a **Trava B** (merge f
 **Testes**: lint e tipos limpos; 718 unitários em Node 22 e 24 (16 novos em `tests/web-push-teste.unit.spec.ts`: atraso válido e inválido, recurso desligado 503, limite pendente/intervalo/expiração, só o aparelho solicitante, aparelho de outra pessoa 404, conteúdo genérico, falha 410 e rede só com código); build ok; navegador: `web-push-teste.spec.ts` 3/3 (agenda na hora, mensagem, segundo pedido 429, 401 sem login, 400 para atraso fora da lista, 44 px a 390 px), `web-push.spec.ts` 14/14, `web-push-desligado.spec.ts` 3/3 (inclui 503 com atraso), `web-push-tema.spec.ts` 4/4 (contraste AA) e `notificacoes.spec.ts` 5/5, uma suíte por vez. Nenhum push real foi enviado (endpoints de mentira).
 - **Não coberto localmente**: a espera real de 10 s seguida do envio ao serviço de push de verdade (só o unitário, com relógio e envio simulados) e a chegada no iPhone: isso é o mini reteste abaixo. No primeiro ciclo o teste de service worker do `web-push.spec.ts` falhou duas vezes (servidor de teste frio) e passou 2 de 2 nas repetições sem mudar código.
 
+**Acréscimo: testar qualquer aparelho da própria pessoa.** Na lista "Seus aparelhos com aviso", cada aparelho **ativo** tem "Testar este aparelho" e "Testar em 10 segundos" (o desativado pelo serviço não tem). Dá para apertar no computador e receber no celular.
+- A rota passou a pedir o aparelho **pelo `id` da assinatura** (`{ id, delaySeconds }`). O `endpoint` informado pelo cliente **não é mais aceito** (sem `id` válido, 400); os botões do aparelho atual também usam o `id`.
+- O servidor procura o `id` com o cliente **da pessoa logada**, e a RLS só devolve as assinaturas dela: aparelho de outra pessoa, inexistente ou desativado dá **404** (sem agendar nada). Não existe atalho com o cliente administrativo para achar o aparelho. O limite (1 pendente por aparelho, 5 s) é por `id`, e o aviso continua o genérico de teste.
+- Testes: unitários 720 (Node 22 e 24; entre os 18 desta rota: não autenticado 401 antes de tudo, endpoint no lugar do id não acha nada, aparelho de outra pessoa/inexistente/desativado, só o aparelho pedido recebe); navegador: `web-push-teste.spec.ts` 4/4 (inclui a lista com aparelho do dono, desativado e do atendente, o corpo do pedido só com `id` e `delaySeconds`, o 429 e os 404), `web-push` 14/14, `web-push-desligado` 3/3, `web-push-tema` 4/4 e `notificacoes` 5/5. Sem push real. A isolação entre pessoas é garantida pela RLS (já coberta nos 41 testes pgTAP de `web_push`); o unitário usa uma busca simulada que só devolve os aparelhos da pessoa.
+
 ### Mini reteste de 1 minuto (iPhone, app instalado)
 1. **Preferências → Avisos neste aparelho** (já ativo).
 2. Toque **Enviar aviso de teste em 10 segundos**: aparece "Teste agendado…".
 3. **Feche o app** (deslize para cima) e **bloqueie a tela**.
 4. Em cerca de 10 segundos chega **"Aviso de teste do ImobFlux"**. Toque: abre em Preferências.
 5. Se tocar duas vezes seguidas, a segunda deve dizer "Já há um teste a caminho".
+6. (Opcional) No computador, em Preferências, ache o iPhone na lista e toque **Testar em 10 segundos** nele: o aviso chega no iPhone.
 
 ## Mini reteste (10 minutos)
 

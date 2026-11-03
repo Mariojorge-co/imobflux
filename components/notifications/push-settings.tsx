@@ -174,12 +174,12 @@ export function PushSettings({ publicKey }: Props) {
     }
   };
 
-  const sendTest = async (delaySeconds: 0 | 10) => {
-    if (!currentEndpoint) return;
+  const sendTest = async (device: Device | undefined, delaySeconds: 0 | 10) => {
+    if (!device) return;
     setBusy(true);
     setMessage(null);
     try {
-      const response = await fetch("/api/push/test", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ endpoint: currentEndpoint, delaySeconds }) });
+      const response = await fetch("/api/push/test", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ id: device.id, delaySeconds }) });
       const result = (await response.json().catch(() => null)) as { error?: string } | null;
       if (response.status === 202) {
         setMessage({ tone: "ok", text: `Teste agendado: o aviso chega em cerca de ${delaySeconds} segundos, mesmo com o app fechado.` });
@@ -255,10 +255,10 @@ export function PushSettings({ publicKey }: Props) {
 
       {state === "active" ? (
         <div className="flex flex-wrap gap-2">
-          <Button data-testid="push-test" disabled={busy} onClick={() => void sendTest(0)} type="button" variant="secondary">
+          <Button data-testid="push-test" disabled={busy || !thisDevice} onClick={() => void sendTest(thisDevice, 0)} type="button" variant="secondary">
             Enviar aviso de teste
           </Button>
-          <Button data-testid="push-test-delayed" disabled={busy} onClick={() => void sendTest(10)} type="button" variant="secondary">
+          <Button data-testid="push-test-delayed" disabled={busy || !thisDevice} onClick={() => void sendTest(thisDevice, 10)} type="button" variant="secondary">
             Enviar aviso de teste em 10 segundos
           </Button>
           {thisDevice ? (
@@ -304,7 +304,7 @@ export function PushSettings({ publicKey }: Props) {
             {devices.map((device) => {
               const isThis = currentEndpoint !== null && currentEndpoint.endsWith(device.endpointTail);
               return (
-                <li className="flex min-h-11 items-center gap-3 px-3 py-2" data-testid="push-device" key={device.id}>
+                <li className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2" data-testid="push-device" key={device.id}>
                   <Smartphone aria-hidden="true" className="shrink-0 text-text-muted" size={18} />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-body font-medium text-text">
@@ -324,6 +324,16 @@ export function PushSettings({ publicKey }: Props) {
                   >
                     <Trash2 aria-hidden="true" size={18} />
                   </Button>
+                  {device.disabled ? null : (
+                    <div className="flex w-full flex-wrap gap-2" data-testid="push-device-actions">
+                      <Button data-testid="push-device-test" disabled={busy} onClick={() => void sendTest(device, 0)} type="button" variant="secondary">
+                        Testar este aparelho
+                      </Button>
+                      <Button data-testid="push-device-test-delayed" disabled={busy} onClick={() => void sendTest(device, 10)} type="button" variant="secondary">
+                        Testar em 10 segundos
+                      </Button>
+                    </div>
+                  )}
                 </li>
               );
             })}

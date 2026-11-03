@@ -57,9 +57,14 @@ export function createTestLimiter(now: () => number = Date.now) {
 export type TestSubscription = { id: string; endpoint: string; p256dh: string; auth: string; disabled_at: string | null };
 
 export type TestRunDeps = {
+  /** Há pessoa logada. A rota já barra quem não está, mas a regra não depende disso. */
+  signedIn: boolean;
   configured: boolean;
-  /** Só enxerga as assinaturas da própria pessoa (a RLS cuida disso). */
-  findSubscription: (endpoint: string) => Promise<TestSubscription | null>;
+  /**
+   * Procura o aparelho PELO ID, só entre as assinaturas da própria pessoa logada (a RLS do banco devolve apenas as dela).
+   * Nunca recebe um endpoint do cliente. Aparelho de outra pessoa ou inexistente = `null`.
+   */
+  findSubscription: (subscriptionId: string) => Promise<TestSubscription | null>;
   /** Envia UM aviso a UMA assinatura. Nunca lança. */
   send: (subscription: TestSubscription, body: string) => Promise<SendOutcome>;
   /** 404/410 num teste imediato: a pessoa está na requisição, então apaga a própria assinatura (como antes). */
@@ -75,12 +80,13 @@ export type TestRunDeps = {
 
 export type TestRunResult = { status: number; body: Record<string, unknown> };
 
-export async function runPushTest(deps: TestRunDeps, endpoint: string, rawDelay: unknown): Promise<TestRunResult> {
+export async function runPushTest(deps: TestRunDeps, subscriptionId: string, rawDelay: unknown): Promise<TestRunResult> {
+  if (!deps.signedIn) return { status: 401, body: { error: "Entre na sua conta." } };
   if (!deps.configured) return { status: 503, body: { error: "Os avisos com o app fechado ainda não estão disponíveis." } };
   const delay = parseDelay(rawDelay);
   if (delay === null) return { status: 400, body: { error: `Atraso inválido. Use ${ALLOWED_DELAYS.join(", ")} segundos.` } };
 
-  const subscription = await deps.findSubscription(endpoint);
+  const subscription = await deps.findSubscription(subscriptionId);
   if (!subscription || subscription.disabled_at) return { status: 404, body: { status: "not_registered" } };
 
   const slot = deps.limiter.start(subscription.id);
