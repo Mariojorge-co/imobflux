@@ -143,11 +143,17 @@ Detalhes, números de desempenho, testes e roteiro em [RELATORIO_CONVERSAS_PACOT
 - **Conteúdo**: JID real do WhatsApp via `whatsappNumbers`; estado "enviada ao WhatsApp" (60 s); leitor do webhook tolerante (edição, exclusão, citação, reação); edição do celular via `edit_signal` + `findMessages`; reação única da conta; menu em portal; Editar/Apagar nas notas; responder com duplo clique na linha inteira (mouse) ou deslizando (toque) e foco no campo; vídeo/arquivo recebido até 50 MiB com aviso final e retry limitado; Sair dentro do menu no celular com confirmação.
 - **Atenção**: a avaliação no celular da edição do celular depende de a Evolution guardar o texto editado (ver relatório 3).
 
-## Web Push — pronto localmente, NÃO publicado (branch `feat/web-push`, a partir da `main` `5518803`)
+## Aviso de teste com atraso — pronto localmente, NÃO publicado (branch `fix/push-teste-atraso`, a partir da `main` `5e3a4c7`)
 
-- **Estado**: commits locais, sem push, sem deploy; **COM migration** `20260802006800_web_push.sql` (aplicada só no banco local; Trava A pendente) e dependência `web-push`. Relatório: [RELATORIO_WEB_PUSH.md](RELATORIO_WEB_PUSH.md).
+- **Estado**: commit local, sem push e sem deploy; **sem migration** (só a Trava B). Detalhes e mini reteste de 1 minuto em [RELATORIO_WEB_PUSH.md](RELATORIO_WEB_PUSH.md).
+- **Conteúdo**: `POST /api/push/test` aceita `delaySeconds` (0, 10 ou 20; outro valor dá 400); com atraso responde 202 na hora e envia depois no servidor (`after()`), só ao aparelho que pediu; 1 teste pendente por aparelho e 5 s entre testes (429 amigável); `maxDuration` 30 s só nessa rota; botão "Enviar aviso de teste em 10 segundos".
+- **Só o iPhone real confirma**: a chegada do aviso com o app fechado e a tela bloqueada, 10 s depois do toque.
+
+## Web Push — PUBLICADO (main `5e3a4c7`; branch `feat/web-push`, a partir da `main` `5518803`)
+
+- **Estado**: publicado em produção (main `5e3a4c7`, CI verde nos dois jobs, Vercel Ready); migration `20260802006800_web_push.sql` aplicada em produção; chaves VAPID cadastradas na Vercel (Production). Relatório: [RELATORIO_WEB_PUSH.md](RELATORIO_WEB_PUSH.md).
 - **Conteúdo**: tabela `push_subscriptions` (RLS por pessoa), função de destinatários só do servidor (responsável; sem responsável só o dono; sem prévia), envio em `after()` no webhook (melhor esforço, sem repetição, 404/410 desativa), rotas `/api/push/*`, `/sw-avisos.js` com push e clique, seção "Avisos neste aparelho" em Preferências; seção do Hoje renomeada para "Cadastros a completar".
-- **Falta**: o Mário gerar as chaves VAPID no computador dele e cadastrar `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` e `VAPID_SUBJECT` na Vercel; Trava A, Trava B; teste em iPhone e Android reais. Sem as variáveis o recurso fica desligado e nada quebra.
+- **Pendente**: mini reteste em iPhone (iOS 16.4+, app instalado pelo Safari) e Android reais; decisões do estudo de Web Push.
 
 ## Hoje unificado — PUBLICADO (main `5518803`; branch `feat/hoje-unificado`, a partir da `main` `8db36b6`)
 

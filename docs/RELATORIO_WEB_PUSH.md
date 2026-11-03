@@ -137,6 +137,29 @@ notepad "$env:TEMP\vapid-imobflux.json"
 Depois: você cadastra as 3 variáveis (acima) e autoriza a **Trava B** (merge fast-forward, push, CI, Vercel `Ready` e smoke: `/login` 200, `/preferencias` 307 → login, `/api/push/subscriptions` 401 sem login,
 `/sw-avisos.js` 200 com o texto novo, `/manifest.webmanifest` 200).
 
+## Aviso de teste com atraso (pacote `fix/push-teste-atraso`, a partir da `main` `5e3a4c7`; sem migration)
+
+**Por quê**: o teste imediato chegava antes de dar tempo de fechar o app e bloquear a tela no iPhone.
+
+**O que mudou**
+- `POST /api/push/test` aceita `delaySeconds` opcional, de uma **lista fechada: 0, 10 e 20**. Qualquer outro valor (5, 15, -1, 10.5, texto) é recusado com 400 e a mensagem "Atraso inválido. Use 0, 10, 20 segundos." Sem o campo = 0 (como antes).
+- Com atraso, a rota **responde na hora** (202, `{status:"scheduled", delaySeconds}`) e o envio acontece **no servidor**, em `after()`, depois da espera: o app pode estar fechado. Vai **só para o aparelho que pediu** (a RLS só devolve as assinaturas da própria pessoa) e o conteúdo continua o aviso genérico de teste (nada de cliente ou prévia).
+- **Tempo na Vercel**: `maxDuration` desta rota passou de 15 para **30 s** (atraso máximo 20 s + envio até 6 s = 26 s). Só esta rota mudou; as outras ficaram como estavam (o webhook já tem 60 s).
+- **Limite de abuso**: no máximo **1 teste pendente por aparelho** e **5 s** entre pedidos. Repetir cedo responde 429 com texto amigável ("Já há um teste a caminho. Aguarde o aviso chegar." ou "Aguarde alguns segundos antes de pedir outro teste."). O controle fica na memória da instância (freio contra clique repetido, não uma garantia entre instâncias); um pendente que nunca terminou deixa de bloquear depois de 1 minuto. Não precisou de migration.
+- Se o serviço de push disser 404/410 no envio com atraso, a assinatura é **desativada** (não há mais sessão da pessoa para apagar). O log tem só a duração, "enviado" ou o **código** da falha.
+- **Tela**: o botão "Enviar aviso de teste" continua e ganhou "Enviar aviso de teste em 10 segundos", com o texto "O aviso chega em cerca de 10 segundos. Feche o app e bloqueie a tela agora." Ao agendar, a tela confirma "Teste agendado: o aviso chega em cerca de 10 segundos, mesmo com o app fechado." (sem cronômetro: quem espera é o servidor). Botões de 44 px; nada de campo novo, sem `maximum-scale`.
+- Regra em `lib/push/test-run.ts` (pura, testável); a rota só liga os pedaços.
+
+**Testes**: lint e tipos limpos; 718 unitários em Node 22 e 24 (16 novos em `tests/web-push-teste.unit.spec.ts`: atraso válido e inválido, recurso desligado 503, limite pendente/intervalo/expiração, só o aparelho solicitante, aparelho de outra pessoa 404, conteúdo genérico, falha 410 e rede só com código); build ok; navegador: `web-push-teste.spec.ts` 3/3 (agenda na hora, mensagem, segundo pedido 429, 401 sem login, 400 para atraso fora da lista, 44 px a 390 px), `web-push.spec.ts` 14/14, `web-push-desligado.spec.ts` 3/3 (inclui 503 com atraso), `web-push-tema.spec.ts` 4/4 (contraste AA) e `notificacoes.spec.ts` 5/5, uma suíte por vez. Nenhum push real foi enviado (endpoints de mentira).
+- **Não coberto localmente**: a espera real de 10 s seguida do envio ao serviço de push de verdade (só o unitário, com relógio e envio simulados) e a chegada no iPhone: isso é o mini reteste abaixo. No primeiro ciclo o teste de service worker do `web-push.spec.ts` falhou duas vezes (servidor de teste frio) e passou 2 de 2 nas repetições sem mudar código.
+
+### Mini reteste de 1 minuto (iPhone, app instalado)
+1. **Preferências → Avisos neste aparelho** (já ativo).
+2. Toque **Enviar aviso de teste em 10 segundos**: aparece "Teste agendado…".
+3. **Feche o app** (deslize para cima) e **bloqueie a tela**.
+4. Em cerca de 10 segundos chega **"Aviso de teste do ImobFlux"**. Toque: abre em Preferências.
+5. Se tocar duas vezes seguidas, a segunda deve dizer "Já há um teste a caminho".
+
 ## Mini reteste (10 minutos)
 
 **iPhone (iOS 16.4 ou mais novo)**

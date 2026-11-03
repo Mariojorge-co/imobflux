@@ -35,6 +35,7 @@ test.describe("Web Push desligado (sem chaves VAPID)", () => {
     const register = await page.request.post("/api/push/subscriptions", { data: { endpoint: "https://192.0.2.50/x/aparelho", keys: { p256dh: "x".repeat(87), auth: "y".repeat(22) } } });
     expect(register.status()).toBe(503);
     expect((await page.request.post("/api/push/test", { data: { endpoint: "https://192.0.2.50/x/aparelho" } })).status()).toBe(503);
+    expect((await page.request.post("/api/push/test", { data: { endpoint: "https://192.0.2.50/x/aparelho", delaySeconds: 10 } })).status()).toBe(503);
   });
 
   test("o webhook segue normal e nenhuma tentativa de aviso é feita", async ({ request }) => {

@@ -174,17 +174,22 @@ export function PushSettings({ publicKey }: Props) {
     }
   };
 
-  const sendTest = async () => {
+  const sendTest = async (delaySeconds: 0 | 10) => {
     if (!currentEndpoint) return;
     setBusy(true);
     setMessage(null);
     try {
-      const response = await fetch("/api/push/test", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ endpoint: currentEndpoint }) });
-      setMessage(
-        response.ok
-          ? { tone: "ok", text: "Aviso de teste enviado. Ele deve aparecer em instantes." }
-          : { tone: "error", text: "O aviso de teste não saiu. Se continuar, desative e ative de novo neste aparelho." },
-      );
+      const response = await fetch("/api/push/test", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ endpoint: currentEndpoint, delaySeconds }) });
+      const result = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (response.status === 202) {
+        setMessage({ tone: "ok", text: `Teste agendado: o aviso chega em cerca de ${delaySeconds} segundos, mesmo com o app fechado.` });
+      } else if (response.ok) {
+        setMessage({ tone: "ok", text: "Aviso de teste enviado. Ele deve aparecer em instantes." });
+      } else if (response.status === 429) {
+        setMessage({ tone: "error", text: result?.error ?? "Aguarde alguns segundos antes de pedir outro teste." });
+      } else {
+        setMessage({ tone: "error", text: "O aviso de teste não saiu. Se continuar, desative e ative de novo neste aparelho." });
+      }
     } catch {
       setMessage({ tone: "error", text: "Sem conexão para enviar o teste." });
     } finally {
@@ -250,8 +255,11 @@ export function PushSettings({ publicKey }: Props) {
 
       {state === "active" ? (
         <div className="flex flex-wrap gap-2">
-          <Button data-testid="push-test" disabled={busy} onClick={() => void sendTest()} type="button" variant="secondary">
+          <Button data-testid="push-test" disabled={busy} onClick={() => void sendTest(0)} type="button" variant="secondary">
             Enviar aviso de teste
+          </Button>
+          <Button data-testid="push-test-delayed" disabled={busy} onClick={() => void sendTest(10)} type="button" variant="secondary">
+            Enviar aviso de teste em 10 segundos
           </Button>
           {thisDevice ? (
             <Button data-testid="push-disable" disabled={busy} onClick={() => void removeDevice(thisDevice)} type="button" variant="ghost">
@@ -259,6 +267,12 @@ export function PushSettings({ publicKey }: Props) {
             </Button>
           ) : null}
         </div>
+      ) : null}
+
+      {state === "active" ? (
+        <p className="text-caption text-text-muted" data-testid="push-test-help">
+          O aviso chega em cerca de 10 segundos. Feche o app e bloqueie a tela agora.
+        </p>
       ) : null}
 
       {message ? (
