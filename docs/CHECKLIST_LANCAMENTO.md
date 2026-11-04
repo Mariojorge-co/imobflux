@@ -31,7 +31,7 @@
 ### Fase 2 — Segurança e estabilidade (antes de abrir para clientes)
 | # | Item | Status | Dono | Esforço |
 |---|---|---|---|---|
-| B6 | **Atualizar o Next.js (16.4.4)** e dependências indiretas (`AUDITORIA_PRE_LANCAMENTO.md`, achado #1/#5) | Falta | CC | 0,5 a 1 dia |
+| B6 | **Atualizar o Next.js (16.4.5)** e dependências indiretas (`AUDITORIA_PRE_LANCAMENTO.md`, achado #1/#5) | **Pronto localmente** (branch `fix/seguranca-next`; 0 críticas e 0 altas no `npm audit`, regressão verde) — **falta a Trava B** e o mini reteste do Mário (`RELATORIO_SEGURANCA_NEXT.md`) | CC / Mário | feito; Trava B ~20 min |
 | B7 | Cabeçalhos de segurança (CSP em report-only) + páginas de erro/404 em português (achados #2/#8) | Falta | CC | 1 dia |
 | B8 | Mapear mensagens de erro do banco e log só com código (achados #4/#10) | Falta | CC | 0,5 dia |
 | B9 | Limite de taxa em anexos/exportação; conferir limites do Supabase Auth e que o cadastro aberto está desligado (achado #3) | Falta | Ambos | 1 dia + 15 min do Mário no painel |

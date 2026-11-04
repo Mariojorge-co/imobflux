@@ -143,11 +143,18 @@ Detalhes, números de desempenho, testes e roteiro em [RELATORIO_CONVERSAS_PACOT
 - **Conteúdo**: JID real do WhatsApp via `whatsappNumbers`; estado "enviada ao WhatsApp" (60 s); leitor do webhook tolerante (edição, exclusão, citação, reação); edição do celular via `edit_signal` + `findMessages`; reação única da conta; menu em portal; Editar/Apagar nas notas; responder com duplo clique na linha inteira (mouse) ou deslizando (toque) e foco no campo; vídeo/arquivo recebido até 50 MiB com aviso final e retry limitado; Sair dentro do menu no celular com confirmação.
 - **Atenção**: a avaliação no celular da edição do celular depende de a Evolution guardar o texto editado (ver relatório 3).
 
-## Noite 2 — pronta localmente, NÃO publicada (branch `chore/noite-2`, a partir da `main` `ef87781`)
+## Segurança 1 (Next.js 16.4.5) — pronta localmente, NÃO publicada (branch `fix/seguranca-next`, a partir da `main` `5c40366`)
 
-- **Estado**: commits locais, sem push, sem deploy, sem migration; **só arquivos de teste e documentação** (nenhum código de produção mudou). Relatório: [RELATORIO_NOITE_2.md](RELATORIO_NOITE_2.md).
-- **Conteúdo**: estabilização dos testes instáveis; estudos de `@lid`, exclusão de cliente, bloqueio de número, lembretes de tarefa, plano de backup da VPS e procedimento de lançamento da ingestão; auditoria pré-lançamento (achado principal: **Next.js 16.2.12 com avisos críticos, correção em 16.4.4**); checklist de lançamento.
-- **Pendente**: "autorizo" da Trava B; decisões do Mário listadas em cada estudo e no checklist.
+- **Estado**: commit local, sem push, sem deploy, **sem migration**; só `package.json` e `package-lock.json` (nenhum arquivo de `app/`, `components/` ou `lib/` mudou). Relatório: [RELATORIO_SEGURANCA_NEXT.md](RELATORIO_SEGURANCA_NEXT.md).
+- **Conteúdo**: `next` e `eslint-config-next` fixados em 16.4.5; dependências indiretas altas corrigidas pelo caminho seguro (`npm audit fix` sem `--force`); `npm audit`: 1 crítica + 7 altas → 0 + 0 (restam 16 moderadas de lint, só desenvolvimento).
+- **Verificação**: lint, tipos, 720 unitários (Node 22 e 24), build idêntico e sem avisos novos, regressão de navegador (42 arquivos, 323 testes, 0 falhas). A suíte isolada de autenticação não foi rodada (pouca memória).
+- **Pendente**: "autorizo" da Trava B; mini reteste do Mário (seção 7 do relatório).
+
+## Noite 2 — PUBLICADA (main `5c40366`; branch `chore/noite-2`, a partir da `main` `ef87781`)
+
+- **Estado**: publicada em produção (main `5c40366`, CI verde nos dois jobs, Vercel Ready), **só testes e documentação**, sem migration. Relatório: [RELATORIO_NOITE_2.md](RELATORIO_NOITE_2.md).
+- **Conteúdo**: estabilização dos testes instáveis; estudos de `@lid`, exclusão de cliente, bloqueio de número, lembretes de tarefa, plano de backup da VPS e procedimento de lançamento da ingestão; auditoria pré-lançamento; checklist de lançamento.
+- **Pendente**: decisões do Mário listadas em cada estudo e no checklist.
 
 ## Aviso de teste com atraso — pronto localmente, NÃO publicado (branch `fix/push-teste-atraso`, a partir da `main` `5e3a4c7`)
 
