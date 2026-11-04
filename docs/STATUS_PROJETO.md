@@ -149,12 +149,13 @@ Detalhes, números de desempenho, testes e roteiro em [RELATORIO_CONVERSAS_PACOT
 - **Conteúdo**: A reação de CLIENTE era descartada (`unknown_reactor`, 10 de 10) porque `ingest_whatsapp_reaction` comparava o telefone por igualdade exata (JID de 12 dígitos x contato de 13). Migration `20260802006900` (CREATE OR REPLACE, retrocompatível): primeiro o contato da conversa individual (resolve `@lid`), depois o telefone com e sem o 9 (o mais antigo), só então `unknown_reactor`; log seguro de reação ignorada no webhook. pgTAP red→green (13 de 21 falham sem a migration; 49 arquivos / 1498 testes passam), 725 unitários (Node 22 e 24), build ok, 3 testes de navegador novos e suítes de mensagens/reações verdes. Auditoria de igualdade exata de telefone/JID no relatório (a ingestão normal e a de grupo ainda precisam da mesma tolerância antes de desligar "só cadastrados"). As 10 reações de teste se perderam: a pessoa reage de novo depois da publicação. Relatório: [RELATORIO_REACAO_CLIENTE.md](RELATORIO_REACAO_CLIENTE.md).
 - **Pendente**: "autorizo" das Travas A e B; mini reteste do Mário com a outra pessoa (seção 7 do relatório).
 
-## Segurança 1 (Next.js 16.4.5) — pronta localmente, NÃO publicada (branch `fix/seguranca-next`, a partir da `main` `5c40366`)
+## Segurança 1 (Next.js 16.4.5) — PUBLICADA (main `60c0f00`, 04/11)
 
-- **Estado**: commit local, sem push, sem deploy, **sem migration**; só `package.json` e `package-lock.json` (nenhum arquivo de `app/`, `components/` ou `lib/` mudou). Relatório: [RELATORIO_SEGURANCA_NEXT.md](RELATORIO_SEGURANCA_NEXT.md).
-- **Conteúdo**: `next` e `eslint-config-next` fixados em 16.4.5; dependências indiretas altas corrigidas pelo caminho seguro (`npm audit fix` sem `--force`); `npm audit`: 1 crítica + 7 altas → 0 + 0 (restam 16 moderadas de lint, só desenvolvimento).
-- **Verificação**: lint, tipos, 720 unitários (Node 22 e 24), build idêntico e sem avisos novos, regressão de navegador (42 arquivos, 323 testes, 0 falhas). A suíte isolada de autenticação não foi rodada (pouca memória).
-- **Pendente**: "autorizo" da Trava B; mini reteste do Mário (seção 7 do relatório).
+- **Estado**: em produção (fast-forward da `fix/seguranca-next`), **sem migration**; só `package.json`, `package-lock.json` e documentação. Vercel Ready (47 s, Node 24.x, Next 16.4.5 Turbopack, sem aviso novo no build). Relatório: [RELATORIO_SEGURANCA_NEXT.md](RELATORIO_SEGURANCA_NEXT.md).
+- **CI**: job de lint/tipos/unitários/build verde. O job do banco falhou na primeira execução (03:10 UTC = 00:10 em Maceió) por flake de horário em `today_overview.test.sql` (3 de 20 asserções) e passou na reexecução às 03:32 UTC, sem mudar código.
+- **Smoke (somente leitura)**: /login 200; /hoje 307; /prioridades 308 para /hoje; /preferencias 307; /sw-avisos.js e /manifest.webmanifest 200; rotas de push sem login 401; /login sem erro de console e hidratado.
+- **A corrigir (pacote pequeno)**: `supabase/tests/database/today_overview.test.sql` usa intervalos relativos a `now()` e falha se o CI rodar perto da meia-noite de Maceió (visto às 00:10 locais; a reexecução às 00:32 passou). Correção: horários fixos no meio do dia no fuso do workspace.
+- **Pendente**: mini reteste do Mário (seção 7 do relatório).
 
 ## Noite 2 — PUBLICADA (main `5c40366`; branch `chore/noite-2`, a partir da `main` `ef87781`)
 
