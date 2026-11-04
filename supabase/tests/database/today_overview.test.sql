@@ -31,12 +31,18 @@ values
     ('b6300004-0000-4000-8000-000000000001', 'b6300002-0000-4000-8000-000000000001', 'whatsapp', 'to_instance', '+5582999906300', 'active', now(), true),
     ('b6300004-0000-4000-8000-000000000002', 'b6300002-0000-4000-8000-000000000002', 'whatsapp', 'to_instance_b', '+5582999906301', 'active', now(), true);
 
+-- Horários fixos: 12:00 do dia atual no fuso do workspace (America/Maceio), e não 'agora - N minutos'.
+-- Assim o teste não muda de resultado se rodar perto da meia-noite local (o dia de get_today_overview
+-- também é calculado nesse fuso). A ingestão limita started_at a now(), então horário futuro é seguro.
+create temp table to_day on commit drop as
+select (date_trunc('day', now() at time zone 'America/Maceio') at time zone 'America/Maceio') + interval '12 hours' as noon;
+
 -- c1: cliente esperando (sem responsável); c2: atribuída a att1; c3: a equipe respondeu; c4: contato protegido; B: outro workspace
-select public.ingest_whatsapp_text_message('to_instance', 'to-1', '5582988886301@s.whatsapp.net', false, 'Cliente Um', 'Oi, c1', now() - interval '30 minutes');
-select public.ingest_whatsapp_text_message('to_instance', 'to-2', '5582988886302@s.whatsapp.net', false, 'Cliente Dois', 'Oi, c2', now() - interval '20 minutes');
-select public.ingest_whatsapp_text_message('to_instance', 'to-3', '5582988886303@s.whatsapp.net', false, 'Cliente Tres', 'Oi, c3', now() - interval '10 minutes');
-select public.ingest_whatsapp_text_message('to_instance', 'to-4', '5582988886304@s.whatsapp.net', false, 'Cliente Protegido', 'Oi, c4', now() - interval '5 minutes');
-select public.ingest_whatsapp_text_message('to_instance_b', 'to-b', '5582988886399@s.whatsapp.net', false, 'Cliente B', 'Oi, B', now() - interval '5 minutes');
+select public.ingest_whatsapp_text_message('to_instance', 'to-1', '5582988886301@s.whatsapp.net', false, 'Cliente Um', 'Oi, c1', (select noon from to_day));
+select public.ingest_whatsapp_text_message('to_instance', 'to-2', '5582988886302@s.whatsapp.net', false, 'Cliente Dois', 'Oi, c2', (select noon + interval '10 minutes' from to_day));
+select public.ingest_whatsapp_text_message('to_instance', 'to-3', '5582988886303@s.whatsapp.net', false, 'Cliente Tres', 'Oi, c3', (select noon + interval '20 minutes' from to_day));
+select public.ingest_whatsapp_text_message('to_instance', 'to-4', '5582988886304@s.whatsapp.net', false, 'Cliente Protegido', 'Oi, c4', (select noon + interval '25 minutes' from to_day));
+select public.ingest_whatsapp_text_message('to_instance_b', 'to-b', '5582988886399@s.whatsapp.net', false, 'Cliente B', 'Oi, B', (select noon + interval '25 minutes' from to_day));
 update public.contacts set is_protected = true, protected_at = now(), commercial_visible_from = null
 where id in (select p.contact_id from public.contact_points p where p.normalized_value = '+5582988886304');
 update public.contact_points set is_protected = true, protected_at = now(), commercial_visible_from = null where normalized_value = '+5582988886304';
@@ -53,11 +59,11 @@ insert into public.conversation_assignments (workspace_id, conversation_id, memb
 select 'b6300002-0000-4000-8000-000000000001', c2, 'b6300003-0000-4000-8000-000000000002', 'b6300003-0000-4000-8000-000000000001', now() from to_c;
 -- c3: a equipe respondeu
 insert into public.messages (workspace_id, channel_connection_id, conversation_id, external_message_id, client_idempotency_key, direction, origin, internal_author_member_id, text_content, status, occurred_at)
-select c.workspace_id, c.channel_connection_id, c.id, 'to-out-3', gen_random_uuid(), 'outgoing', 'crm', 'b6300003-0000-4000-8000-000000000001', 'Respondido', 'sent', now() - interval '2 minutes'
+select c.workspace_id, c.channel_connection_id, c.id, 'to-out-3', gen_random_uuid(), 'outgoing', 'crm', 'b6300003-0000-4000-8000-000000000001', 'Respondido', 'sent', (select noon + interval '28 minutes' from to_day)
 from public.conversations c where c.id = (select c3 from to_c);
 -- uma mensagem escondida do cliente em c1 não conta como "recebida hoje"
 insert into public.messages (workspace_id, channel_connection_id, conversation_id, external_message_id, direction, origin, sender_contact_point_id, text_content, status, occurred_at, external_created_at, received_at, hidden_at, hidden_by_member_id)
-select m.workspace_id, m.channel_connection_id, m.conversation_id, 'to-hidden', 'incoming', 'whatsapp', m.sender_contact_point_id, 'escondida', 'received', now() - interval '25 minutes', now(), now(), now(), 'b6300003-0000-4000-8000-000000000001'
+select m.workspace_id, m.channel_connection_id, m.conversation_id, 'to-hidden', 'incoming', 'whatsapp', m.sender_contact_point_id, 'escondida', 'received', (select noon + interval '5 minutes' from to_day), now(), now(), now(), 'b6300003-0000-4000-8000-000000000001'
 from public.messages m where m.external_message_id = 'to-1';
 
 -- ─── Dono ────────────────────────────────────────────────────────────────────────────────────────
