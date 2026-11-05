@@ -23,8 +23,8 @@
 | # | Item | Status | Dono | Esforço |
 |---|---|---|---|---|
 | B1 | **Mini reteste do Web Push** em iPhone (iOS 16.4+, app instalado pelo Safari) e Android: ativar, teste imediato, teste de 10 s, mensagem real com app fechado e tela bloqueada (roteiro em `RELATORIO_WEB_PUSH.md`) | **iPhone validado** (inclusive mensagem real com o app fechado e a tela bloqueada); **Android pendente** | Mário | 15 min (Android) |
-| B2 | Reteste do iPhone dos Ajustes 7 (campos sem zoom, sem faixa escura) e envio do texto do "Diagnóstico de tela" | Falta | Mário | 15 min |
-| B3 | Remover o **Diagnóstico de tela** temporário (`components/notifications/screen-diagnostics.tsx` e a seção em Preferências) depois de B2 | Falta | CC | 1 h |
+| B2 | Reteste do iPhone dos Ajustes 7 (campos sem zoom, sem faixa escura) | **Pronto** (iPhone validado) | Mário | feito |
+| B3 | Remover o **Diagnóstico de tela** temporário | **Pronto localmente** (branch `chore/seguranca-2`, `RELATORIO_SEGURANCA_2.md`) — falta a Trava B | CC | feito |
 | B4 | Teste real do envio de arquivos (foto, PDF, vídeo, 24 MB, 26 MB recusado, .exe bloqueado) e do pacote de mensagens (editar/apagar/reagir vindos do celular) | Falta | Mário | 1 h |
 | B5 | **Teste de ponta a ponta com um atendente real** (seção C) | Falta | Ambos | 1 a 2 h |
 
@@ -32,11 +32,11 @@
 | # | Item | Status | Dono | Esforço |
 |---|---|---|---|---|
 | B6 | **Atualizar o Next.js (16.4.5)** e dependências indiretas (`AUDITORIA_PRE_LANCAMENTO.md`, achado #1/#5) | **Publicado e retestado** em computador e celular (main `60c0f00`, 04/11; CI verde após reexecução do job do banco, Vercel Ready, smoke ok). O flake de horário de `today_overview.test.sql` foi **corrigido** | CC / Mário | feito |
-| B7 | Cabeçalhos de segurança (CSP em report-only) + páginas de erro/404 em português (achados #2/#8) | Falta | CC | 1 dia |
-| B8 | Mapear mensagens de erro do banco e log só com código (achados #4/#10) | Falta | CC | 0,5 dia |
+| B7 | Cabeçalhos de segurança (CSP em report-only) + páginas de erro/404 em português (achados #2/#8) | **Pronto localmente** (CSP só Report-Only, `/api/csp-report`, 404/erro/erro global) — falta a Trava B, a captura de violações em produção e o mini reteste | CC | feito |
+| B8 | Mapear mensagens de erro do banco e log só com código (achados #4/#10) | **Pronto localmente** (6 ações de conversa) — falta a Trava B | CC | feito |
 | B9 | Limite de taxa em anexos/exportação; conferir limites do Supabase Auth e que o cadastro aberto está desligado (achado #3) | Falta | Ambos | 1 dia + 15 min do Mário no painel |
 | B10 | **Backup automático da VPS** com cópia externa criptografada, alerta de falha e ensaio de restauração (`PLANO_BACKUP_VPS.md`) | Decisão (onde guardar, custo) + Falta | Ambos | 1,5 dia CC + decisões |
-| B11 | Rodar `git log -p` completo à procura de segredos antes de abrir o repositório a terceiros; confirmar repositório privado | Falta | CC/Mário | 30 min |
+| B11 | Varredura de segredos no histórico completo; confirmar repositório privado | **Varredura feita** (221 commits, nenhum segredo real). **O repositório é PÚBLICO**: decisão do Mário de torná-lo privado (GitHub → Settings → Danger zone → Change visibility) | Mário | 5 min |
 | B12 | Rodar o rodízio do segredo do webhook e das chaves após a equipe toda ter acesso (rotina) | Decisão | Mário | 30 min |
 
 ### Fase 3 — Qualidade dos dados antes de desligar o filtro de contatos
@@ -51,7 +51,7 @@
 ### Fase 4 — Operação do dia a dia
 | # | Item | Status | Dono | Esforço |
 |---|---|---|---|---|
-| B18 | **Lembretes ativos de tarefa** por push (`ESTUDO_LEMBRETES_TAREFA.md`); depende do plano da Vercel (Hobby só cron diário) | Decisão + Falta | Ambos | 3 dias |
+| B18 | **Lembretes ativos de tarefa** por push (`ESTUDO_LEMBRETES_TAREFA.md`, atualizado para a Vercel Hobby: `pg_cron` + `pg_net` no Supabase chamando uma rota protegida) | Decisão + Falta (estudo pronto; precisa de Trava A, `CRON_SECRET` e confirmação das extensões no painel do Supabase) | Ambos | 3 dias |
 | B19 | Distribuição de leads sem responsável (hoje só o proprietário recebe o aviso) | Decisão | Mário | — (escopo a definir) |
 | B20 | Contatos do Google, financiamento e agenda de visitas (estudos prontos) | Decisão | Mário | Pós-lançamento |
 | B21 | Reduzir a cópia de mensagens na Evolution/VPS (`RELATORIO_WHATSAPP_PESSOAL.md`) | Decisão | Ambos | A definir |
