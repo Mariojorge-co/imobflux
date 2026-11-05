@@ -143,6 +143,12 @@ Detalhes, números de desempenho, testes e roteiro em [RELATORIO_CONVERSAS_PACOT
 - **Conteúdo**: JID real do WhatsApp via `whatsappNumbers`; estado "enviada ao WhatsApp" (60 s); leitor do webhook tolerante (edição, exclusão, citação, reação); edição do celular via `edit_signal` + `findMessages`; reação única da conta; menu em portal; Editar/Apagar nas notas; responder com duplo clique na linha inteira (mouse) ou deslizando (toque) e foco no campo; vídeo/arquivo recebido até 50 MiB com aviso final e retry limitado; Sair dentro do menu no celular com confirmação.
 - **Atenção**: a avaliação no celular da edição do celular depende de a Evolution guardar o texto editado (ver relatório 3).
 
+## Reação de cliente — pronta localmente, NÃO publicada (branch `fix/reacao-cliente`, a partir da `origin/main` `60c0f00`)
+
+- **Estado**: commit local, sem push, sem deploy; migration `20260802006900_reaction_client_resolve.sql` aplicada **só** no banco local da cópia descartável; rollback em `docs/rollback/20260802006900_rollback.sql`. Pede **Trava A** (banco) e depois **Trava B** (app).
+- **Conteúdo**: A reação de CLIENTE era descartada (`unknown_reactor`, 10 de 10) porque `ingest_whatsapp_reaction` comparava o telefone por igualdade exata (JID de 12 dígitos x contato de 13). Migration `20260802006900` (CREATE OR REPLACE, retrocompatível): primeiro o contato da conversa individual (resolve `@lid`), depois o telefone com e sem o 9 (o mais antigo), só então `unknown_reactor`; log seguro de reação ignorada no webhook. pgTAP red→green (13 de 21 falham sem a migration; 49 arquivos / 1498 testes passam), 725 unitários (Node 22 e 24), build ok, 3 testes de navegador novos e suítes de mensagens/reações verdes. Auditoria de igualdade exata de telefone/JID no relatório (a ingestão normal e a de grupo ainda precisam da mesma tolerância antes de desligar "só cadastrados"). As 10 reações de teste se perderam: a pessoa reage de novo depois da publicação. Relatório: [RELATORIO_REACAO_CLIENTE.md](RELATORIO_REACAO_CLIENTE.md).
+- **Pendente**: "autorizo" das Travas A e B; mini reteste do Mário com a outra pessoa (seção 7 do relatório).
+
 ## Segurança 1 (Next.js 16.4.5) — pronta localmente, NÃO publicada (branch `fix/seguranca-next`, a partir da `main` `5c40366`)
 
 - **Estado**: commit local, sem push, sem deploy, **sem migration**; só `package.json` e `package-lock.json` (nenhum arquivo de `app/`, `components/` ou `lib/` mudou). Relatório: [RELATORIO_SEGURANCA_NEXT.md](RELATORIO_SEGURANCA_NEXT.md).

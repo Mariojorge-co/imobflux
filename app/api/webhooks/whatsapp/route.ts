@@ -6,7 +6,7 @@ import {
 } from "@/lib/conversations/webhook";
 
 import { importHistoryBatch } from "@/lib/conversations/history-import";
-import { webhookShapeLine } from "@/lib/conversations/webhook-shape";
+import { reactionIgnoredDiagnostics, webhookShapeLine } from "@/lib/conversations/webhook-shape";
 import { findEvolutionMessageText, logEvolutionAction } from "@/lib/supabase/gateway-actions";
 import { scheduleMediaDownload, storeAttachmentMediaWithRetry } from "@/lib/conversations/media-download";
 import { isMediaTooLarge } from "@/lib/conversations/media-types";
@@ -171,6 +171,11 @@ export async function POST(request: Request) {
       }
       const applied = actionResult as { status?: string; reason?: string } | null;
       console.log(`[webhook-event] ${result.status} aplicado status=${applied?.status ?? "?"} reason=${applied?.reason ?? "-"}`);
+      // Reação de cliente ignorada: só metadados sem dado pessoal (classe do sufixo, nº de dígitos, se o telefone alternativo veio).
+      if (result.status === "reaction" && applied?.status === "ignored") {
+        const rawKey = (body as { data?: { key?: unknown } } | null)?.data?.key;
+        console.log(`[webhook-event] reaction ignorada reason=${applied?.reason ?? "-"} from_me=${String(result.fromMe)} ${reactionIgnoredDiagnostics(rawKey, result.reactorJid)}`);
+      }
       return NextResponse.json(actionResult ?? { status: "success" }, { status: 200 });
     }
 

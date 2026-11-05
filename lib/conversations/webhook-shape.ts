@@ -40,3 +40,23 @@ export function webhookShapeLine(event: string, kind: string, data: unknown): st
   const safeKind = String(kind).replace(/[^a-zA-Z0-9._-]/g, "").slice(0, 40);
   return `[webhook-shape] event=${safeEvent} kind=${safeKind} shape=${shape.length > MAX_LENGTH ? `${shape.slice(0, MAX_LENGTH)}…` : shape}`;
 }
+
+/** Classe do sufixo de um JID, sem expor o número: "lid", "s.whatsapp.net", "g.us", "outro" ou "ausente". */
+export function jidSuffixClass(jid: unknown): string {
+  if (typeof jid !== "string" || !jid.includes("@")) return "ausente";
+  const suffix = jid.slice(jid.indexOf("@") + 1).toLowerCase();
+  if (suffix === "lid" || suffix === "s.whatsapp.net" || suffix === "g.us") return suffix;
+  return "outro";
+}
+
+/**
+ * Metadados de uma reação de cliente ignorada, para o log: nunca o número, o nome nem o emoji.
+ * Só a classe do sufixo do JID do reator, a quantidade de dígitos e se o telefone alternativo veio.
+ */
+export function reactionIgnoredDiagnostics(key: unknown, reactorJid: unknown): string {
+  const data = (key && typeof key === "object" ? key : {}) as { remoteJid?: unknown; remoteJidAlt?: unknown };
+  const reactor = typeof reactorJid === "string" ? reactorJid : "";
+  const digits = reactor.split("@")[0].replace(/\D/g, "").length;
+  const alt = typeof data.remoteJidAlt === "string" && data.remoteJidAlt.trim() !== "" ? "sim" : "nao";
+  return `sufixo_conversa=${jidSuffixClass(data.remoteJid)} sufixo_reator=${jidSuffixClass(reactor)} digitos_reator=${digits} alt_presente=${alt}`;
+}

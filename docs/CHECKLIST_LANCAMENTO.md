@@ -56,6 +56,7 @@
 | B20 | Contatos do Google, financiamento e agenda de visitas (estudos prontos) | Decisão | Mário | Pós-lançamento |
 | B21 | Reduzir a cópia de mensagens na Evolution/VPS (`RELATORIO_WHATSAPP_PESSOAL.md`) | Decisão | Ambos | A definir |
 | B22 | Atualizar `HANDOFF.md` (ainda descreve a Sprint 24) | Falta | CC | 1 h |
+| B26 | **Reação de cliente** (nono dígito e `@lid`): migration `006900` + log seguro (`RELATORIO_REACAO_CLIENTE.md`) | **Pronto localmente** (branch `fix/reacao-cliente`; pgTAP red→green, regressão verde) — **falta Trava A, Trava B** e o mini reteste com a outra pessoa. A auditoria do relatório lista onde a igualdade exata de telefone ainda existe (ingestão normal e de grupo): entra em B13 antes de desligar "só cadastrados" | CC / Mário | feito; Trava A + B ~40 min |
 
 ### Fase 5 — O dia do lançamento
 | # | Item | Status | Dono | Esforço |
