@@ -153,7 +153,7 @@ Detalhes, números de desempenho, testes e roteiro em [RELATORIO_CONVERSAS_PACOT
 
 - **Estado**: commits locais, sem push, sem deploy, **sem migration** (só Trava B). Relatório: [RELATORIO_SEGURANCA_2.md](RELATORIO_SEGURANCA_2.md).
 - **Conteúdo**: Cabeçalhos de segurança em todas as rotas (nosniff, Referrer-Policy, X-Frame-Options DENY + `frame-ancestors 'none'`, Permissions-Policy com microfone só do site; HSTS já vem da Vercel) e CSP completa **só em Report-Only** (nonce por requisição, endpoint `/api/csp-report` que registra só diretiva e origem); páginas 404/erro/erro global em português (44 px, AA); as 6 ações de conversa com erro do banco passam a devolver frase amigável e log só com o código; Diagnóstico de tela removido; varredura de segredos em todo o histórico (221 commits): nenhum segredo real, **mas o repositório é PÚBLICO**; estudo dos lembretes reescrito para a Vercel Hobby (`pg_cron` + `pg_net`). Verificações: 754 unitários (Node 22 e 24), build sem avisos novos, navegador novo 11/11 e **regressão de navegador parcial (21 de 45 arquivos, 0 falhas; o resto aguardava memória livre)**. Relatório: [RELATORIO_SEGURANCA_2.md](RELATORIO_SEGURANCA_2.md).
-- **Pendente**: terminar a regressão de navegador (24 arquivos aguardavam memória livre), capturar violações da CSP em modo produção, "autorizo" da Trava B e o mini reteste (seção 9 do relatório). **Decisão do Mário**: tornar o repositório privado (hoje é público).
+- **Pendente**: regressão de navegador concluída (45 arquivos; ver relatório); falta capturar violações da CSP em modo produção, "autorizo" da Trava B e o mini reteste (seção 9 do relatório). **Decisão do Mário**: tornar o repositório privado (hoje é público).
 
 ## Decisões de lançamento e estado real (05/11)
 

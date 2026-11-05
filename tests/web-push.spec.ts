@@ -224,6 +224,8 @@ test.describe("Web Push", () => {
     await dispatchPush(worker, payload);
     await expect.poll(async () => (await shownWithTag(worker, tag)).length).toBe(1);
     await page.goto("/contatos");
+    // A escuta da mensagem do aviso só existe depois da hidratação: espera a página terminar de carregar.
+    await page.waitForLoadState("networkidle");
     await worker.evaluate(async (wanted) => {
       const scope = self as unknown as WorkerScope;
       const [shown] = await scope.registration.getNotifications({ tag: wanted });
