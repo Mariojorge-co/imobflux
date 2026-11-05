@@ -143,13 +143,18 @@ Detalhes, números de desempenho, testes e roteiro em [RELATORIO_CONVERSAS_PACOT
 - **Conteúdo**: JID real do WhatsApp via `whatsappNumbers`; estado "enviada ao WhatsApp" (60 s); leitor do webhook tolerante (edição, exclusão, citação, reação); edição do celular via `edit_signal` + `findMessages`; reação única da conta; menu em portal; Editar/Apagar nas notas; responder com duplo clique na linha inteira (mouse) ou deslizando (toque) e foco no campo; vídeo/arquivo recebido até 50 MiB com aviso final e retry limitado; Sair dentro do menu no celular com confirmação.
 - **Atenção**: a avaliação no celular da edição do celular depende de a Evolution guardar o texto editado (ver relatório 3).
 
-## Reação de cliente — pronta localmente, NÃO publicada (branch `fix/reacao-cliente`, a partir da `origin/main` `60c0f00`)
+## Reação de cliente — PUBLICADA (migration `006900` em produção; app em `d406ec1`)
 
-- **Estado**: commit local, sem push, sem deploy; migration `20260802006900_reaction_client_resolve.sql` aplicada **só** no banco local da cópia descartável; rollback em `docs/rollback/20260802006900_rollback.sql`. Pede **Trava A** (banco) e depois **Trava B** (app).
+- **Estado**: migration `20260802006900_reaction_client_resolve.sql` aplicada em produção (Trava A) e app publicado em `d406ec1` (Trava B); CI verde nos dois jobs, Vercel Ready; validada com uma pessoa real. Rollback em `docs/rollback/20260802006900_rollback.sql`. Relatório: [RELATORIO_REACAO_CLIENTE.md](RELATORIO_REACAO_CLIENTE.md).
 - **Conteúdo**: A reação de CLIENTE era descartada (`unknown_reactor`, 10 de 10) porque `ingest_whatsapp_reaction` comparava o telefone por igualdade exata (JID de 12 dígitos x contato de 13). Migration `20260802006900` (CREATE OR REPLACE, retrocompatível): primeiro o contato da conversa individual (resolve `@lid`), depois o telefone com e sem o 9 (o mais antigo), só então `unknown_reactor`; log seguro de reação ignorada no webhook. pgTAP red→green (13 de 21 falham sem a migration; 49 arquivos / 1498 testes passam), 725 unitários (Node 22 e 24), build ok, 3 testes de navegador novos e suítes de mensagens/reações verdes. Auditoria de igualdade exata de telefone/JID no relatório (a ingestão normal e a de grupo ainda precisam da mesma tolerância antes de desligar "só cadastrados"). As 10 reações de teste se perderam: a pessoa reage de novo depois da publicação. Relatório: [RELATORIO_REACAO_CLIENTE.md](RELATORIO_REACAO_CLIENTE.md).
-- **Pendente**: "autorizo" das Travas A e B; mini reteste do Mário com a outra pessoa (seção 7 do relatório).
+- **Pendente**: a ingestão normal e a de grupo ainda comparam telefone por igualdade exata (nono dígito e `@lid`); resolver antes de desligar "só cadastrados" (B13).
 
-## Segurança 1 (Next.js 16.4.5) — PUBLICADA (main `60c0f00`, 04/11)
+## Decisões de lançamento e estado real (05/11)
+
+- Plano da Vercel: **Hobby** (cron só uma vez por dia). O número do WhatsApp é **pessoal**: o filtro "só cadastrados" deve continuar **ligado**; a auditoria (`RELATORIO_REACAO_CLIENTE.md`) mostra que desligá-lo exige antes resolver o nono dígito e o `@lid` na ingestão (itens B13 e B26).
+- Teste de banco `today_overview.test.sql` corrigido (horários fixos ao meio-dia de Maceió): a janela de 00:00 a 00:30 deixou de ser um risco para a publicação.
+
+## Segurança 1 (Next.js 16.4.5) — PUBLICADA (main `60c0f00`, 04/11), retestada em computador e celular
 
 - **Estado**: em produção (fast-forward da `fix/seguranca-next`), **sem migration**; só `package.json`, `package-lock.json` e documentação. Vercel Ready (47 s, Node 24.x, Next 16.4.5 Turbopack, sem aviso novo no build). Relatório: [RELATORIO_SEGURANCA_NEXT.md](RELATORIO_SEGURANCA_NEXT.md).
 - **CI**: job de lint/tipos/unitários/build verde. O job do banco falhou na primeira execução (03:10 UTC = 00:10 em Maceió) por flake de horário em `today_overview.test.sql` (3 de 20 asserções) e passou na reexecução às 03:32 UTC, sem mudar código.
@@ -163,7 +168,7 @@ Detalhes, números de desempenho, testes e roteiro em [RELATORIO_CONVERSAS_PACOT
 - **Conteúdo**: estabilização dos testes instáveis; estudos de `@lid`, exclusão de cliente, bloqueio de número, lembretes de tarefa, plano de backup da VPS e procedimento de lançamento da ingestão; auditoria pré-lançamento; checklist de lançamento.
 - **Pendente**: decisões do Mário listadas em cada estudo e no checklist.
 
-## Aviso de teste com atraso — pronto localmente, NÃO publicado (branch `fix/push-teste-atraso`, a partir da `main` `5e3a4c7`)
+## Aviso de teste com atraso e teste por aparelho — PUBLICADOS (main `ef87781`)
 
 - **Estado**: commit local, sem push e sem deploy; **sem migration** (só a Trava B). Detalhes e mini reteste de 1 minuto em [RELATORIO_WEB_PUSH.md](RELATORIO_WEB_PUSH.md).
 - **Conteúdo**: `POST /api/push/test` aceita `delaySeconds` (0, 10 ou 20; outro valor dá 400); com atraso responde 202 na hora e envia depois no servidor (`after()`), só ao aparelho que pediu; 1 teste pendente por aparelho e 5 s entre testes (429 amigável); `maxDuration` 30 s só nessa rota; botão "Enviar aviso de teste em 10 segundos"; na lista de aparelhos, "Testar este aparelho" (com a opção de 10 s) para qualquer aparelho ativo da própria pessoa, pedido pelo id (nunca por endpoint do cliente; aparelho de outra pessoa, inexistente ou desativado dá 404).
@@ -173,7 +178,7 @@ Detalhes, números de desempenho, testes e roteiro em [RELATORIO_CONVERSAS_PACOT
 
 - **Estado**: publicado em produção (main `5e3a4c7`, CI verde nos dois jobs, Vercel Ready); migration `20260802006800_web_push.sql` aplicada em produção; chaves VAPID cadastradas na Vercel (Production). Relatório: [RELATORIO_WEB_PUSH.md](RELATORIO_WEB_PUSH.md).
 - **Conteúdo**: tabela `push_subscriptions` (RLS por pessoa), função de destinatários só do servidor (responsável; sem responsável só o dono; sem prévia), envio em `after()` no webhook (melhor esforço, sem repetição, 404/410 desativa), rotas `/api/push/*`, `/sw-avisos.js` com push e clique, seção "Avisos neste aparelho" em Preferências; seção do Hoje renomeada para "Cadastros a completar".
-- **Pendente**: mini reteste em iPhone (iOS 16.4+, app instalado pelo Safari) e Android reais; decisões do estudo de Web Push.
+- **Validação**: **iPhone real validado** (ativar, testes e mensagem real recebida com o app fechado e a tela bloqueada). **Pendente**: Android real (item B1) e as decisões do estudo de Web Push.
 
 ## Hoje unificado — PUBLICADO (main `5518803`; branch `feat/hoje-unificado`, a partir da `main` `8db36b6`)
 

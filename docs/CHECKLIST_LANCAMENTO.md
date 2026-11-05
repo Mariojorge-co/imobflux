@@ -1,6 +1,6 @@
 # Checklist de lançamento
 
-> Consolidado a partir de `docs/ROADMAP.md`, `docs/STATUS_PROJETO.md` e dos estudos desta noite (`ESTUDO_LID`, `ESTUDO_EXCLUSAO_CLIENTE`, `ESTUDO_BLOQUEIO_NUMERO`, `ESTUDO_LEMBRETES_TAREFA`, `PLANO_BACKUP_VPS`, `PROCEDIMENTO_LANCAMENTO_INGESTAO`, `AUDITORIA_PRE_LANCAMENTO`). Estado conhecido em 2026-11: `main` em `ef87781`, Web Push, teste de push com atraso e Hoje unificado publicados.
+> Consolidado a partir de `docs/ROADMAP.md`, `docs/STATUS_PROJETO.md` e dos estudos desta noite (`ESTUDO_LID`, `ESTUDO_EXCLUSAO_CLIENTE`, `ESTUDO_BLOQUEIO_NUMERO`, `ESTUDO_LEMBRETES_TAREFA`, `PLANO_BACKUP_VPS`, `PROCEDIMENTO_LANCAMENTO_INGESTAO`, `AUDITORIA_PRE_LANCAMENTO`). Estado conhecido em 2026-11 (05/11): `main` em `d406ec1`; Web Push (validado em iPhone real), teste de push com atraso, Hoje unificado, Next.js 16.4.5 e a correção da reação de cliente publicados. Plano da Vercel: Hobby; número do WhatsApp pessoal (filtro "só cadastrados" continua ligado).
 >
 > **Status:** `Pronto` = feito e verificado; `Falta` = trabalho a fazer; `Decisão` = depende de escolha do Mário.
 > **Dono:** `CC` = Claude Code; `Mário`; `Ambos`.
@@ -22,7 +22,7 @@
 ### Fase 1 — Validar o que já está no ar (esta semana)
 | # | Item | Status | Dono | Esforço |
 |---|---|---|---|---|
-| B1 | **Mini reteste do Web Push** em iPhone (iOS 16.4+, app instalado pelo Safari) e Android: ativar, teste imediato, teste de 10 s, mensagem real com app fechado e tela bloqueada (roteiro em `RELATORIO_WEB_PUSH.md`) | Falta | Mário | 30 min |
+| B1 | **Mini reteste do Web Push** em iPhone (iOS 16.4+, app instalado pelo Safari) e Android: ativar, teste imediato, teste de 10 s, mensagem real com app fechado e tela bloqueada (roteiro em `RELATORIO_WEB_PUSH.md`) | **iPhone validado** (inclusive mensagem real com o app fechado e a tela bloqueada); **Android pendente** | Mário | 15 min (Android) |
 | B2 | Reteste do iPhone dos Ajustes 7 (campos sem zoom, sem faixa escura) e envio do texto do "Diagnóstico de tela" | Falta | Mário | 15 min |
 | B3 | Remover o **Diagnóstico de tela** temporário (`components/notifications/screen-diagnostics.tsx` e a seção em Preferências) depois de B2 | Falta | CC | 1 h |
 | B4 | Teste real do envio de arquivos (foto, PDF, vídeo, 24 MB, 26 MB recusado, .exe bloqueado) e do pacote de mensagens (editar/apagar/reagir vindos do celular) | Falta | Mário | 1 h |
@@ -31,7 +31,7 @@
 ### Fase 2 — Segurança e estabilidade (antes de abrir para clientes)
 | # | Item | Status | Dono | Esforço |
 |---|---|---|---|---|
-| B6 | **Atualizar o Next.js (16.4.5)** e dependências indiretas (`AUDITORIA_PRE_LANCAMENTO.md`, achado #1/#5) | **Publicado** (main `60c0f00`, 04/11; CI verde após reexecução do job do banco, Vercel Ready, smoke ok) — falta só o mini reteste do Mário (`RELATORIO_SEGURANCA_NEXT.md`). Flake de horário em `today_overview.test.sql` a corrigir em pacote pequeno | CC / Mário | feito |
+| B6 | **Atualizar o Next.js (16.4.5)** e dependências indiretas (`AUDITORIA_PRE_LANCAMENTO.md`, achado #1/#5) | **Publicado e retestado** em computador e celular (main `60c0f00`, 04/11; CI verde após reexecução do job do banco, Vercel Ready, smoke ok). O flake de horário de `today_overview.test.sql` foi **corrigido** | CC / Mário | feito |
 | B7 | Cabeçalhos de segurança (CSP em report-only) + páginas de erro/404 em português (achados #2/#8) | Falta | CC | 1 dia |
 | B8 | Mapear mensagens de erro do banco e log só com código (achados #4/#10) | Falta | CC | 0,5 dia |
 | B9 | Limite de taxa em anexos/exportação; conferir limites do Supabase Auth e que o cadastro aberto está desligado (achado #3) | Falta | Ambos | 1 dia + 15 min do Mário no painel |
@@ -55,8 +55,8 @@
 | B19 | Distribuição de leads sem responsável (hoje só o proprietário recebe o aviso) | Decisão | Mário | — (escopo a definir) |
 | B20 | Contatos do Google, financiamento e agenda de visitas (estudos prontos) | Decisão | Mário | Pós-lançamento |
 | B21 | Reduzir a cópia de mensagens na Evolution/VPS (`RELATORIO_WHATSAPP_PESSOAL.md`) | Decisão | Ambos | A definir |
-| B22 | Atualizar `HANDOFF.md` (ainda descreve a Sprint 24) | Falta | CC | 1 h |
-| B26 | **Reação de cliente** (nono dígito e `@lid`): migration `006900` + log seguro (`RELATORIO_REACAO_CLIENTE.md`) | **Pronto localmente** (branch `fix/reacao-cliente`; pgTAP red→green, regressão verde) — **falta Trava A, Trava B** e o mini reteste com a outra pessoa. A auditoria do relatório lista onde a igualdade exata de telefone ainda existe (ingestão normal e de grupo): entra em B13 antes de desligar "só cadastrados" | CC / Mário | feito; Trava A + B ~40 min |
+| B22 | Atualizar `HANDOFF.md` (descrevia a Sprint 24) | **Pronto** (atualizado em 04/11 e em 05/11) | CC | feito |
+| B26 | **Reação de cliente** (nono dígito e `@lid`): migration `006900` + log seguro (`RELATORIO_REACAO_CLIENTE.md`) | **Publicado** (migration em produção; app em `d406ec1`; validado com uma pessoa real). A auditoria do relatório lista onde a igualdade exata de telefone ainda existe (ingestão normal e de grupo): entra em B13 antes de desligar "só cadastrados" | CC / Mário | feito |
 
 ### Fase 5 — O dia do lançamento
 | # | Item | Status | Dono | Esforço |

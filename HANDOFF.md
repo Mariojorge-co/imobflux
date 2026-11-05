@@ -1,4 +1,4 @@
-# HANDOFF — ImobFlux (estado em 04/11/2026)
+# HANDOFF — ImobFlux (estado em 05/11/2026)
 
 Documento de retomada: o que está no ar, como trabalhar, como voltar depois de um reinício. A fonte detalhada continua sendo `docs/`.
 
@@ -17,7 +17,7 @@ CRM imobiliário B2B (SaaS) com WhatsApp integrado. Pilha: Next.js 16.4.5 (Turbo
 - App: `https://imobflux.vercel.app` (deploy automático a cada push na `main`).
 - Banco: projeto Supabase `imobflux-prod`. Migrations só entram com a Trava A.
 - Evolution: VPS com HTTPS, número de WhatsApp pareado, filtro "só números cadastrados" **ligado** (ver `docs/PROCEDIMENTO_LANCAMENTO_INGESTAO.md`).
-- `main` = `60c0f00` (Segurança 1: Next.js 16.4.5). CI verde nos dois jobs.
+- `main` = `d406ec1` (correção da reação de cliente; antes, `60c0f00`: Next.js 16.4.5). CI verde nos dois jobs.
 
 **Módulos no ar**: login/equipe/convites/papéis (OWNER e ATTENDANT); contatos e privacidade (protegidos); conversas, mídia, envio de arquivos, editar/apagar/reagir; respostas rápidas; Kanban comercial; tarefas; "Hoje" unificado com prazos/SLA; Web Push (migration `006800`, tela em Preferências, teste imediato/com atraso/por aparelho); app instalável; temas claro/escuro.
 
@@ -25,18 +25,19 @@ CRM imobiliário B2B (SaaS) com WhatsApp integrado. Pilha: Next.js 16.4.5 (Turbo
 
 | Pacote | Estado | Relatório |
 |---|---|---|
-| Segurança 1 (Next.js 16.2.12 → 16.4.5, `npm audit` 1 crítica + 7 altas → 0 + 0) | Publicado, `60c0f00`; falta o mini reteste do Mário | `docs/RELATORIO_SEGURANCA_NEXT.md` |
+| Reação de cliente (nono dígito e `@lid`; migration `20260802006900`) | Publicado: migration em produção e app em `d406ec1`; validado com uma pessoa real | `docs/RELATORIO_REACAO_CLIENTE.md` |
+| Segurança 1 (Next.js 16.2.12 → 16.4.5, `npm audit` 1 crítica + 7 altas → 0 + 0) | Publicado, `60c0f00`; retestado em computador e celular | `docs/RELATORIO_SEGURANCA_NEXT.md` |
 | Noite 2 (testes estabilizados, estudos, auditoria, checklist) | Publicado, `5c40366` | `docs/RELATORIO_NOITE_2.md` |
 | Aviso de teste com atraso e teste por aparelho | Publicado, `ef87781` | `docs/RELATORIO_WEB_PUSH.md` |
-| Web Push | Publicado, `5e3a4c7`; **falta reteste em iPhone/Android reais** | `docs/RELATORIO_WEB_PUSH.md` |
+| Web Push | Publicado, `5e3a4c7`; **iPhone real validado** (inclusive com o app fechado e a tela bloqueada); **Android pendente** | `docs/RELATORIO_WEB_PUSH.md` |
 | Hoje unificado, Ajustes 5/6/7, mensagens, arquivos/prazos | Publicados | `docs/RELATORIO_*.md` |
 
 ## 3. Pendências (resumo; a lista completa e a ordem estão no checklist)
 
-- **Mário**: mini reteste do Web Push (B1) e dos Ajustes 7 no iPhone (B2); teste real de arquivos e mensagens (B4); reteste da Segurança 1 (seção 7 do relatório); decisões listadas em cada `ESTUDO_*.md`.
-- **Pequenas, do CC**: corrigir o flake de horário de `supabase/tests/database/today_overview.test.sql` (usava `now() - N minutos` e falhou no CI às 00:10 em Maceió; correção já existe na branch local `fix/today-overview-teste`, sem push); remover o "Diagnóstico de tela" temporário depois de B2 (B3).
+- **Mário**: reteste do Web Push no Android (B1); teste real de arquivos e mensagens (B4); decisões listadas em cada `ESTUDO_*.md`.
+- **Pequenas, do CC**: remover o "Diagnóstico de tela" temporário (B3, o iPhone já está validado).
 - **Segurança**: cabeçalhos/CSP e páginas de erro (B7), mensagens de erro do banco (B8), limite de taxa (B9), backup da VPS (B10).
-- **Antes de desligar "só cadastrados"**: `@lid` e nono dígito (B13), bloqueio de número (B14), exclusão de cliente (B16).
+- **Antes de desligar "só cadastrados"** (continua **ligado**: o número é pessoal): `@lid` e nono dígito na ingestão normal e de grupo (B13; a auditoria está em `docs/RELATORIO_REACAO_CLIENTE.md`), bloqueio de número (B14), exclusão de cliente (B16).
 
 ## 4. Rotina de trabalho e Travas
 
@@ -45,7 +46,7 @@ CRM imobiliário B2B (SaaS) com WhatsApp integrado. Pilha: Next.js 16.4.5 (Turbo
 3. **Trava A = banco**: só quando há migration. Backup do Supabase antes, aplicar a migration em produção, conferir; depois a Trava B.
 4. **Trava B = app**: confirmar `main` == `origin/main` e árvore limpa; diff só do que se espera; lint, tipos, unitários em Node 22 e 24, build com variáveis fake de CI; merge **fast-forward only** + push (nunca `--force`); acompanhar o CI (`gh run watch`: jobs "Lint, tipos, testes unitários e build" e "Banco (migrations + pgTAP)"), o deploy (`vercel ls` até Ready) e o log de build; smoke **somente leitura** (`/login` 200, `/hoje` 307, `/prioridades` 308 para `/hoje`, `/preferencias` 307, `/sw-avisos.js` e `/manifest.webmanifest` 200, rotas de push sem login 401).
 5. Reversão: `git revert` do pacote, push e deploy automático (migration: script em `docs/rollback/`).
-6. Evitar publicar entre 00:00 e ~00:30 em Maceió enquanto o flake do `today_overview` não estiver corrigido.
+6. O flake de horário do `today_overview.test.sql` foi corrigido (horários fixos ao meio-dia de Maceió); não há mais janela proibida de publicação.
 
 **Regras permanentes**: nunca resetar/destruir a `main` nem o banco de produção; sem `git reset --hard`, `git clean`, `docker system prune`, remoção de volumes; encerrar processos só por PID (nunca todos os `node`); segredos nunca no chat, em commit ou em documento; não imprimir texto de mensagens de clientes; um navegador de teste por vez; não rodar dois lotes de teste no mesmo banco; não tocar na Evolution/VPS/webhook/instância do WhatsApp nem nas variáveis da Vercel sem ordem. Commits terminam com a linha `Co-Authored-By` do assistente; PRs com a linha "Generated with Claude Code".
 
@@ -70,6 +71,6 @@ CRM imobiliário B2B (SaaS) com WhatsApp integrado. Pilha: Next.js 16.4.5 (Turbo
 4. Conferir memória livre (menos de 2 GB: não iniciar regressão de navegador) e se sobrou servidor de teste na porta 3055 ou stack do Supabase de cópia descartável (`docker ps`); encerrar só o que for dos testes, por PID.
 5. Não aplicar nada em produção para "retomar": retomada é só preparar e reportar até chegar um "autorizo".
 
-## 7. Branches locais ainda não publicadas (04/11/2026)
+## 7. Plano da Vercel e número
 
-`docs/seguranca-publicada` (documentação da Segurança 1 publicada), `fix/today-overview-teste` (correção do flake de horário) e `docs/handoff-atualizado` (este documento). Nenhuma foi enviada ao GitHub. Branches antigas de pacotes já publicados podem ser apagadas depois de confirmadas na `main`.
+O plano é **Hobby** (cron da Vercel só uma vez por dia; os logs de execução guardam só 30 minutos). O número de WhatsApp pareado é **pessoal**.
