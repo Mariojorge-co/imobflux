@@ -19,6 +19,10 @@ const BY_MESSAGE: Array<[string, string]> = [
   ["note_not_authorized", "Você não tem permissão para fazer isso nesta nota."],
   ["note_not_found", "A nota não foi encontrada."],
   ["internal_note_content_empty", "A nota não pode ficar vazia nem passar de 4096 caracteres."],
+  ["group_visibility_not_authorized", "Você não tem permissão para alterar a privacidade deste grupo."],
+  ["contact_visibility_not_authorized", "Você não tem acesso a este contato."],
+  ["contact_display_name_invalid", "O nome do contato é inválido."],
+  ["resource_not_available", "Este item não está mais disponível."],
 ];
 
 type RpcErrorLike = { message?: string | null; code?: string | null };
@@ -27,8 +31,18 @@ type RpcErrorLike = { message?: string | null; code?: string | null };
 export function messageActionErrorText(error: RpcErrorLike): string {
   const text = error.message ?? "";
   for (const [code, phrase] of BY_MESSAGE) if (text.includes(code)) return phrase;
+  // Categorias do Postgres quando o código de negócio não está na lista: nunca a mensagem bruta do banco.
   if (error.code === "42501") return "Você não tem permissão para fazer isso.";
+  if (error.code === "P0002") return "O item não foi encontrado. Atualize a página e tente de novo.";
+  if (error.code === "23505") return "Isso já existe.";
+  if (error.code === "22023" || error.code === "23514" || error.code === "23503") return "Os dados enviados não são válidos. Confira e tente de novo.";
   return "Não foi possível concluir a ação. Tente de novo.";
+}
+
+/** Código curto e seguro de um erro (do Postgres/Supabase ou do JavaScript) para o log do servidor. Nunca a mensagem, o telefone ou o texto. */
+export function safeErrorCode(error: unknown): string {
+  const code = (error as { code?: unknown } | null | undefined)?.code;
+  return typeof code === "string" && /^[A-Za-z0-9_.-]{1,40}$/.test(code) ? code : "desconhecido";
 }
 
 /**

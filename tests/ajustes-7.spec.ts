@@ -4,7 +4,7 @@ import { loginAsDemoOwner, resetAndLoadDemoMode } from "./helpers/local-test-sta
 import { ingestText } from "./helpers/webhook";
 
 // Ajustes 7 — (A) todo campo do app com 16 px computados no celular (iOS dá zoom com menos que isso), (B) sem faixa de outra cor
-// abaixo da caixa de mensagem no app instalado (standalone), (C) painel de diagnóstico de tela (temporário).
+// abaixo da caixa de mensagem no app instalado (standalone). (O painel de diagnóstico de tela, item C, foi removido no pacote Segurança 2.)
 // Chrome com toque emula tamanho e toque; o iPhone real confirma o resto (ver docs/RELATORIO_AJUSTES_7.md).
 
 const JID = "5582988887701@s.whatsapp.net";
@@ -273,57 +273,6 @@ test.describe("Ajustes 7", () => {
     expect(rule.hasClass).toBe(true);
     const css = await page.evaluate(() => [...document.styleSheets].flatMap((sheet) => { try { return [...sheet.cssRules].map((r) => r.cssText); } catch { return []; } }).join("\n"));
     expect(css).toMatch(/\.composer-safe[^}]*safe-area-inset-bottom/);
-    await context.close();
-  });
-
-  // ─── C: diagnóstico de tela (temporário) ────────────────────────────────────────────────────────────────────────────
-  test("C: Preferências tem o diagnóstico de tela recolhido; abre, mostra os números e copia sem enviar nada a servidor", async ({ browser }) => {
-    test.setTimeout(180_000);
-    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, permissions: ["clipboard-read", "clipboard-write"] });
-    const page = await context.newPage();
-    await loginAsDemoOwner(page);
-    await page.goto("/preferencias");
-    const section = page.getByTestId("screen-diagnostics");
-    await expect(section).toBeVisible();
-    expect(await section.evaluate((element) => (element as HTMLDetailsElement).open), "começa recolhido").toBe(false);
-    await expect(page.getByTestId("screen-diag-list").locator("dt")).toHaveCount(0);
-
-    await section.locator("summary").tap();
-    const list = page.getByTestId("screen-diag-list");
-    await expect(list.locator("dt").first()).toBeVisible();
-    for (const label of [
-      "Janela (innerWidth x innerHeight)",
-      "visualViewport (largura x altura, zoom, offsetTop)",
-      "Tela (screen.width x height)",
-      "devicePixelRatio",
-      "navigator.standalone (iOS)",
-      "display-mode: standalone",
-      "Áreas seguras env(safe-area-inset-*)",
-      "Fonte de um campo como a caixa de mensagem",
-      "Fonte de um campo como a busca",
-      "Documento: scrollHeight / clientHeight",
-      "Fundo do html",
-      "Fundo do body",
-      "User agent",
-    ]) {
-      await expect(list.locator(`[data-diag-label="${label}"]`), label).toBeVisible();
-    }
-    // Os campos de teste medidos pela seção também têm 16px (a regra vale para eles).
-    await expect(list.locator('[data-diag-label="Fonte de um campo como a caixa de mensagem"]')).toHaveText("16px");
-    await expect(list.locator('[data-diag-label="Fonte de um campo como a busca"]')).toHaveText("16px");
-    await expect(list.locator('[data-diag-label="Janela (innerWidth x innerHeight)"]')).toHaveText("390 x 844");
-
-    // "Copiar": nenhuma requisição sai (nada vai a servidor) e o texto copiado traz os números.
-    const requests: string[] = [];
-    page.on("request", (request) => requests.push(request.url()));
-    await page.getByTestId("screen-diag-copy").tap();
-    await expect(page.getByTestId("screen-diag-copied")).toHaveText("Copiado.");
-    const copied = await page.evaluate(() => navigator.clipboard.readText());
-    expect(copied).toContain("diagnóstico de tela (temporário)");
-    expect(copied).toContain("Janela (innerWidth x innerHeight): 390 x 844");
-    expect(copied).toContain("User agent:");
-    expect(copied).not.toMatch(/Mensagem do cliente/);
-    expect(requests.filter((url) => !url.startsWith("data:") && !url.startsWith("blob:"))).toEqual([]);
     await context.close();
   });
 });

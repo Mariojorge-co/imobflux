@@ -28,6 +28,7 @@ import * as gatewayModule from "@/lib/supabase/gateway";
 import { resolveSendInstance } from "@/lib/conversations/send-instance";
 import { classifyGatewayOutcome } from "@/lib/conversations/gateway-outcome";
 import { assignmentErrorMessage } from "@/lib/conversations/assignment";
+import { messageActionErrorText, safeErrorCode } from "@/lib/conversations/message-action-errors";
 import { attachReply } from "@/lib/conversations/reply";
 import { taskErrorMessage } from "@/lib/tasks/model";
 import * as mediaModule from "@/lib/conversations/media-download";
@@ -225,12 +226,15 @@ export async function setConversationArchivedAction(
       p_conversation_id: conversationId,
       p_archived: archived,
     });
-    if (error) return { success: false, error: error.message };
+    if (error) {
+      console.error("Erro ao alterar arquivamento da conversa (código):", safeErrorCode(error));
+      return { success: false, error: messageActionErrorText(error) };
+    }
     revalidatePath("/conversas");
     if (!archived) revalidatePath(`/conversas/${conversationId}`);
     return { success: true };
   } catch (error) {
-    console.error("Erro ao alterar arquivamento da conversa:", error);
+    console.error("Erro ao alterar arquivamento da conversa (código):", safeErrorCode(error));
     return { success: false, error: "Falha ao alterar arquivamento." };
   }
 }
@@ -264,11 +268,15 @@ export async function setGroupTeamVisibilityAction(
       p_conversation_id: conversationId,
       p_team_visible: teamVisible,
     });
-    if (error) return { success: false, error: error.message };
+    if (error) {
+      console.error("Erro ao alterar privacidade do grupo (código):", safeErrorCode(error));
+      return { success: false, error: messageActionErrorText(error) };
+    }
     revalidatePath("/conversas");
     revalidatePath(`/conversas/${conversationId}`);
     return { success: true };
-  } catch {
+  } catch (error) {
+    console.error("Erro ao alterar privacidade do grupo (código):", safeErrorCode(error));
     return { success: false, error: "Falha ao alterar privacidade do grupo." };
   }
 }
@@ -623,14 +631,15 @@ export async function markConversationUnreadAction(
     });
 
     if (error) {
-      return { success: false, error: error.message };
+      console.error("Erro em markConversationUnreadAction (código):", safeErrorCode(error));
+      return { success: false, error: messageActionErrorText(error) };
     }
 
     revalidatePath(`/conversas/${conversationId}`);
     revalidatePath("/conversas");
     return { success: true };
   } catch (err) {
-    console.error("Erro em markConversationUnreadAction:", err);
+    console.error("Erro em markConversationUnreadAction (código):", safeErrorCode(err));
     return { success: false, error: "Falha ao atualizar estado de leitura." };
   }
 }
@@ -646,11 +655,12 @@ export async function markConversationReadOnOpenAction(
       p_unread: false,
     });
 
+    if (error) console.error("Erro em markConversationReadOnOpenAction (código):", safeErrorCode(error));
     return error
-      ? { success: false, error: error.message }
+      ? { success: false, error: messageActionErrorText(error) }
       : { success: true };
   } catch (err) {
-    console.error("Erro em markConversationReadOnOpenAction:", err);
+    console.error("Erro em markConversationReadOnOpenAction (código):", safeErrorCode(err));
     return { success: false, error: "Falha ao atualizar estado de leitura." };
   }
 }
@@ -677,7 +687,8 @@ export async function saveInternalNoteAction(
     });
 
     if (error) {
-      return { success: false, error: error.message };
+      console.error("Erro em saveInternalNoteAction (código):", safeErrorCode(error));
+      return { success: false, error: messageActionErrorText(error) };
     }
 
     revalidatePath(`/conversas/${conversationId}`);
@@ -691,7 +702,7 @@ export async function saveInternalNoteAction(
       note: result?.note,
     };
   } catch (err) {
-    console.error("Erro em saveInternalNoteAction:", err);
+    console.error("Erro em saveInternalNoteAction (código):", safeErrorCode(err));
     return { success: false, error: "Falha ao salvar nota interna." };
   }
 }
@@ -845,7 +856,8 @@ export async function updateQualificationAction(input: {
     });
 
     if (error) {
-      return { success: false, error: error.message };
+      console.error("Erro em updateQualificationAction (código):", safeErrorCode(error));
+      return { success: false, error: messageActionErrorText(error) };
     }
 
     if (input.conversationId) {
@@ -854,7 +866,7 @@ export async function updateQualificationAction(input: {
     revalidatePath("/kanban");
     return { success: true };
   } catch (err) {
-    console.error("Erro em updateQualificationAction:", err);
+    console.error("Erro em updateQualificationAction (código):", safeErrorCode(err));
     return { success: false, error: "Falha ao atualizar dados de qualificação." };
   }
 }

@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import { GeistSans } from "geist/font/sans";
 import "./globals.css";
 import { FieldFontGuard } from "@/components/field-font-guard";
@@ -25,17 +26,19 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // O proxy gera o nonce da CSP (modo Report-Only) por requisição; o script de tema inline o usa.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     // suppressHydrationWarning: o script abaixo põe a classe `dark` no <html> antes da hidratação (sem piscar o tema).
     <html className={GeistSans.className} lang="pt-BR" suppressHydrationWarning>
       <head>
         <meta content="light dark" name="color-scheme" />
-        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} nonce={nonce} />
       </head>
       <body>
         <FieldFontGuard />

@@ -17,8 +17,15 @@ function isPrivatePath(pathname: string) {
   );
 }
 
-export async function refreshSession(request: NextRequest) {
-  let response = NextResponse.next({ request });
+export async function refreshSession(request: NextRequest, extraRequestHeaders?: Record<string, string>) {
+  // Cabeçalhos extras repassados à renderização (ex.: o nonce da CSP). Sem eles, o comportamento é o de sempre.
+  const forwarded = () => {
+    if (!extraRequestHeaders) return NextResponse.next({ request });
+    const headers = new Headers(request.headers);
+    for (const [name, value] of Object.entries(extraRequestHeaders)) headers.set(name, value);
+    return NextResponse.next({ request: { headers } });
+  };
+  let response = forwarded();
   const { clientKey, url } = getPublicSupabaseConfig();
 
   const supabase = createServerClient<Database>(url, clientKey, {
@@ -31,7 +38,7 @@ export async function refreshSession(request: NextRequest) {
           request.cookies.set(name, value);
         });
 
-        response = NextResponse.next({ request });
+        response = forwarded();
 
         cookiesToSet.forEach(({ name, options, value }) => {
           response.cookies.set(name, value, options);

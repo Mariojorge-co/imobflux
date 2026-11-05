@@ -1,7 +1,6 @@
 import { Card, PageContainer, PageHeader, SectionTitle } from "@/components/ui";
 import { NotificationSettings } from "@/components/notifications/notification-settings";
 import { PushSettings } from "@/components/notifications/push-settings";
-import { ScreenDiagnostics } from "@/components/notifications/screen-diagnostics";
 import { ThemeChooser } from "@/components/theme-controls";
 import { requireActiveAccess } from "@/lib/auth/dal";
 import { readVapidConfig } from "@/lib/push/config";
@@ -33,13 +32,6 @@ export default async function PreferenciasPage() {
         <SectionTitle id="avisos-aparelho">Avisos neste aparelho</SectionTitle>
         <Card>
           <PushSettings publicKey={pushPublicKey} />
-        </Card>
-      </section>
-      {/* TEMPORÁRIO (Ajustes 7): números da tela do aparelho para diagnosticar zoom e faixa de baixo no iPhone. Remover depois. */}
-      <section aria-labelledby="diagnostico-tela" className="space-y-3">
-        <SectionTitle id="diagnostico-tela">Diagnóstico de tela</SectionTitle>
-        <Card>
-          <ScreenDiagnostics />
         </Card>
       </section>
     </PageContainer>
