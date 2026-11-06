@@ -36,7 +36,7 @@ CRM imobiliário B2B (SaaS) com WhatsApp integrado. Pilha: Next.js 16.4.5 (Turbo
 
 - **Mário**: reteste do Web Push no Android (B1); teste real de arquivos e mensagens (B4); decisões listadas em cada `ESTUDO_*.md`.
 - **Pequenas, do CC**: nenhuma aberta. O Diagnóstico de tela foi removido no pacote Segurança 2.
-- **Segurança**: o pacote Segurança 2 (cabeçalhos + CSP Report-Only, erros em português, mensagens amigáveis, varredura de segredos) está pronto localmente na branch `chore/seguranca-2` e aguarda a Trava B; falta o limite de taxa (B9) e o backup da VPS (B10). **O repositório do GitHub é público**: decidir se vira privado.
+- **Segurança**: o pacote Segurança 2 está PUBLICADO (main `92b66a7`, 06/11). Pendências: nonce da CSP em produção (B27), clique do aviso com página hidratando (B28), repositório do GitHub público (B29), limite de taxa (B9) e backup da VPS (B10).
 - **Antes de desligar "só cadastrados"** (continua **ligado**: o número é pessoal): `@lid` e nono dígito na ingestão normal e de grupo (B13; a auditoria está em `docs/RELATORIO_REACAO_CLIENTE.md`), bloqueio de número (B14), exclusão de cliente (B16).
 
 ## 4. Rotina de trabalho e Travas
