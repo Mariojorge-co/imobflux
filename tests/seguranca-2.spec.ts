@@ -49,7 +49,8 @@ test.describe("Segurança 2: cabeçalhos e CSP em Report-Only", () => {
       expect(headers["x-content-type-options"], path).toBe("nosniff");
       expect(headers["referrer-policy"], path).toBe("strict-origin-when-cross-origin");
       expect(headers["x-frame-options"], path).toBe("DENY");
-      expect(headers["content-security-policy"], path).toBe("frame-ancestors 'none'");
+      // Uma única CSP (Report-Only, no proxy); nunca um Content-Security-Policy aplicado (B27).
+      expect(headers["content-security-policy"], path).toBeUndefined();
       expect(headers["permissions-policy"], path).toContain("microphone=(self)");
       expect(headers["permissions-policy"], path).toContain("camera=()");
       // HSTS é da Vercel (não existe em localhost): o app não envia.
@@ -59,8 +60,14 @@ test.describe("Segurança 2: cabeçalhos e CSP em Report-Only", () => {
     const report = login.headers()["content-security-policy-report-only"];
     expect(report).toContain("script-src 'self' 'nonce-");
     expect(report).toContain("report-uri /api/csp-report");
-    // Nada de CSP bloqueante com scripts: a única política aplicada é a de frame-ancestors.
-    expect(login.headers()["content-security-policy"]).not.toContain("script-src");
+    // Nada de CSP bloqueante: só existe a Report-Only.
+    expect(login.headers()["content-security-policy"]).toBeUndefined();
+    // B27: todo <script> da página recebe o nonce da requisição (os do próprio Next também), senão o relatório enche de falsos avisos.
+    const nonce = /'nonce-([^']+)'/.exec(report ?? "")?.[1] ?? "";
+    expect(nonce).not.toBe("");
+    const tags = [...(await login.text()).matchAll(/<script\b[^>]*>/g)].map((m) => m[0]);
+    expect(tags.length).toBeGreaterThan(3);
+    expect(tags.filter((tag) => !tag.includes(`nonce="${nonce}"`))).toEqual([]);
   });
 
   test("endpoint de relatório: 204 sempre, ignora lixo, corpo grande e não registra conteúdo", async ({ request }) => {

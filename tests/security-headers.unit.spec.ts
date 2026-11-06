@@ -16,8 +16,9 @@ test.describe("cabeçalhos de segurança", () => {
     expect(headers["x-content-type-options"]).toBe("nosniff");
     expect(headers["referrer-policy"]).toBe("strict-origin-when-cross-origin");
     expect(headers["x-frame-options"]).toBe("DENY");
-    // A única diretiva aplicada da CSP é frame-ancestors; a política completa fica em Report-Only.
-    expect(headers["content-security-policy"]).toBe("frame-ancestors 'none'");
+    // Nenhum Content-Security-Policy fixo: ele esconderia a Report-Only (com o nonce) de onde o Next lê o nonce (B27).
+    expect(Object.keys(headers)).not.toContain("content-security-policy");
+    expect(Object.keys(headers)).not.toContain("content-security-policy-report-only");
     expect(headers["permissions-policy"]).toBe(PERMISSIONS_POLICY);
     // HSTS já vem da Vercel: não duplicar.
     expect(Object.keys(headers)).not.toContain("strict-transport-security");

@@ -33,10 +33,10 @@ export function staticSecurityHeaders(): HeaderEntry[] {
   return [
     { key: "X-Content-Type-Options", value: "nosniff" },
     { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-    // Dois mecanismos para o mesmo fim: X-Frame-Options (navegadores antigos) e frame-ancestors (CSP; ver o relatório da política).
+    // Anti-enquadramento aplicado: X-Frame-Options DENY. NÃO existe cabeçalho Content-Security-Policy fixo aqui: na Vercel ele
+    // ficava na frente da política Report-Only e o Next, que lê o nonce do primeiro dos dois, deixava de pôr o nonce nos próprios
+    // scripts (B27). A CSP é uma só, Report-Only, montada no proxy.ts com o nonce da requisição.
     { key: "X-Frame-Options", value: "DENY" },
-    // Única diretiva da CSP que é aplicada (não só relatada): equivale ao X-Frame-Options DENY. A política completa é Report-Only.
-    { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
     { key: "Permissions-Policy", value: PERMISSIONS_POLICY },
   ];
 }
