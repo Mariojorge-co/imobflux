@@ -48,7 +48,7 @@ test.describe("Segurança 2: cabeçalhos e CSP em Report-Only", () => {
       const headers = response.headers();
       expect(headers["x-content-type-options"], path).toBe("nosniff");
       expect(headers["referrer-policy"], path).toBe("strict-origin-when-cross-origin");
-      expect(headers["x-frame-options"], path).toBe("DENY");
+      expect(headers["x-frame-options"], path).toBe("SAMEORIGIN");
       // Uma única CSP (Report-Only, no proxy); nunca um Content-Security-Policy aplicado (B27).
       expect(headers["content-security-policy"], path).toBeUndefined();
       expect(headers["permissions-policy"], path).toContain("microphone=(self)");

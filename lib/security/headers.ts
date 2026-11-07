@@ -33,10 +33,10 @@ export function staticSecurityHeaders(): HeaderEntry[] {
   return [
     { key: "X-Content-Type-Options", value: "nosniff" },
     { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-    // Anti-enquadramento aplicado: X-Frame-Options DENY. NÃO existe cabeçalho Content-Security-Policy fixo aqui: na Vercel ele
+    // Anti-enquadramento aplicado: X-Frame-Options SAMEORIGIN (o visualizador de PDF enquadra /api/attachments no próprio site; DENY bloqueava até isso). Terceiros continuam sem poder embutir o app. NÃO existe cabeçalho Content-Security-Policy fixo aqui: na Vercel ele
     // ficava na frente da política Report-Only e o Next, que lê o nonce do primeiro dos dois, deixava de pôr o nonce nos próprios
     // scripts (B27). A CSP é uma só, Report-Only, montada no proxy.ts com o nonce da requisição.
-    { key: "X-Frame-Options", value: "DENY" },
+    { key: "X-Frame-Options", value: "SAMEORIGIN" },
     { key: "Permissions-Policy", value: PERMISSIONS_POLICY },
   ];
 }
@@ -92,7 +92,7 @@ export function buildCspReportOnly(options: { nonce: string; supabaseUrl?: strin
     ["object-src", ["'none'"]],
     ["base-uri", ["'self'"]],
     ["form-action", ["'self'"]],
-    ["frame-ancestors", ["'none'"]],
+    ["frame-ancestors", ["'self'"]],
     ["report-uri", [CSP_REPORT_PATH]],
   ];
   return directives.map(([name, values]) => `${name} ${values.join(" ")}`).join("; ");

@@ -15,7 +15,7 @@ test.describe("cabeçalhos de segurança", () => {
     const headers = Object.fromEntries(staticSecurityHeaders().map((h) => [h.key.toLowerCase(), h.value]));
     expect(headers["x-content-type-options"]).toBe("nosniff");
     expect(headers["referrer-policy"]).toBe("strict-origin-when-cross-origin");
-    expect(headers["x-frame-options"]).toBe("DENY");
+    expect(headers["x-frame-options"]).toBe("SAMEORIGIN");
     // Nenhum Content-Security-Policy fixo: ele esconderia a Report-Only (com o nonce) de onde o Next lê o nonce (B27).
     expect(Object.keys(headers)).not.toContain("content-security-policy");
     expect(Object.keys(headers)).not.toContain("content-security-policy-report-only");
@@ -58,7 +58,7 @@ test.describe("cabeçalhos de segurança", () => {
     expect(csp).toContain("worker-src 'self'");
     expect(csp).toContain("manifest-src 'self'");
     expect(csp).toContain("object-src 'none'");
-    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).toContain("frame-ancestors 'self'");
     expect(csp).toContain(`report-uri ${CSP_REPORT_PATH}`);
   });
 
